@@ -1,0 +1,39 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "drapeproof-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-07-17",
+  "workers_dev": true,
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  },
+  "vars": {
+    "VTO_PROVIDER": "scarf",
+    "CREDIT_FLOOR": "300",
+    "UNIT_BUDGET": "1000",
+    "UNIT_BUDGET_ID": "hackathon-2026",
+    "SESSION_TTL_SECONDS": "1800",
+    "ALLOWED_ORIGINS": "",
+    "RATE_LIMIT_SESSION": "5",
+    "RATE_LIMIT_UPLOAD": "20",
+    "RATE_LIMIT_TASK": "10",
+    "RATE_LIMIT_POLL": "60",
+    "MAX_TASKS_PER_DAY": "40"
+  },
+  "durable_objects": {
+    "bindings": [
+      { "name": "PAID_TASK_LEDGER", "class_name": "PaidTaskLedger" }
+    ]
+  },
+  "migrations": [
+    { "tag": "v1-paid-task-ledger", "new_sqlite_classes": ["PaidTaskLedger"] }
+  ]
+  // Create one KV namespace and one private R2 Standard bucket before deployment.
+  // "kv_namespaces": [
+  //   { "binding": "DRAPEPROOF_STATE", "id": "<STATE_KV_NAMESPACE_ID>" }
+  // ],
+  // "r2_buckets": [
+  //   { "binding": "IMAGE_STORE", "bucket_name": "drapeproof-private-images" }
+  // ]
+}

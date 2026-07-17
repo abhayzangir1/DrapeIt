@@ -1,0 +1,13 @@
+YOUCAM_API_KEY=replace-with-dashboard-api-key
+# Required in every environment. The Worker fails closed when this is missing or shorter than 8 characters.
+JUDGE_ACCESS_CODE=replace-with-a-judge-code
+# Recommended independent signing secret. If absent, an HMAC key is derived from YOUCAM_API_KEY.
+SESSION_SECRET=replace-with-a-long-random-secret
+# Comma-separated HTTPS web origins. Native Android requests have no Origin header.
+ALLOWED_ORIGINS=http://localhost:5173
+
+# Scarf is the default provider. Set a secure default gender or send it per task.
+VTO_PROVIDER=scarf
+# SCARF_DEFAULT_GENDER=female
+# Optional direct-URL demo hosts; private mobile uploads use IMAGE_STORE instead.
+# SCARF_ALLOWED_IMAGE_HOSTS=assets.example.com,*.pages.dev

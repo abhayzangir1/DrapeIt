@@ -1,0 +1,30 @@
+# Local Codex/browser state
+.playwright-cli/
+work/
+outputs/
+
+# Android/Gradle
+**/.gradle/
+**/build/
+android/local.properties
+*.jks
+*.keystore
+
+# Node/Cloudflare
+**/node_modules/
+**/.wrangler/
+**/.dev.vars
+*.log
+
+# Secrets and local environment
+.env
+.env.*
+!.env.example
+local.properties
+
+# IDE/OS
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db

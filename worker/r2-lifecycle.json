@@ -1,0 +1,17 @@
+{
+  "rules": [
+    {
+      "id": "expire-drapeproof-media-24h",
+      "enabled": true,
+      "conditions": {
+        "prefix": "media/"
+      },
+      "deleteObjectsTransition": {
+        "condition": {
+          "type": "Age",
+          "maxAge": 86400
+        }
+      }
+    }
+  ]
+}

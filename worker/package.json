@@ -1,0 +1,23 @@
+{
+  "name": "drapeproof-worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "r2:lifecycle": "wrangler r2 bucket lifecycle set drapeproof-private-images --file r2-lifecycle.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260717.1",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10",
+    "wrangler": "^4.112.0"
+  },
+  "dependencies": {
+    "zod": "^4.4.3"
+  }
+}
