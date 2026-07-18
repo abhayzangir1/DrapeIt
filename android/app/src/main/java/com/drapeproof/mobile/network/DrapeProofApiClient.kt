@@ -14,6 +14,9 @@ data class HealthStatus(
     val version: String,
     val vtoProvider: String,
     val vtoProviderConfigured: Boolean,
+    val accessGateConfigured: Boolean,
+    val stateStoreConfigured: Boolean,
+    val paidLedgerConfigured: Boolean,
 )
 
 data class CreditStatus(
@@ -77,12 +80,19 @@ class DrapeProofApiException(
  */
 class DrapeProofApiClient(
     baseUrl: String = BuildConfig.API_BASE_URL,
+    buildCloudConfigured: Boolean = BuildConfig.CLOUD_CONFIGURED,
 ) {
     private val origin = baseUrl.trimEnd('/')
+    private val originUri = URI(origin)
+    val serviceHost: String = buildString {
+        append(originUri.host ?: origin)
+        if (originUri.port >= 0) append(":${originUri.port}")
+    }
+    val cloudConfigured: Boolean = buildCloudConfigured && CloudConnectionPolicy.isConfiguredOrigin(origin)
     @Volatile private var sessionToken: String? = null
 
     init {
-        require(origin.startsWith("https://") || origin.startsWith("http://10.0.2.2")) {
+        require(CloudConnectionPolicy.isAllowedRuntimeOrigin(origin)) {
             "The API origin must use HTTPS (the emulator loopback is allowed for local development)"
         }
     }
@@ -95,13 +105,17 @@ class DrapeProofApiClient(
             version = response.json.optString("version", "unknown"),
             vtoProvider = response.json.optString("vtoProvider", "unknown"),
             vtoProviderConfigured = response.json.optBoolean("vtoProviderConfigured", false),
+            accessGateConfigured = response.json.optBoolean("accessGateConfigured", false),
+            stateStoreConfigured = response.json.optBoolean("stateStoreConfigured", false),
+            paidLedgerConfigured = response.json.optBoolean("paidLedgerConfigured", false),
         )
     }
 
-    fun createSession(accessCode: String? = null): Long {
-        val body = JSONObject().apply {
-            if (!accessCode.isNullOrBlank()) put("accessCode", accessCode)
+    fun createSession(accessCode: String): Long {
+        require(CloudConnectionPolicy.isAccessCodeValid(accessCode)) {
+            "The access code must contain at least 8 characters."
         }
+        val body = JSONObject().put("accessCode", accessCode.trim())
         val response = request("POST", "/v1/session", body, authenticated = false)
         sessionToken = response.json.getString("token")
         return response.json.getLong("expiresInSeconds")
@@ -202,9 +216,9 @@ class DrapeProofApiClient(
         require(provider == "scarf" || provider == "clothes") { "Unsupported VTO provider" }
         val body = JSONObject().put("operationId", operationId).put("sourceFileId", sourceFileId)
         if (provider == "scarf") {
-            require(referenceFileId != null && templateId == null) { "Scarf VTO requires a reference image" }
+            require(referenceFileId != null && templateId == null) { "The selected VTO provider requires a reference image" }
             require(gender == "female" || gender == "male") { "Unsupported VTO gender" }
-            require(style in VTO_STYLES) { "Unsupported scarf style" }
+            require(style in VTO_STYLES) { "Unsupported apparel drape style" }
             body
                 .put("referenceFileId", referenceFileId)
                 .put("gender", gender)

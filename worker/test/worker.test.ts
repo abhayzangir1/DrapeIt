@@ -296,10 +296,18 @@ describe("health, CORS, and sessions", () => {
     expect(await missingState.json()).toMatchObject({ error: { code: "state_store_not_configured" } });
   });
 
-  it("rejects tampered and missing sessions", async () => {
+  it("rejects non-canonically encoded and missing sessions", async () => {
     const envValue = env();
     const valid = await auth(envValue);
-    const tampered = `${valid.slice(0, -1)}x`;
+    const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+    const finalIndex = alphabet.indexOf(valid.at(-1) ?? "");
+    const alias = alphabet[finalIndex + 1];
+    if (finalIndex < 0 || finalIndex % 4 !== 0 || !alias) {
+      throw new Error("The issued HMAC did not have canonical 32-byte base64url encoding.");
+    }
+    // A permissive decoder ignores the last character's two unused bits, so this alternate
+    // spelling decodes to the same HMAC bytes. The serialized token must still fail closed.
+    const tampered = `${valid.slice(0, -1)}${alias}`;
     const handler = createHandler();
 
     expect((await request(handler, envValue, "/v1/credits")).status).toBe(401);

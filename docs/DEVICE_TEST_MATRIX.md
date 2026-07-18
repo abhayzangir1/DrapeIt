@@ -11,12 +11,12 @@ Do not copy assumed specifications from marketing pages into results. Record the
 
 | Gate | Command | Last observed result |
 |---|---|---|
-| Core math/policy tests | `cd android; .\gradlew.bat :core:test --rerun-tasks` | Passed 2026-07-17; 30 `@Test` methods present |
-| Android build + tests | `cd android; .\gradlew.bat :core:test :app:testDebugUnitTest :app:assembleDebug` | Passed 2026-07-17; 39/39 tests (30 core + 9 app); debug APK 70,864,839 bytes |
-| Android lint | `cd android; .\gradlew.bat :app:lintDebug` | Passed 2026-07-17: 0 errors, 42 non-blocking warnings, 1 hint |
-| Worker tests | `cd worker; npm test` | Passed 2026-07-17: 50/50 tests in 3 files |
-| Worker typecheck | `cd worker; npm run typecheck` | Passed 2026-07-17: `tsc --noEmit` |
-| Worker package | `cd worker; npx wrangler deploy --dry-run` | Passed 2026-07-17: Durable Object binding recognized, 98.30 KiB gzip; not deployed |
+| Core math/policy tests | `cd android; .\gradlew.bat :core:test --rerun-tasks` | Passed 2026-07-18: 30/30 tests |
+| Android build + tests | `cd android; .\gradlew.bat :core:test :app:testDebugUnitTest` | Passed 2026-07-18: 45/45 tests (30 core + 15 app); debug and release assembled against the live Worker |
+| Android lint | `cd android; .\gradlew.bat :app:lintDebug :app:lintRelease` | Passed 2026-07-18: 0 fatal/0 errors and 43 non-blocking warnings per variant |
+| Worker tests | `cd worker; npm test` | Passed 2026-07-18: 51/51 tests |
+| Worker typecheck | `cd worker; npm run typecheck` | Passed 2026-07-18: `tsc --noEmit` |
+| Worker package | `cd worker; npx wrangler deploy --dry-run` | Passed 2026-07-18; live Worker also deployed and health-checked |
 
 Android lint warnings are retained in the generated local report and are not represented as zero-warning cleanliness. They cover dependency/update suggestions, orientation/API resource guidance, and style/performance hints; no lint error remains.
 
@@ -45,19 +45,21 @@ Do not publish serial numbers. Record only the properties needed to reproduce ca
 | AE lock available | Not tested | Not tested |
 | AWB lock available | Not tested | Not tested |
 
-## Install candidate APK
+## Install the signed candidate APK
 
 ```powershell
-cd android
-.\gradlew.bat assembleDebug -PDRAPEPROOF_API_BASE_URL=https://your-worker.example.workers.dev
-adb install -r .\app\build\outputs\apk\debug\app-debug.apk
+adb install -r ".\outputs\DrapeProof-judge-release-2026-07-18.apk"
 ```
 
 Capture the APK SHA-256 before the final two-device pass:
 
 ```powershell
-Get-FileHash .\app\build\outputs\apk\debug\app-debug.apk -Algorithm SHA256
+Get-FileHash ".\outputs\DrapeProof-judge-release-2026-07-18.apk" -Algorithm SHA256
 ```
+
+Expected SHA-256: `CEDAA97D410C8308EA6F81500E95EBBA0255A8FE5DA6D2FD9E7EA79646CE482E`.
+
+If a debug-signed build of `com.drapeproof.mobile` is already installed, Android will reject the differently signed release update. Remove the old test installation only after preserving any local test records you need, then install the signed candidate fresh.
 
 ## Functional matrix
 
@@ -92,7 +94,7 @@ Use `PASS`, `FAIL`, or `BLOCKED`; attach screenshot/video/log references. Every 
 | Session creation with judge code | NOT RUN | NOT RUN | session lifetime and health shown |
 | Consent required before paid task | NOT RUN | NOT RUN | disabled/enabled run button |
 | Facial Color Tones end to end | NOT RUN | NOT RUN | real task ID, result palette, unit delta |
-| Scarf custom-reference VTO end to end | NOT RUN | NOT RUN | real task ID/result, unit delta |
+| Clothes V3 source/reference VTO end to end | NOT RUN | NOT RUN | real task ID/result, unit delta |
 | Resume saved task polling after relaunch | NOT RUN | NOT RUN | task resumes without duplicate task |
 | VTO result saved privately | NOT RUN | NOT RUN | result persists; temporary URL not retained |
 | Airplane-mode local capture | NOT RUN | NOT RUN | live/photo/catalog remain usable |

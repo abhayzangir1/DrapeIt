@@ -7,7 +7,7 @@ DrapeProof separates physical color evidence from generated visualization.
 - The Android app owns capture, local sampling, quality gating, contrast computation, intent ranking, and evidence records.
 - The Worker owns all YouCam credentials, paid-task admission, upload mediation, response normalization, and unit protection.
 - YouCam Facial Color Tones is a secondary facial palette. It does not overwrite the locally captured Contrast Vector.
-- YouCam Scarf/Clothes VTO is preview-only. Generated pixels never enter measurement or ranking.
+- YouCam Clothes V3 is the deployed preview-only provider. Generated pixels never enter measurement or ranking. A separate Scarf adapter exists in source but requires an R2 binding that is not provisioned in the live deployment.
 
 ```mermaid
 sequenceDiagram
@@ -85,9 +85,9 @@ Readings are accepted at least 140 ms apart when a face is present, the frame is
 | `GET /healthz` | Public | Reports configured/degraded status and active VTO provider |
 | `POST /v1/session` | Required judge access code + state binding | Issues a signed, short-lived bearer session |
 | `GET /v1/credits` | Session | Returns protected local ledger and verified feature costs |
-| `POST /v1/uploads` | Session | Returns YouCam upload tickets or signed private Scarf upload tickets |
-| `PUT /v1/media/:id` | Signed upload token | Stores a size/content-type-bound Scarf input in private R2 |
-| `GET /media/:id?token=...` | Signed read token | Lets YouCam fetch a short-lived Scarf input without public listing |
+| `POST /v1/uploads` | Session | Returns YouCam upload tickets for the deployed Facial/Clothes paths; can return private tickets when optional Scarf/R2 is configured |
+| `PUT /v1/media/:id` | Signed upload token | Optional Scarf-only route; stores a size/content-type-bound input in private R2 |
+| `GET /media/:id?token=...` | Signed read token | Optional Scarf-only route; lets YouCam fetch a short-lived private input |
 | `POST /v1/tasks/facial-colors` | Session | Starts YouCam Facial Color Tones |
 | `POST /v1/tasks/try-on` | Session | Starts configured Scarf or Clothes V3 VTO |
 | `GET /v1/operations/:operationId` | Session | Reconciles a saved paid operation without creating another task |
@@ -100,13 +100,13 @@ The Android app sends `X-DrapeProof-Protocol: 1.0.0-alpha`. API/application vers
 The Worker currently implements these server-to-server paths:
 
 - Facial file/task: `/s2s/v2.0/file/skin-tone-analysis` and `/s2s/v2.0/task/skin-tone-analysis`.
-- Scarf task: `/s2s/v2.0/task/scarf`, using `src_file_url`, `ref_file_url`, `gender`, and an allowlisted style.
-- Clothes V3 fallback: `/s2s/v2.0/file/cloth-v3` and `/s2s/v2.0/task/cloth-v3`.
+- Clothes V3 (deployed): `/s2s/v2.0/file/cloth-v3` and `/s2s/v2.0/task/cloth-v3`.
+- Scarf (optional, not provisioned live): `/s2s/v2.0/task/scarf`, using `src_file_url`, `ref_file_url`, `gender`, and an allowlisted style.
 - Feature-cost lookup: `/s2s/v2.0/credit/feature-cost`.
 
-The default provider is `scarf`. It is considered configured only when `IMAGE_STORE` is bound, because the mobile upload path needs a private source/reference store. `clothes` can be selected with `VTO_PROVIDER=clothes` and uses upstream upload tickets.
+The checked-in and deployed provider is `clothes`, selected with `VTO_PROVIDER=clothes`; it uses upstream upload tickets and needs no R2 bucket. The defensive code fallback for an unset/unknown provider is `scarf`, which is healthy only when `IMAGE_STORE` is bound.
 
-No real account call has been executed in this repository snapshot. Before spending units, verify the account exposes these SKUs/paths and run one task manually while recording the exact unit delta.
+Both deployed paid paths were run successfully on 2026-07-18. Facial Color Tones cost 20 units and Clothes V3 cost 2 units. See `LIVE_VALIDATION_2026-07-18.md` for the observed results and unit reconciliation.
 
 ## Security and cost controls
 
@@ -118,9 +118,9 @@ No real account call has been executed in this repository snapshot. Before spend
 - Paid tasks first resolve the feature's actual unit cost. Unavailable/ambiguous cost disables task creation.
 - Each paid request carries a UUID-v4 operation ID bound to the exact request fingerprint. A SQLite-backed Durable Object transaction atomically admits it against the configured baseline/floor and UTC-day cap.
 - Replaying an accepted operation returns the original task ID. A known rejection releases once; an indeterminate provider outcome remains reserved as `UNKNOWN_RECONCILE` and cannot be auto-retried.
-- A 1,000-unit configured baseline, 300-unit floor, per-client minute limits, and 40-task atomic daily cap are the current defaults.
-- `DRAPEPROOF_STATE`, `PAID_TASK_LEDGER`, and the selected VTO storage binding are mandatory for a ready deployment; missing state fails closed.
-- The private R2 bucket must have the checked-in 24-hour `media/` lifecycle rule applied and verified before deployment.
+- The live reconciled baseline is 1,018 units, with a 300-unit floor, per-client minute limits, and a 40-task atomic daily cap.
+- `DRAPEPROOF_STATE`, `PAID_TASK_LEDGER`, and any storage binding required by the selected provider are mandatory for a ready deployment; missing state fails closed.
+- R2 is not required by the deployed Clothes provider. Before switching to Scarf, provision a private bucket and verify the checked-in 24-hour `media/` lifecycle rule.
 
 ## Build-time environments
 
@@ -128,8 +128,7 @@ No real account call has been executed in this repository snapshot. Before spend
 
 ## Known pre-submission boundaries
 
-- No production Worker is deployed or live-verified yet.
-- No real YouCam task has been run with the account key yet.
+- The Worker and both YouCam task types are live-verified; physical Android execution is still pending.
 - The OnePlus Nord CE6 and Samsung Galaxy F15 camera-control behavior has not yet been recorded.
 - The demo catalog is not retailer inventory and its hex values are not physical spectrometer measurements.
 - The current app has no in-app “delete all” control; uninstalling or clearing app storage removes local records/results.

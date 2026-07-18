@@ -31,6 +31,23 @@ describe("official feature-cost lookup", () => {
     await expect(new YouCamClient(env, fetcher).featureCost("try-on")).resolves.toBe(2);
   });
 
+  it("invokes fetch with the global receiver required by the Workers runtime", async () => {
+    const fetcher: Fetcher = async function (this: unknown) {
+      expect(this).toBe(globalThis);
+      return new Response(
+        JSON.stringify({
+          status: 200,
+          result: {
+            next_token: null,
+            skus: [{ amount: 2, run_task_url: "/s2s/v2.0/task/scarf" }]
+          }
+        })
+      );
+    };
+
+    await expect(new YouCamClient(env, fetcher).featureCost("try-on")).resolves.toBe(2);
+  });
+
   it("paginates using starting_token until the matching SKU is found", async () => {
     let call = 0;
     const fetcher: Fetcher = async (input) => {

@@ -4,7 +4,7 @@ Record on a real target phone. Keep the final cut between 1 and 3 minutes; judge
 
 ## Preflight before recording
 
-- Complete `DEVICE_TEST_MATRIX.md` on both phones; choose the more reliable phone as the main demo device and mention the second in the evidence slide.
+- Complete the priority `DEVICE_TEST_MATRIX.md` path on both phones when possible; at minimum, complete it on the exact phone used in the demo and state the second phone's honest status.
 - Deploy the Worker and confirm `/healthz`, session creation, both paid tasks, and exact unit costs.
 - Confirm the dashboard balance matches the configured ledger baseline and leaves at least 300 units after planned demo tasks.
 - Use a consenting adult, broad indirect light, a clean lens, and one solid matte fabric.
@@ -63,13 +63,13 @@ Show the limitation that current demo colors are screen hex specifications, not 
 
 ### 1:58–2:30 — YouCam integration
 
-**Picture:** Open **YouCam Lab** from Home. Show health/credit reserve, consent, a Facial Color Tones result, then Scarf VTO using the same face and an owned scarf reference. Waiting can be time-compressed, but show the accepted task and real returned result.
+**Picture:** Open **YouCam Lab** from Home. Show health/credit reserve, consent, a Facial Color Tones result, then Clothes V3 using a front-facing person image and an owned apparel reference. Waiting can be time-compressed, but show the accepted task and real returned result.
 
 **Say:**
 
-> With explicit consent, a secure Worker keeps the YouCam key off the phone. Facial Color Tones gives a secondary palette, and YouCam Scarf places the exact reference into a visual try-on. Paid operations are cost-checked and atomically preserve a 300-unit floor against the dashboard baseline configured for this demo. Generated pixels never change the physical contrast rank.
+> With explicit consent, a secure Worker keeps the YouCam key off the phone. Facial Color Tones gives a secondary palette, and Clothes V3 visualizes an apparel reference on the person. Paid operations are cost-checked and atomically preserve a 300-unit floor against the dashboard baseline configured for this demo. Generated pixels never change the physical contrast rank.
 
-Do not use a prerecorded fake or static mock as if it were an API result. If Scarf custom reference is unavailable in the account, switch the configured/verified Clothes V3 path and describe exactly what ran.
+Do not use a prerecorded fake or static mock as if it were an API result. The deployed and paid-tested provider is Clothes V3; do not describe the optional, unprovisioned Scarf/R2 path as the live demo.
 
 ### 2:30–2:45 — Close
 
@@ -104,7 +104,7 @@ Capture at least:
 5. Photo contrast same-scene/separate-photo explanation.
 6. Exact-SKU intent ranking.
 7. YouCam Facial Color Tones result.
-8. Scarf/Clothes VTO result labeled preview-only.
+8. Clothes V3 result labeled preview-only.
 9. Drape Record with limitations.
 
 Check every image for names, notifications, file paths, access codes, task IDs, and copyrighted/trademarked material before publishing.

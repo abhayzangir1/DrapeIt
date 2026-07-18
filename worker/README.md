@@ -6,10 +6,10 @@ Facial Color and Clothes V3 uploads go directly to YouCam presigned destinations
 
 ## Providers
 
-- `scarf` (default): official `/s2s/v2.0/task/scarf` endpoint with custom source/reference URLs, `female|male` gender, and a fixed named style. `style_modern_chic` is the deterministic default; `random` is rejected.
-- `clothes`: explicit AI Clothes V3 fallback selected with `VTO_PROVIDER=clothes`.
+- `clothes` (**checked-in and deployed**): AI Clothes V3 selected with `VTO_PROVIDER=clothes`; both inputs use YouCam-provided upload tickets.
+- `scarf` (optional code path): official `/s2s/v2.0/task/scarf` endpoint with custom source/reference URLs, `female|male` gender, and a fixed named style. It requires private R2 storage and is not provisioned in the validated hackathon deployment.
 
-There is no automatic cross-provider retry. A Scarf deployment without `IMAGE_STORE` makes `/healthz` degraded and private upload/task routes return `503`.
+There is no automatic cross-provider retry. The defensive code fallback for an unset/unknown provider is Scarf; without `IMAGE_STORE`, health is degraded and its private upload/task routes return `503`.
 
 ## Local setup
 
@@ -42,15 +42,15 @@ Native Android calls normally have no `Origin` header and are accepted. Browser 
 ## Production deployment
 
 1. Create state KV: `npx wrangler kv namespace create DRAPEPROOF_STATE`.
-2. Create a private Standard bucket: `npx wrangler r2 bucket create drapeproof-private-images --storage-class Standard`.
-3. Add the KV and R2 bindings shown in `wrangler.jsonc`. Keep the checked-in `PAID_TASK_LEDGER` Durable Object binding and `new_sqlite_classes` migration.
-4. Apply the required deletion rule from `r2-lifecycle.json`: `npm run r2:lifecycle`.
-5. Verify it before deployment: `npx wrangler r2 bucket lifecycle list drapeproof-private-images`. The enabled `expire-drapeproof-media-24h` rule must target prefix `media/` with age `86400` seconds.
-6. Add secrets with `npx wrangler secret put YOUCAM_API_KEY`, `JUDGE_ACCESS_CODE`, and `SESSION_SECRET`.
-7. Set `UNIT_BUDGET` to the dashboard units currently available and use a fresh `UNIT_BUDGET_ID` for that baseline.
-8. Configure `ALLOWED_ORIGINS` and limits, then run `npm test`, `npm run typecheck`, and `npm run deploy`. Wrangler creates/migrates the SQLite-backed Durable Object namespace.
+2. Keep the checked-in `PAID_TASK_LEDGER` Durable Object binding and `new_sqlite_classes` migration.
+3. Select `VTO_PROVIDER=clothes`. Clothes requires no DrapeProof R2 bucket because its inputs use YouCam upload destinations.
+4. Add secrets with `npx wrangler secret put YOUCAM_API_KEY`, `JUDGE_ACCESS_CODE`, and `SESSION_SECRET`.
+5. Set `UNIT_BUDGET` to the dashboard units currently available and use a fresh `UNIT_BUDGET_ID` for that baseline.
+6. Configure `ALLOWED_ORIGINS` and limits, then run `npm test`, `npm run typecheck`, and `npm run deploy`. Wrangler creates/migrates the SQLite-backed Durable Object namespace.
 
-Do not deploy Scarf without the lifecycle verification in step 5. The Worker stores an `expiresAt` timestamp, refuses every read after exactly 24 hours, and opportunistically deletes an expired object when accessed. The mandatory R2 lifecycle rule deletes untouched objects automatically. Cloudflare notes that physical lifecycle removal can occur within 24 hours after the expiration time, so the privacy guarantee is **inaccessible after 24 hours**, with background deletion following the bucket lifecycle schedule.
+To use the optional Scarf adapter instead, create a private Standard bucket, bind it as `IMAGE_STORE`, apply `r2-lifecycle.json` with `npm run r2:lifecycle`, and verify the enabled `expire-drapeproof-media-24h` rule before switching the provider.
+
+Do not deploy Scarf without lifecycle verification. The Worker stores an `expiresAt` timestamp, refuses every read after exactly 24 hours, and opportunistically deletes an expired object when accessed. The mandatory R2 lifecycle rule deletes untouched objects automatically. Cloudflare notes that physical lifecycle removal can occur within 24 hours after the expiration time, so the privacy guarantee is **inaccessible after 24 hours**, with background deletion following the bucket lifecycle schedule.
 
 Use the R2 **Standard** storage class. Cloudflare's current free tier includes 10 GB-month of Standard storage, one million Class A operations, ten million Class B operations, and free egress; Infrequent Access is not eligible for that free tier. See [R2 pricing](https://developers.cloudflare.com/r2/pricing/) and [R2 consistency](https://developers.cloudflare.com/r2/reference/consistency/).
 
@@ -84,7 +84,7 @@ Content-Type: application/json
   "feature": "try-on",
   "files": [
     {"contentType":"image/jpeg","fileName":"person.jpg","fileSize":547541},
-    {"contentType":"image/png","fileName":"scarf.png","fileSize":248121}
+    {"contentType":"image/png","fileName":"apparel.png","fileSize":248121}
   ]
 }
 ```
@@ -103,7 +103,7 @@ Content-Type: application/json
 {"operationId":"<uuid-v4>","sourceFileId":"<uploaded-file-id>","faceAngleStrictness":"strict"}
 ```
 
-### Start Scarf try-on
+### Start Clothes V3 try-on
 
 ```http
 POST /v1/tasks/try-on
@@ -113,17 +113,20 @@ Content-Type: application/json
 {
   "operationId": "<uuid-v4>",
   "sourceFileId": "<person-file-id>",
-  "referenceFileId": "<scarf-file-id>",
-  "gender": "female",
-  "style": "style_modern_chic"
+  "referenceFileId": "<apparel-file-id>",
+  "garmentCategory": "auto"
 }
 ```
 
-Gender is required unless `SCARF_DEFAULT_GENDER` is securely configured. Allowed deterministic styles are `style_french_elegance`, `style_light_luxury`, `style_cottagecore`, `style_modern_chic`, and `style_bohemian`. The Worker resolves the two private IDs into 15-minute HMAC-signed `/media/...` URLs visible only to YouCam.
+The deployed request accepts `sourceFileId` plus `referenceFileId` or a provider `templateId`. Supported garment categories are `auto`, `upper_body`, `lower_body`, `full_body`, and `shoes`.
+
+### Optional Scarf try-on
+
+When `VTO_PROVIDER=scarf`, the task request additionally uses `gender` and a deterministic `style`. Gender is required unless `SCARF_DEFAULT_GENDER` is securely configured. Allowed styles are `style_french_elegance`, `style_light_luxury`, `style_cottagecore`, `style_modern_chic`, and `style_bohemian`; `random` is rejected.
+
+The Worker resolves Scarf's two private IDs into 15-minute HMAC-signed `/media/...` URLs visible only to YouCam.
 
 For controlled demos only, the route can instead accept `sourceImageUrl` plus `referenceImageUrl`; both must use public HTTPS hosts explicitly listed in `SCARF_ALLOWED_IMAGE_HOSTS`. Localhost, IP literals, credentials, nonstandard ports, and unlisted hosts are rejected.
-
-When `VTO_PROVIDER=clothes`, the request is `{operationId, sourceFileId, referenceFileId|templateId, garmentCategory}`. Supported categories are `auto`, `upper_body`, `lower_body`, `full_body`, and `shoes`.
 
 Every paid create request requires a client-generated UUID-v4 `operationId`. It is transactionally bound to the exact feature and request fingerprint. Replaying an accepted operation returns the original task ID without calling YouCam again. Reusing it with different inputs is rejected.
 
@@ -179,13 +182,13 @@ Returns the configured budget baseline, atomically reserved units, estimated rem
 
 ## Configuration reference
 
-| Variable | Default | Purpose |
+| Variable | Checked deployment | Purpose |
 |---|---:|---|
 | `CREDIT_FLOOR` | `300` | Minimum units protected from task creation |
 | `JUDGE_ACCESS_CODE` | required | Private session gate, minimum 8 characters |
-| `UNIT_BUDGET` | `1000` | Baseline; set to currently available dashboard units |
-| `UNIT_BUDGET_ID` | `hackathon-2026` | Versioned ledger key for the baseline |
-| `VTO_PROVIDER` | `scarf` | Scarf primary or explicit `clothes` fallback |
+| `UNIT_BUDGET` | `1018` | Reconciled baseline; reset only from the dashboard balance |
+| `UNIT_BUDGET_ID` | `hackathon-2026-07-18-1018-reconciled` | Versioned ledger key for this baseline |
+| `VTO_PROVIDER` | `clothes` | Deployed Clothes path; Scarf is optional and requires R2 |
 | `SCARF_DEFAULT_GENDER` | unset | Optional `female` or `male` default |
 | `SCARF_ALLOWED_IMAGE_HOSTS` | unset | Exact/wildcard hosts for controlled direct-URL demos |
 | `MEDIA_TTL_SECONDS` | `86400` | Logical image accessibility, maximum 24 hours |

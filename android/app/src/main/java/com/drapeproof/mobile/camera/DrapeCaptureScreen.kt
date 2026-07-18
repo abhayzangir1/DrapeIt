@@ -4,7 +4,10 @@ import android.Manifest
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
+import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
@@ -54,7 +57,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.drapeproof.core.capture.CaptureQualityMetrics
 import com.drapeproof.core.capture.QualityGateEvaluator
 import com.drapeproof.core.capture.QualityGateResult
@@ -99,28 +106,71 @@ private data class SessionOutcome(
 @Composable
 fun DrapeCaptureScreen(onBack: () -> Unit) {
     val context = LocalContext.current
+    val activity = context.findActivity()
+    val lifecycleOwner = LocalLifecycleOwner.current
     var permissionGranted by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED,
         )
     }
+    var permissionRequested by remember { mutableStateOf(false) }
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        permissionRequested = true
         permissionGranted = it
     }
+    DisposableEffect(lifecycleOwner, context) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                permissionGranted = ContextCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.CAMERA,
+                ) == PackageManager.PERMISSION_GRANTED
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
     LaunchedEffect(Unit) {
-        if (!permissionGranted) permissionLauncher.launch(Manifest.permission.CAMERA)
+        if (!permissionGranted && !permissionRequested) {
+            permissionLauncher.launch(Manifest.permission.CAMERA)
+        }
     }
 
     if (!permissionGranted) {
+        val shouldShowRationale = activity?.let {
+            ActivityCompat.shouldShowRequestPermissionRationale(it, Manifest.permission.CAMERA)
+        } == true
+        val permanentlyDenied = shouldOpenCameraSettings(
+            permissionRequested = permissionRequested,
+            permissionGranted = permissionGranted,
+            shouldShowRationale = shouldShowRationale,
+        )
         CameraPermissionScreen(
             onBack = onBack,
-            onRequest = { permissionLauncher.launch(Manifest.permission.CAMERA) },
+            permanentlyDenied = permanentlyDenied,
+            onRequest = {
+                permissionLauncher.launch(Manifest.permission.CAMERA)
+            },
+            onOpenSettings = {
+                context.startActivity(
+                    Intent(
+                        Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                        Uri.parse("package:${context.packageName}"),
+                    ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                )
+            },
         )
         return
     }
 
     ControlledCaptureSession(onBack = onBack)
 }
+
+internal fun shouldOpenCameraSettings(
+    permissionRequested: Boolean,
+    permissionGranted: Boolean,
+    shouldShowRationale: Boolean,
+): Boolean = permissionRequested && !permissionGranted && !shouldShowRationale
 
 @Composable
 private fun ControlledCaptureSession(onBack: () -> Unit) {
@@ -423,7 +473,12 @@ private fun liveFeedback(
 }
 
 @Composable
-private fun CameraPermissionScreen(onBack: () -> Unit, onRequest: () -> Unit) {
+private fun CameraPermissionScreen(
+    onBack: () -> Unit,
+    permanentlyDenied: Boolean,
+    onRequest: () -> Unit,
+    onOpenSettings: () -> Unit,
+) {
     Surface(Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier.fillMaxSize().padding(28.dp),
@@ -435,12 +490,19 @@ private fun CameraPermissionScreen(onBack: () -> Unit, onRequest: () -> Unit) {
             Text("Camera permission is required", style = MaterialTheme.typography.headlineMedium, textAlign = TextAlign.Center)
             Spacer(Modifier.height(10.dp))
             Text(
-                "Frames are analyzed on this phone. DrapeProof sends an image only when you explicitly start a YouCam feature.",
+                if (permanentlyDenied) {
+                    "Camera access is blocked. Open app settings, enable Camera, then return here. Permission is checked again automatically."
+                } else {
+                    "Frames are analyzed on this phone. DrapeProof sends an image only when you explicitly start a YouCam feature."
+                },
                 style = MaterialTheme.typography.bodyLarge,
                 textAlign = TextAlign.Center,
             )
             Spacer(Modifier.height(24.dp))
-            Button(onClick = onRequest, modifier = Modifier.fillMaxWidth()) { Text("Allow camera") }
+            Button(
+                onClick = if (permanentlyDenied) onOpenSettings else onRequest,
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text(if (permanentlyDenied) "Open app settings" else "Allow camera") }
             OutlinedButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) { Text("Back") }
         }
     }

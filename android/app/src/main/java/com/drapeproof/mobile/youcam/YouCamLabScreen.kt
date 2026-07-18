@@ -54,6 +54,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.drapeproof.mobile.network.AcceptedTask
+import com.drapeproof.mobile.network.CloudConnectionPolicy
 import com.drapeproof.mobile.network.CreditStatus
 import com.drapeproof.mobile.network.DrapeProofApiClient
 import com.drapeproof.mobile.network.DrapeProofApiException
@@ -117,7 +118,15 @@ fun YouCamLabScreen(onBack: () -> Unit) {
 
     var accessCode by remember { mutableStateOf("") }
     var sessionReady by remember { mutableStateOf(false) }
-    var sessionMessage by remember { mutableStateOf("Connect when you are ready to use a cloud feature.") }
+    var sessionMessage by remember {
+        mutableStateOf(
+            if (api.cloudConfigured) {
+                "Enter the required demo access code when you are ready to use a cloud feature."
+            } else {
+                "Cloud features are offline in this build. Camera and photo analysis remain available."
+            },
+        )
+    }
     var connecting by remember { mutableStateOf(false) }
     var health by remember { mutableStateOf<HealthStatus?>(null) }
     var credits by remember { mutableStateOf<CreditStatus?>(null) }
@@ -169,7 +178,7 @@ fun YouCamLabScreen(onBack: () -> Unit) {
             runCatching { context.contentResolver.takePersistableUriPermission(it, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
             scarfUri = it
             demoScarfSelected = false
-            invalidateTryOnOutcome("Scarf reference selected locally. Prior VTO evidence was cleared; nothing has been uploaded.")
+            invalidateTryOnOutcome("Apparel reference selected locally. Prior VTO evidence was cleared; nothing has been uploaded.")
         }
     }
 
@@ -401,21 +410,32 @@ fun YouCamLabScreen(onBack: () -> Unit) {
     }
 
     fun connect() {
-        if (connecting) return
+        if (connecting || !api.cloudConfigured) return
+        val requiredAccessCode = accessCode.trim()
+        if (!CloudConnectionPolicy.isAccessCodeValid(requiredAccessCode)) {
+            sessionMessage = "Enter the required access code (at least 8 characters)."
+            return
+        }
         scope.launch {
             connecting = true
             sessionMessage = "Opening a short-lived secure session…"
             try {
-                val result = withContext(Dispatchers.IO) {
-                    val status = api.health()
-                    val expires = api.createSession(accessCode.trim().ifBlank { null })
-                    val balance = api.credits()
-                    Triple(status, expires, balance)
+                val status = withContext(Dispatchers.IO) { api.health() }
+                health = status
+                if (!status.ready) {
+                    sessionReady = false
+                    credits = null
+                    sessionMessage = "Server ${api.serviceHost} is not ready: ${status.configurationDiagnostic()}."
+                    return@launch
                 }
-                health = result.first
-                credits = result.third
+                val result = withContext(Dispatchers.IO) {
+                    val expires = api.createSession(requiredAccessCode)
+                    val balance = api.credits()
+                    Pair(expires, balance)
+                }
+                credits = result.second
                 sessionReady = true
-                sessionMessage = "Secure session ready for ${result.second / 60} minutes. The API key stays on the server."
+                sessionMessage = "Secure session ready for ${result.first / 60} minutes. The API key stays on the server."
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (error: Throwable) {
@@ -482,7 +502,7 @@ fun YouCamLabScreen(onBack: () -> Unit) {
         if (tryOnState.busy) return
         scope.launch {
             try {
-                tryOnState = TaskUiState(TaskPhase.UPLOADING, "Preparing and uploading the face and scarf reference…")
+                tryOnState = TaskUiState(TaskPhase.UPLOADING, "Preparing and uploading the face and apparel reference…")
                 val tickets = withContext(Dispatchers.IO) {
                     val face = prepareUpload(context, source, role = "person", jpegOnly = false)
                     val scarf = prepareUpload(context, reference, role = "scarf", jpegOnly = false)
@@ -546,7 +566,7 @@ fun YouCamLabScreen(onBack: () -> Unit) {
             Text("Two cloud proofs, under your control.", style = MaterialTheme.typography.headlineMedium)
             Spacer(Modifier.height(8.dp))
             Text(
-                "Use Facial Color Tones as a secondary measurement, then preview the exact scarf reference. DrapeProof's local contrast result remains the primary evidence.",
+                "Use Facial Color Tones as a secondary measurement, then preview the selected apparel reference. DrapeProof's local contrast result remains the primary evidence.",
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.72f),
             )
@@ -554,12 +574,14 @@ fun YouCamLabScreen(onBack: () -> Unit) {
 
             SessionCard(
                 accessCode = accessCode,
-                onAccessCodeChange = { accessCode = it },
+                onAccessCodeChange = { accessCode = it.take(512) },
                 connecting = connecting,
                 connected = sessionReady,
                 message = sessionMessage,
                 health = health,
                 credits = credits,
+                serviceHost = api.serviceHost,
+                cloudConfigured = api.cloudConfigured,
                 onConnect = ::connect,
                 onRefreshCredits = { scope.launch { refreshCredits() } },
             )
@@ -624,7 +646,7 @@ fun YouCamLabScreen(onBack: () -> Unit) {
                     scope.launch {
                         scarfUri = demoScarfUri(context)
                         demoScarfSelected = true
-                        invalidateTryOnOutcome("Visualization-only demo scarf selected locally. Prior VTO evidence was cleared; nothing has been uploaded.")
+                        invalidateTryOnOutcome("Visualization-only demo apparel drape selected locally. Prior VTO evidence was cleared; nothing has been uploaded.")
                     }
                 },
                 onCreate = ::createTryOnTask,
@@ -651,6 +673,8 @@ private fun SessionCard(
     message: String,
     health: HealthStatus?,
     credits: CreditStatus?,
+    serviceHost: String,
+    cloudConfigured: Boolean,
     onConnect: () -> Unit,
     onRefreshCredits: () -> Unit,
 ) {
@@ -660,8 +684,21 @@ private fun SessionCard(
                 StatusDot(if (connected) Moss else MaterialTheme.colorScheme.outline)
                 Column(Modifier.padding(start = 12.dp).weight(1f)) {
                     Text(if (connected) "Secure session connected" else "Secure server session", style = MaterialTheme.typography.titleMedium)
+                    Text("Server · $serviceHost", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f))
                     Text(message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f))
                 }
+            }
+            health?.let { status ->
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    if (status.ready) "Health ready · ${status.service} ${status.version}" else "Health degraded · ${status.configurationDiagnostic()}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (status.ready) Moss else DrapeCoral,
+                )
+            }
+            if (!cloudConfigured) {
+                Spacer(Modifier.height(10.dp))
+                Notice("Cloud backend is not configured in this build. Use the on-device camera and photo analysis flows.")
             }
             if (!connected) {
                 Spacer(Modifier.height(14.dp))
@@ -670,11 +707,16 @@ private fun SessionCard(
                     onValueChange = onAccessCodeChange,
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    label = { Text("Demo access code (if configured)") },
+                    label = { Text("Demo access code (required)") },
                     visualTransformation = PasswordVisualTransformation(),
                 )
+                Text("At least 8 characters; held only for this session.", style = MaterialTheme.typography.labelSmall)
                 Spacer(Modifier.height(10.dp))
-                Button(onClick = onConnect, enabled = !connecting, modifier = Modifier.fillMaxWidth()) {
+                Button(
+                    onClick = onConnect,
+                    enabled = cloudConfigured && !connecting && CloudConnectionPolicy.isAccessCodeValid(accessCode),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
                     Text(if (connecting) "Connecting…" else "Connect securely")
                 }
             } else {
@@ -695,12 +737,22 @@ private fun SessionCard(
     }
 }
 
+private fun HealthStatus.configurationDiagnostic(): String {
+    val missing = buildList {
+        if (!accessGateConfigured) add("access gate")
+        if (!stateStoreConfigured) add("state store")
+        if (!paidLedgerConfigured) add("paid-task ledger")
+        if (!vtoProviderConfigured) add("VTO provider")
+    }
+    return if (missing.isEmpty()) "service reported a degraded status" else "missing ${missing.joinToString()}"
+}
+
 @Composable
 private fun ConsentCard(checked: Boolean, credits: CreditStatus?, onCheckedChange: (Boolean) -> Unit) {
     val facialCost = credits?.facialColorCost
     val tryOnCost = credits?.tryOnCost
     val costNotice = if (facialCost != null && tryOnCost != null) {
-        "LIVE COST · Running both optional proofs currently reserves ${facialCost + tryOnCost} API units total ($facialCost Facial Color + $tryOnCost Scarf VTO)."
+        "LIVE COST · Running both optional proofs currently reserves ${facialCost + tryOnCost} API units total ($facialCost Facial Color + $tryOnCost apparel VTO)."
     } else {
         "LIVE COST UNAVAILABLE · Paid task creation stays disabled until the secure server returns a verified per-feature quote."
     }
@@ -713,7 +765,7 @@ private fun ConsentCard(checked: Boolean, credits: CreditStatus?, onCheckedChang
             Column(Modifier.padding(start = 8.dp)) {
                 Text("I choose to send these selected photos", style = MaterialTheme.typography.titleSmall)
                 Text(
-                    "Only after I tap a run button, DrapeProof may send the selected face and/or scarf image through its secure server to Perfect Corp for this result.",
+                    "Only after I tap a run button, DrapeProof may send the selected face and/or apparel-reference image through its secure server to Perfect Corp for this result.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f),
                 )
@@ -803,26 +855,25 @@ private fun ScarfTryOnCard(
     onCreate: () -> Unit,
     onResume: () -> Unit,
 ) {
-    val providerLabel = if (provider == "clothes") "Clothes V3 fallback" else "Scarf"
-    FeatureCard(kicker = "OPTION 02", title = "Exact-reference $providerLabel VTO", accent = Plum, state = state) {
-        Text("Preview the selected scarf reference on the same face source. The result is illustrative VTO evidence, not a physical colour measurement.", style = MaterialTheme.typography.bodyMedium)
+    FeatureCard(kicker = "OPTION 02", title = "Exact-reference apparel VTO", accent = Plum, state = state) {
+        Text("Preview the selected apparel reference on the same face source. The result is illustrative VTO evidence, not a physical colour measurement.", style = MaterialTheme.typography.bodyMedium)
         Spacer(Modifier.height(12.dp))
         if (!providerReady) {
-            Notice("VTO is gated until the Worker reports a configured Scarf or Clothes V3 provider.")
+            Notice("VTO is gated until the secure Worker reports a configured apparel provider.")
             Spacer(Modifier.height(12.dp))
         }
-        if (scarfUri != null) UriImage(scarfUri, "Selected scarf reference") else EmptyImage("SCARF REFERENCE")
+        if (scarfUri != null) UriImage(scarfUri, "Selected apparel reference") else EmptyImage("APPAREL REFERENCE")
         if (demoScarfSelected) {
             Spacer(Modifier.height(8.dp))
-            Notice("Demo cobalt scarf · visualization-only reference. Never use this generated asset as measurement or real-product colour evidence.")
+            Notice("Demo cobalt apparel drape · visualization-only reference. Never use this generated asset as measurement or real-product colour evidence.")
         }
         Spacer(Modifier.height(10.dp))
         OutlinedButton(onClick = onPickScarf, enabled = inputsEnabled, modifier = Modifier.fillMaxWidth()) {
-            Text(if (scarfUri == null) "Choose scarf JPEG or PNG" else "Replace scarf reference")
+            Text(if (scarfUri == null) "Choose apparel JPEG or PNG" else "Replace apparel reference")
         }
         Text("Oversize references receive geometry-only normalization; no colour or contrast adjustment.", style = MaterialTheme.typography.labelSmall, color = Moss)
         OutlinedButton(onClick = onUseDemoScarf, enabled = inputsEnabled, modifier = Modifier.fillMaxWidth()) {
-            Text("Use demo cobalt scarf · visualization only")
+            Text("Use demo cobalt apparel drape · visualization only")
         }
 
         Spacer(Modifier.height(14.dp))
@@ -875,7 +926,7 @@ private fun ScarfTryOnCard(
             Spacer(Modifier.height(14.dp))
             Text("Private on-device result", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(8.dp))
-            FileImage(path, "Saved scarf virtual try-on result")
+            FileImage(path, "Saved apparel virtual try-on result")
             Text("Saved in app-private storage; the temporary network URL is not retained.", style = MaterialTheme.typography.labelSmall, color = Moss)
         }
     }

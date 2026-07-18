@@ -1,11 +1,56 @@
+import java.net.URI
+import org.gradle.api.GradleException
+
 plugins {
   alias(libs.plugins.android.application)
   alias(libs.plugins.compose.compiler)
   alias(libs.plugins.kotlin.serialization)
 }
 
-val drapeProofApiBaseUrl = providers.gradleProperty("DRAPEPROOF_API_BASE_URL")
-  .orElse("https://api.drapeproof.app")
+val offlineApiBaseUrl = "https://offline.drapeproof.invalid"
+val configuredApiBaseUrl = providers.gradleProperty("DRAPEPROOF_API_BASE_URL")
+  .orNull
+  ?.trim()
+  ?.trimEnd('/')
+  ?.takeIf(String::isNotBlank)
+
+fun apiOrigin(raw: String): URI? = runCatching { URI(raw) }.getOrNull()?.takeIf { uri ->
+    uri.host != null &&
+        uri.userInfo == null &&
+        (uri.port == -1 || uri.port in 1..65_535) &&
+        (uri.rawPath.isNullOrEmpty() || uri.rawPath == "/") &&
+        uri.rawQuery == null &&
+        uri.rawFragment == null
+}
+
+fun isDebugApiOrigin(raw: String): Boolean {
+    val uri = apiOrigin(raw) ?: return false
+    return uri.scheme.equals("https", ignoreCase = true) ||
+        (uri.scheme.equals("http", ignoreCase = true) && uri.host == "10.0.2.2")
+}
+
+fun isReleaseApiOrigin(raw: String): Boolean {
+    val uri = apiOrigin(raw) ?: return false
+    val host = uri.host.lowercase().trimEnd('.')
+    return uri.scheme.equals("https", ignoreCase = true) &&
+        !host.endsWith(".invalid") &&
+        host != "api.drapeproof.app" &&
+        host !in setOf("localhost", "127.0.0.1", "10.0.2.2", "::1", "[::1]")
+}
+
+if (configuredApiBaseUrl != null && !isDebugApiOrigin(configuredApiBaseUrl)) {
+    throw GradleException(
+        "DRAPEPROOF_API_BASE_URL must be an HTTPS origin without credentials, path, query, or fragment " +
+            "(http://10.0.2.2[:port] is allowed for emulator development).",
+    )
+}
+
+val drapeProofApiBaseUrl = configuredApiBaseUrl ?: offlineApiBaseUrl
+val cloudConfigured = configuredApiBaseUrl?.let(::isReleaseApiOrigin) == true ||
+    configuredApiBaseUrl?.let { origin ->
+        val uri = apiOrigin(origin)
+        uri?.scheme.equals("http", ignoreCase = true) && uri?.host == "10.0.2.2"
+    } == true
 
 android {
     namespace = "com.drapeproof.mobile"
@@ -16,7 +61,8 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "0.1.0"
-        buildConfigField("String", "API_BASE_URL", "\"${drapeProofApiBaseUrl.get()}\"")
+        buildConfigField("String", "API_BASE_URL", "\"$drapeProofApiBaseUrl\"")
+        buildConfigField("boolean", "CLOUD_CONFIGURED", cloudConfigured.toString())
         buildConfigField("String", "PROTOCOL_VERSION", "\"1.0.0-alpha\"")
     }
 
@@ -41,6 +87,15 @@ android {
       resources {
         excludes += "/META-INF/{AL2.0,LGPL2.1}"
       }
+    }
+}
+
+tasks.matching { it.name == "preReleaseBuild" }.configureEach {
+    if (configuredApiBaseUrl == null || !isReleaseApiOrigin(configuredApiBaseUrl)) {
+        throw GradleException(
+            "Release builds require DRAPEPROOF_API_BASE_URL to be a real HTTPS origin. " +
+                "The offline .invalid sentinel and api.drapeproof.app placeholder are not releasable.",
+        )
     }
 }
 

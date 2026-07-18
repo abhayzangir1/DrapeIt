@@ -41,17 +41,16 @@ YouCam Lab is deliberately separate from local measurement.
 - The app receives a normalized palette: skin color is required; eye, eyebrow, and lip colors are optional.
 - The current UI keeps the palette in memory and persists opaque task/operation IDs only for safe resume and paid-request reconciliation.
 
-### Scarf virtual try-on
+### Clothes V3 virtual try-on — deployed path
 
-- The app sends a face image and scarf reference through signed upload tickets to a private R2 Standard bucket bound as `IMAGE_STORE`.
-- Worker metadata makes source/reference objects inaccessible after 86,400 seconds (24 hours). A mandatory R2 lifecycle rule removes untouched objects automatically; Cloudflare may physically remove an expired object during the lifecycle processing window. Upload tickets default to 10 minutes; signed read URLs default to 15 minutes.
-- YouCam fetches those short-lived signed URLs to run Scarf VTO.
+- The app requests YouCam-provided upload tickets through the Worker, then uploads the explicitly selected person and apparel inputs to those destinations.
+- The Worker creates and polls the Clothes V3 task and exposes only a normalized task state and trusted result URL.
 - On success, the app immediately copies the trusted result image into app-private `filesDir/youcam-results` (bounded to 20 MiB) and stores the local path. The temporary result URL is not persisted.
-- The private Worker image store, YouCam processing/retention, and the local VTO result are three distinct storage locations with different controls.
+- YouCam processing/retention and the local saved result are separate storage locations with different controls. DrapeProof does not claim provider-side deletion or retention beyond the verified API behavior.
 
-### Clothes V3 fallback
+### Optional Scarf provider — not provisioned live
 
-If `VTO_PROVIDER=clothes`, uploads use YouCam-provided tickets rather than DrapeProof's private Scarf image store. The same explicit consent and run action apply.
+The source also supports Scarf VTO, whose URL-based inputs require signed tickets and a private R2 Standard bucket bound as `IMAGE_STORE`. If enabled in a future deployment, its objects are logically inaccessible after 24 hours and require the checked-in lifecycle rule for background deletion. This provider and bucket are not enabled in the validated hackathon deployment.
 
 ## Data inventory
 
@@ -65,7 +64,8 @@ If `VTO_PROVIDER=clothes`, uploads use YouCam-provided tickets rather than Drape
 | Opaque YouCam task IDs | App-private preferences | Until app storage is cleared or replaced | Yes, between app and Worker |
 | Paid operation IDs | App-private preferences + Worker Durable Object | Cleared locally after confirmed admission; indeterminate server records remain reserved until manual reconciliation | Yes, between app and Worker |
 | Facial source JPEG | YouCam upload destination | Governed by YouCam service | Yes, only after consent + run |
-| Scarf source/reference images | Private Worker R2 bucket | Inaccessible after 24 hours by default; lifecycle deletion follows | Yes, then fetched by YouCam |
+| Clothes source/reference images | YouCam-provided upload destinations | Governed by YouCam service | Yes, only after consent + run |
+| Optional Scarf source/reference images | Private Worker R2 bucket | Only if that provider is enabled; inaccessible after 24 hours by default | Yes, then fetched by YouCam |
 | VTO result | App-private file | Until app storage is cleared/uninstalled or overwritten | Downloaded from trusted YouCam result URL |
 | YouCam API key | Worker secret | Until rotated/deleted | Only in Worker→YouCam authorization header |
 | Request-rate counters | Worker state KV | Window dependent | Server-side only |
@@ -90,8 +90,8 @@ If `VTO_PROVIDER=clothes`, uploads use YouCam-provided tickets rather than Drape
 ## Controls still required before public judging
 
 - Review the current [Perfect Corp. terms](https://www.perfectcorp.com/business/terms-of-service) and account-specific API data handling.
-- Deploy production Worker secrets, the state KV namespace, the checked-in SQLite Durable Object migration/binding, and the private R2 bucket; never commit `.dev.vars`.
-- Apply `worker/r2-lifecycle.json`, verify the enabled `media/` rule in Cloudflare, and keep the logical media TTL at or below the lifecycle age.
+- Keep the deployed Worker secrets, state KV namespace, and SQLite Durable Object migration/binding active through judging; never commit `.dev.vars`.
+- Keep R2 disabled for Clothes. If the provider is ever switched to Scarf, first provision the private bucket, apply `worker/r2-lifecycle.json`, verify the enabled `media/` rule, and keep the logical media TTL at or below the lifecycle age.
 - Rotate any API key that has ever appeared in console output, screenshots, source, or APK resources.
 - Use a dedicated `SESSION_SECRET`; do not rely on key-derived signing in production.
 - Share a limited judge access code out-of-band and rotate it after judging.
@@ -111,4 +111,4 @@ DrapeProof should say:
 - VTO is illustrative and not measurement evidence; and
 - clearing app storage/uninstalling currently removes local records/results, but not provider records or server-side paid-operation safety entries.
 
-It should not say “images are never stored” because Scarf inputs have bounded private R2 retention and successful VTO images are saved privately on the phone. It should not promise deletion from YouCam without verified service-specific retention evidence.
+It should not say “images are never stored” because cloud inputs are processed by YouCam and successful VTO images are saved privately on the phone. It should not promise deletion from YouCam without verified service-specific retention evidence.

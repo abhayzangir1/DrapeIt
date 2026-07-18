@@ -9,10 +9,10 @@
     "head_sampling_rate": 1
   },
   "vars": {
-    "VTO_PROVIDER": "scarf",
+    "VTO_PROVIDER": "clothes",
     "CREDIT_FLOOR": "300",
-    "UNIT_BUDGET": "1000",
-    "UNIT_BUDGET_ID": "hackathon-2026",
+    "UNIT_BUDGET": "1018",
+    "UNIT_BUDGET_ID": "hackathon-2026-07-18-1018-reconciled",
     "SESSION_TTL_SECONDS": "1800",
     "ALLOWED_ORIGINS": "",
     "RATE_LIMIT_SESSION": "5",
@@ -28,11 +28,11 @@
   },
   "migrations": [
     { "tag": "v1-paid-task-ledger", "new_sqlite_classes": ["PaidTaskLedger"] }
+  ],
+  "kv_namespaces": [
+    { "binding": "DRAPEPROOF_STATE", "id": "a2e895cc40234e42b88ce3996eed0f15" }
   ]
-  // Create one KV namespace and one private R2 Standard bucket before deployment.
-  // "kv_namespaces": [
-  //   { "binding": "DRAPEPROOF_STATE", "id": "<STATE_KV_NAMESPACE_ID>" }
-  // ],
+  // R2 is only required when VTO_PROVIDER is switched to "scarf".
   // "r2_buckets": [
   //   { "binding": "IMAGE_STORE", "bucket_name": "drapeproof-private-images" }
   // ]

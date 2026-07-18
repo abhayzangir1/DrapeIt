@@ -28,15 +28,15 @@ Submit early enough to recover from upload, video-processing, or Devpost problem
 - [x] Local capture implements opening/drape/closing baselines and evidence downgrade logic.
 - [x] Photo, exact-SKU catalog, local records, and opt-in YouCam UI exist in source.
 - [x] YouCam API key is server-side only in design/source.
-- [x] Core test suite passed locally on 2026-07-17 with `--rerun-tasks`.
-- [x] Android core/app test and debug-assemble command passed locally on 2026-07-17; 39/39 tests passed and the debug APK was produced from final source.
-- [x] Android lint passed locally on 2026-07-17 with 0 errors, 42 non-blocking warnings, and 1 hint.
-- [x] Worker tests (50/50), typecheck, and Wrangler package dry-run with the Durable Object binding passed locally on 2026-07-17.
+- [x] Core test suite passed locally on 2026-07-18 with `--rerun-tasks`.
+- [x] Android core/app tests and forced debug/release assembly passed locally on 2026-07-18; 45/45 tests passed and both APK variants embed the deployed Worker URL.
+- [x] Android debug/release lint passed locally on 2026-07-18 with 0 fatal/0 errors and 43 non-blocking warnings per variant.
+- [x] Worker tests (51/51), typecheck, and Wrangler package dry-run with the Durable Object and KV bindings passed locally on 2026-07-18.
 - [ ] OnePlus Nord CE6 device matrix complete.
 - [ ] Samsung Galaxy F15 device matrix complete.
-- [ ] Deployed HTTPS Worker health/session/credit routes verified.
-- [ ] Real Facial Color Tones task succeeds and exact unit delta is recorded.
-- [ ] Real Scarf custom-reference task succeeds; if unavailable, configured Clothes V3 fallback succeeds and copy is updated.
+- [x] Deployed HTTPS Worker health/session/credit routes verified at `https://drapeproof-api.drapeproof-abhay.workers.dev`.
+- [x] Real Facial Color Tones task succeeded at `high` strictness; exact 20-unit delta and one refunded rejected input are recorded.
+- [x] Configured Clothes V3 task succeeded; exact 2-unit delta and trusted result download hash are recorded.
 - [ ] A deliberate bad capture downgrades/withholds instead of emitting a controlled-pair claim.
 - [ ] No crash/ANR, secret, private image, or fake result blocker remains.
 
@@ -44,16 +44,15 @@ Do not mark the prototype “functional end to end” until every unchecked gate
 
 ## Zero-spend deployment
 
-- [ ] Confirm the 1,000 promotional units are present and their expiry date.
-- [ ] Create/rotate the YouCam API key; store only as a Worker secret.
-- [ ] Create a Cloudflare `DRAPEPROOF_STATE` KV namespace and private R2 Standard bucket for `IMAGE_STORE` using an account/plan that does not require spend for expected demo usage.
-- [ ] Bind the KV namespace ID and R2 bucket in `worker/wrangler.jsonc` without committing secrets; preserve the checked-in `PAID_TASK_LEDGER` binding and SQLite migration.
-- [ ] Deploy once and confirm `/healthz` reports the state store, paid ledger, access gate, API key, and active VTO provider as configured.
-- [ ] Apply `worker/r2-lifecycle.json` and verify the enabled `media/` 86,400-second lifecycle rule before deployment.
-- [ ] Set `SESSION_SECRET`, `JUDGE_ACCESS_CODE`, and conservative CORS origins.
-- [ ] Confirm `VTO_PROVIDER=scarf` only after the account accepts the implemented Scarf custom-reference payload; otherwise select and validate `clothes`.
-- [ ] Keep `UNIT_BUDGET=1000`, `CREDIT_FLOOR=300`, and conservative rate/daily limits unless measured evidence justifies a change.
-- [ ] Build APK with the real Worker HTTPS URL via `-PDRAPEPROOF_API_BASE_URL=...`.
+- [ ] Confirm the promotional-unit expiry date; live reconciled balance is 1,018 as of 2026-07-18.
+- [x] Create the YouCam API key and store it only as an encrypted Worker secret.
+- [x] Create and bind Cloudflare `DRAPEPROOF_STATE` KV; preserve the checked-in `PAID_TASK_LEDGER` binding and SQLite migration.
+- [x] Deploy and confirm `/healthz` reports state store, paid ledger, access gate, API key, and Clothes V3 provider as configured.
+- [x] Keep R2 disabled for the validated Clothes V3 path; apply `worker/r2-lifecycle.json` before any future switch to Scarf.
+- [x] Set independent `SESSION_SECRET`, private `JUDGE_ACCESS_CODE`, and native-app CORS policy that rejects browser origins.
+- [x] Select and validate `VTO_PROVIDER=clothes`; do not claim the unprovisioned Scarf/R2 path in the demo.
+- [x] Reconcile `UNIT_BUDGET=1018`, rotate `UNIT_BUDGET_ID`, keep `CREDIT_FLOOR=300`, and preserve conservative rate/daily limits.
+- [x] Build and sign the APK with the real Worker HTTPS URL via `-PDRAPEPROOF_API_BASE_URL=...`.
 - [ ] Confirm free-tier request/KV quotas and no payment method surprise in both dashboards.
 
 ## Judge package
@@ -61,11 +60,11 @@ Do not mark the prototype “functional end to end” until every unchecked gate
 Official rules require a working project be available free of charge for judging/testing through the judging period.
 
 - [ ] Repository URL works without requesting access, **or** private repository is shared with `contact_event@PerfectCorp.com`.
-- [ ] Repository contains all necessary source, non-secret assets, license, and setup/testing instructions.
+- [x] Repository contains all necessary source, non-secret assets, license, and setup/testing instructions.
 - [ ] Release/test APK is attached at a stable public URL or otherwise made available free of charge.
 - [ ] APK SHA-256 and tested commit are documented.
 - [ ] Judge Worker and access code remain available through August 31, 2026.
-- [ ] Testing instructions state target Android/API, install steps, permissions, lighting/fabric setup, cloud consent, and expected task wait.
+- [x] `JUDGE_TEST_GUIDE.md` states target Android/API, install steps, permissions, lighting/fabric setup, cloud consent, and expected task wait.
 - [ ] No API key, `.dev.vars`, private participant image, personal file path, device serial, or access code appears in Git history/artifacts.
 - [ ] Fresh judge-path dry run succeeds from a non-developer device/network.
 

@@ -177,12 +177,17 @@ export class YouCamClient {
 
     let response: Response;
     try {
-      response = await this.fetcher(upstreamUrl.toString(), {
+      response = await this.fetcher.call(globalThis, upstreamUrl.toString(), {
         ...init,
         headers,
         signal: AbortSignal.timeout(20_000)
       });
-    } catch {
+    } catch (error) {
+      const diagnostic =
+        error instanceof Error
+          ? `${error.name}: ${error.message}`.replace(/[\r\n\t]+/g, " ").slice(0, 240)
+          : "non_error_throwable";
+      console.error("youcam_request_failed", { path: upstreamUrl.pathname, diagnostic });
       throw new ApiError(502, "youcam_unavailable", "YouCam did not respond in time.");
     }
 

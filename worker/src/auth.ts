@@ -11,12 +11,15 @@ function bytesToBase64Url(bytes: Uint8Array): string {
 }
 
 function base64UrlToBytes(value: string): ArrayBuffer {
-  if (!/^[A-Za-z0-9_-]+$/.test(value)) throw new Error("Invalid base64url");
+  if (!/^[A-Za-z0-9_-]+$/.test(value) || value.length % 4 === 1) {
+    throw new Error("Invalid base64url");
+  }
   const padding = "=".repeat((4 - (value.length % 4)) % 4);
   const binary = atob(value.replace(/-/g, "+").replace(/_/g, "/") + padding);
   const buffer = new ArrayBuffer(binary.length);
   const bytes = new Uint8Array(buffer);
   for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  if (bytesToBase64Url(bytes) !== value) throw new Error("Non-canonical base64url");
   return buffer;
 }
 

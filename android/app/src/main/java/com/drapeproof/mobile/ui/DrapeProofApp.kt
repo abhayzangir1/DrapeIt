@@ -128,7 +128,7 @@ private fun HomeScreen(onNavigate: (Destination) -> Unit) {
             onClick = { onNavigate(Destination.YOUCAM) },
             modifier = Modifier.fillMaxWidth().height(54.dp),
             shape = RoundedCornerShape(18.dp),
-        ) { Text("YouCam Lab · facial colors + scarf try-on") }
+        ) { Text("YouCam Lab · facial colors + apparel VTO") }
 
         Spacer(Modifier.height(34.dp))
         Text("ONE DECISION. THREE SIGNALS.", style = MaterialTheme.typography.labelSmall)
