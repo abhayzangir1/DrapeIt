@@ -62,7 +62,7 @@ Official rules require a working project be available free of charge for judging
 - [ ] Repository URL works without requesting access, **or** private repository is shared with `contact_event@PerfectCorp.com`.
 - [x] Repository contains all necessary source, non-secret assets, license, and setup/testing instructions.
 - [ ] Release/test APK is attached at a stable public URL or otherwise made available free of charge.
-- [ ] APK SHA-256 and tested commit are documented.
+- [x] APK SHA-256 and tested source commit `7acc7b9` are documented in `LIVE_VALIDATION_2026-07-18.md`.
 - [ ] Judge Worker and access code remain available through August 31, 2026.
 - [x] `JUDGE_TEST_GUIDE.md` states target Android/API, install steps, permissions, lighting/fabric setup, cloud consent, and expected task wait.
 - [ ] No API key, `.dev.vars`, private participant image, personal file path, device serial, or access code appears in Git history/artifacts.

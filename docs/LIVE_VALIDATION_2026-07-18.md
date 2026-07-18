@@ -9,6 +9,7 @@ This report separates observed live evidence from the one remaining device gate.
 - YouCam Facial Color Tones completed successfully through the Worker.
 - YouCam Clothes V3 completed successfully through the Worker.
 - The current Android release was built against the live Worker and signed as an APK v2/v3 package.
+- APK-tested source commit: `7acc7b9` (`Complete live DrapeProof YouCam deployment`).
 - Automated Android and Worker gates pass.
 - A physical install/camera run on the OnePlus Nord CE6 or Samsung Galaxy F15 is **not yet observed**. The project must not be described as fully device-validated until that run is recorded.
 
