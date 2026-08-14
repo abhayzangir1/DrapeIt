@@ -9,6 +9,8 @@ import android.graphics.LinearGradient
 import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffXfermode
 import android.graphics.RectF
 import android.graphics.Shader
 import android.net.Uri
@@ -89,6 +91,7 @@ import com.drapeproof.mobile.data.DrapeSnapRepository
 import com.drapeproof.mobile.data.SavedTryOnOutfit
 import com.drapeproof.mobile.data.WardrobeRepository
 import com.drapeproof.mobile.fabric.FabricCatalog
+import com.drapeproof.mobile.fabric.FabricTextureShader
 import com.drapeproof.mobile.network.DrapeProofApiClient
 import com.drapeproof.mobile.network.RemoteTaskResult
 import com.drapeproof.mobile.network.UploadInput
@@ -224,7 +227,10 @@ fun TryOnScreen(
                 var youCamBitmap: Bitmap? = null
                 if (api.cloudConfigured && baseBitmap != null) {
                     runCatching {
-                        generationStatus = "Uploading avatar to YouCam Cloud…"
+                        generationStatus = "Authenticating with YouCam AI Proxy…"
+                        api.ensureSession()
+
+                        generationStatus = "Uploading avatar and garment to YouCam Cloud…"
                         val faceStream = ByteArrayOutputStream()
                         baseBitmap.compress(Bitmap.CompressFormat.JPEG, 90, faceStream)
                         val faceBytes = faceStream.toByteArray()
@@ -233,22 +239,56 @@ fun TryOnScreen(
                         val garmentBytes = if (inputSource == TryOnInputSource.UPLOAD_GARMENT_IMAGE && customGarmentUri != null) {
                             context.contentResolver.openInputStream(customGarmentUri!!)?.use { it.readBytes() }
                         } else {
-                            val swatch = Bitmap.createBitmap(400, 400, Bitmap.Config.ARGB_8888)
+                            // Synthesize a clean, solid upper-body top template on pure white background
+                            val swatchW = 512
+                            val swatchH = 640
+                            val swatch = Bitmap.createBitmap(swatchW, swatchH, Bitmap.Config.ARGB_8888)
                             val c = Canvas(swatch)
-                            c.drawColor(android.graphics.Color.parseColor(selectedColorHex))
+                            c.drawColor(android.graphics.Color.WHITE)
+
+                            val topPath = Path().apply {
+                                moveTo(swatchW * 0.35f, swatchH * 0.12f)
+                                cubicTo(swatchW * 0.42f, swatchH * 0.22f, swatchW * 0.58f, swatchH * 0.22f, swatchW * 0.65f, swatchH * 0.12f)
+                                lineTo(swatchW * 0.90f, swatchH * 0.28f)
+                                lineTo(swatchW * 0.80f, swatchH * 0.45f)
+                                lineTo(swatchW * 0.72f, swatchH * 0.40f)
+                                lineTo(swatchW * 0.70f, swatchH * 0.90f)
+                                lineTo(swatchW * 0.30f, swatchH * 0.90f)
+                                lineTo(swatchW * 0.28f, swatchH * 0.40f)
+                                lineTo(swatchW * 0.20f, swatchH * 0.45f)
+                                lineTo(swatchW * 0.10f, swatchH * 0.28f)
+                                close()
+                            }
+                            val topPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                                color = android.graphics.Color.parseColor(selectedColorHex)
+                                style = Paint.Style.FILL
+                            }
+                            c.drawPath(topPath, topPaint)
+
+                            val rawTile = FabricTextureShader.getOrLoadRawBitmap(context, selectedFabric.id)
+                            rawTile?.let { tile ->
+                                val tileShader = BitmapShader(tile, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
+                                val tilePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                                    shader = tileShader
+                                    alpha = (selectedFabric.textureAlpha * 255).toInt().coerceIn(0, 255)
+                                    xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_ATOP)
+                                }
+                                c.drawPath(topPath, tilePaint)
+                            }
+
                             val swatchStream = ByteArrayOutputStream()
                             swatch.compress(Bitmap.CompressFormat.JPEG, 90, swatchStream)
                             swatchStream.toByteArray()
                         }
 
                         if (garmentBytes != null) {
-                            val faceInput = UploadInput("person.jpg", "image/jpeg", faceBytes)
-                            val garmentInput = UploadInput("garment.jpg", "image/jpeg", garmentBytes)
+                            val faceInput = UploadInput(contentType = "image/jpeg", fileName = "person.jpg", bytes = faceBytes)
+                            val garmentInput = UploadInput(contentType = "image/jpeg", fileName = "garment.jpg", bytes = garmentBytes)
                             val tickets = api.requestUploadTickets("try-on", listOf(faceInput, garmentInput))
                             api.upload(tickets[0], faceBytes)
                             api.upload(tickets[1], garmentBytes)
 
-                            generationStatus = "Creating YouCam Cloth V3 task…"
+                            generationStatus = "Creating YouCam Cloth V3 neural task…"
                             val operationId = UUID.randomUUID().toString()
                             val task = api.startTryOn(
                                 sourceFileId = tickets[0].fileId,
@@ -283,11 +323,11 @@ fun TryOnScreen(
                 if (youCamBitmap != null) {
                     youCamBitmap
                 } else {
-                    // 2. HIGH-FIDELITY ON-DEVICE NEURAL REPLACEMENT
+                    // 2. HIGH-FIDELITY ON-DEVICE STUDIO SYNTHESIS (FALLBACK)
                     runCatching {
-                        delay(500)
-                        generationStatus = "Draping ${selectedFabric.name} across shoulders…"
-                        delay(500)
+                        delay(600)
+                        generationStatus = "Draping tailored ${selectedFabric.name} on shoulders…"
+                        delay(600)
 
                         val width = baseBitmap?.width ?: 720
                         val height = baseBitmap?.height ?: 960
@@ -300,21 +340,21 @@ fun TryOnScreen(
                             canvas.drawColor(android.graphics.Color.parseColor("#181512"))
                         }
 
-                        val neckTopY = height * 0.44f
-                        val chestDipY = height * 0.52f
-                        val bottomY = height * 0.98f
+                        val neckTopY = height * 0.38f
+                        val chestDipY = height * 0.48f
+                        val bottomY = height.toFloat()
 
                         val garmentPath = Path().apply {
-                            moveTo(0f, neckTopY)
+                            moveTo(0f, neckTopY + height * 0.04f)
                             cubicTo(
-                                width * 0.22f, neckTopY,
-                                width * 0.38f, chestDipY,
+                                width * 0.20f, neckTopY + height * 0.02f,
+                                width * 0.36f, chestDipY,
                                 width * 0.50f, chestDipY,
                             )
                             cubicTo(
-                                width * 0.62f, chestDipY,
-                                width * 0.78f, neckTopY,
-                                width.toFloat(), neckTopY,
+                                width * 0.64f, chestDipY,
+                                width * 0.80f, neckTopY + height * 0.02f,
+                                width.toFloat(), neckTopY + height * 0.04f,
                             )
                             lineTo(width.toFloat(), bottomY)
                             lineTo(0f, bottomY)
@@ -347,10 +387,20 @@ fun TryOnScreen(
 
                             val garmentPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                                 color = clothColor
-                                alpha = 245
                                 style = Paint.Style.FILL
                             }
                             canvas.drawPath(garmentPath, garmentPaint)
+
+                            val rawTile = FabricTextureShader.getOrLoadRawBitmap(context, selectedFabric.id)
+                            rawTile?.let { tile ->
+                                val tileShader = BitmapShader(tile, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
+                                val tilePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                                    shader = tileShader
+                                    alpha = (selectedFabric.textureAlpha * 255).toInt().coerceIn(0, 255)
+                                    xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_ATOP)
+                                }
+                                canvas.drawPath(garmentPath, tilePaint)
+                            }
 
                             when (selectedFabric.id) {
                                 "silk", "satin" -> {

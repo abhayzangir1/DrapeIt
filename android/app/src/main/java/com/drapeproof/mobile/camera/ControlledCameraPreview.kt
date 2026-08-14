@@ -87,16 +87,20 @@ fun ControlledCameraPreview(
     onFrame: (FrameReading) -> Unit,
     onControlsReady: (DrapeCameraControls) -> Unit,
     onCameraError: (String) -> Unit,
+    onPreviewReady: ((PreviewView) -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val currentOnFrame by rememberUpdatedState(onFrame)
     val currentOnControlsReady by rememberUpdatedState(onControlsReady)
     val currentOnError by rememberUpdatedState(onCameraError)
+    val currentOnPreviewReady by rememberUpdatedState(onPreviewReady)
     val previewView = remember {
         PreviewView(context).apply {
             implementationMode = PreviewView.ImplementationMode.COMPATIBLE
             scaleType = PreviewView.ScaleType.FILL_CENTER
+        }.also { view ->
+            currentOnPreviewReady?.invoke(view)
         }
     }
     val analysisExecutor = remember { Executors.newSingleThreadExecutor() }

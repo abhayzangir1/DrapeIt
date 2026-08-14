@@ -19,10 +19,11 @@ import kotlin.math.sin
 object FabricTextureShader {
 
     private val tileCache = mutableMapOf<String, ImageBitmap>()
+    private val rawBitmapCache = mutableMapOf<String, android.graphics.Bitmap>()
 
-    fun getOrLoadTile(context: Context, fabricId: String): ImageBitmap? {
+    fun getOrLoadRawBitmap(context: Context, fabricId: String): android.graphics.Bitmap? {
         val key = fabricId.lowercase()
-        tileCache[key]?.let { return it }
+        rawBitmapCache[key]?.let { return it }
 
         val resName = "fabric_$key"
         val resId = context.resources.getIdentifier(resName, "drawable", context.packageName)
@@ -31,11 +32,22 @@ object FabricTextureShader {
                 val opts = BitmapFactory.Options().apply { inPreferredConfig = android.graphics.Bitmap.Config.ARGB_8888 }
                 val bmp = BitmapFactory.decodeResource(context.resources, resId, opts)
                 if (bmp != null) {
-                    val imgBmp = bmp.asImageBitmap()
-                    tileCache[key] = imgBmp
-                    return imgBmp
+                    rawBitmapCache[key] = bmp
+                    return bmp
                 }
             }
+        }
+        return null
+    }
+
+    fun getOrLoadTile(context: Context, fabricId: String): ImageBitmap? {
+        val key = fabricId.lowercase()
+        tileCache[key]?.let { return it }
+        val raw = getOrLoadRawBitmap(context, fabricId)
+        if (raw != null) {
+            val imgBmp = raw.asImageBitmap()
+            tileCache[key] = imgBmp
+            return imgBmp
         }
         return null
     }

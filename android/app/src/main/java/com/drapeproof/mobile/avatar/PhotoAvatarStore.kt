@@ -98,6 +98,35 @@ object PhotoAvatarStore {
         }.getOrNull()
     }
 
+    fun saveAvatarFromBitmap(
+        context: Context,
+        bitmap: Bitmap,
+        name: String,
+        lighting: AvatarLighting = AvatarLighting.DAYLIGHT,
+        skinHex: String? = null,
+    ): SavedAvatar? {
+        return runCatching {
+            val id = UUID.randomUUID().toString()
+            val avatarsDir = getAvatarsDir(context)
+            val targetFile = File(avatarsDir, "avatar_$id.jpg")
+            FileOutputStream(targetFile).use { output ->
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 90, output)
+            }
+            val avatar = SavedAvatar(
+                id = id,
+                name = name,
+                lighting = lighting,
+                imagePath = targetFile.absolutePath,
+                skinHex = skinHex,
+            )
+            val existing = listAvatars(context).toMutableList()
+            existing.add(0, avatar)
+            saveRegistry(context, existing)
+            setActiveAvatarId(context, id)
+            avatar
+        }.getOrNull()
+    }
+
     fun deleteAvatar(context: Context, id: String) {
         val existing = listAvatars(context).toMutableList()
         val toRemove = existing.firstOrNull { it.id == id }

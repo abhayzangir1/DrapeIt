@@ -5,7 +5,17 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.Path as AndroidPath
+import android.graphics.BitmapShader
+import android.graphics.Shader
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffXfermode
 import android.net.Uri
+import androidx.camera.view.PreviewView
+import com.drapeproof.mobile.avatar.PhotoAvatarStore
+import com.drapeproof.mobile.avatar.AvatarLighting
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -277,6 +287,8 @@ fun DrapeCaptureScreen(
         FabricTextureShader.getOrLoadTile(context, selectedFabric.id)
     }
 
+    var activePreviewView by remember { mutableStateOf<PreviewView?>(null) }
+
     Box(modifier = Modifier.fillMaxSize()) {
         // 1. LIVE CAMERA OR PHOTO MODE VIEWPORT
         if (activeMode == DrapeMode.LIVE) {
@@ -290,6 +302,7 @@ fun DrapeCaptureScreen(
                 },
                 onControlsReady = {},
                 onCameraError = {},
+                onPreviewReady = { view -> activePreviewView = view },
             )
         } else {
             Box(
@@ -728,21 +741,90 @@ fun DrapeCaptureScreen(
                                 ),
                             )
 
-                            // Save high-res snapshot
-                            val fakePreviewBitmap = Bitmap.createBitmap(400, 500, Bitmap.Config.ARGB_8888)
-                            val canvas = android.graphics.Canvas(fakePreviewBitmap)
-                            canvas.drawColor(android.graphics.Color.parseColor(capturedSkinHex))
+                            val rawUserBitmap = if (activeMode == DrapeMode.LIVE) {
+                                activePreviewView?.bitmap
+                            } else {
+                                photoBitmap
+                            }
 
-                            DrapeSnapRepository.saveSnap(
-                                context = context,
-                                bitmap = fakePreviewBitmap,
-                                colorHex = activeColorHex,
-                                colorName = selectedColor.name,
-                                fabricId = selectedFabric.id,
-                                fabricName = selectedFabric.name,
-                                matchScorePercent = harmonyResult.scorePercent,
-                                skinHex = capturedSkinHex,
-                            )
+                            if (rawUserBitmap != null) {
+                                // Save original user face as an avatar for Try-On studio
+                                PhotoAvatarStore.saveAvatarFromBitmap(
+                                    context = context,
+                                    bitmap = rawUserBitmap,
+                                    name = "My Photo",
+                                    lighting = AvatarLighting.DAYLIGHT,
+                                    skinHex = capturedSkinHex,
+                                )
+
+                                val comp = Bitmap.createBitmap(rawUserBitmap.width, rawUserBitmap.height, Bitmap.Config.ARGB_8888)
+                                val compCanvas = Canvas(comp)
+                                compCanvas.drawBitmap(rawUserBitmap, 0f, 0f, null)
+
+                                val w = rawUserBitmap.width.toFloat()
+                                val h = rawUserBitmap.height.toFloat()
+                                val chinX = smoothedChinX * w
+                                val chinY = smoothedChinY * h
+
+                                val drapePath = AndroidPath().apply {
+                                    moveTo(0f, chinY + h * 0.12f)
+                                    cubicTo(
+                                        w * 0.20f, chinY + h * 0.06f,
+                                        chinX - w * 0.12f, chinY + h * 0.02f,
+                                        chinX, chinY + h * 0.03f,
+                                    )
+                                    cubicTo(
+                                        chinX + w * 0.12f, chinY + h * 0.02f,
+                                        w * 0.80f, chinY + h * 0.06f,
+                                        w, chinY + h * 0.12f,
+                                    )
+                                    lineTo(w, h)
+                                    lineTo(0f, h)
+                                    close()
+                                }
+
+                                val basePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                                    color = android.graphics.Color.parseColor(activeColorHex)
+                                    style = Paint.Style.FILL
+                                }
+                                compCanvas.drawPath(drapePath, basePaint)
+
+                                val rawTile = FabricTextureShader.getOrLoadRawBitmap(context, selectedFabric.id)
+                                rawTile?.let { tile ->
+                                    val tileShader = BitmapShader(tile, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
+                                    val tilePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                                        shader = tileShader
+                                        alpha = (selectedFabric.textureAlpha * 255).toInt().coerceIn(0, 255)
+                                        xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_ATOP)
+                                    }
+                                    compCanvas.drawPath(drapePath, tilePaint)
+                                }
+
+                                DrapeSnapRepository.saveSnap(
+                                    context = context,
+                                    bitmap = comp,
+                                    colorHex = activeColorHex,
+                                    colorName = selectedColor.name,
+                                    fabricId = selectedFabric.id,
+                                    fabricName = selectedFabric.name,
+                                    matchScorePercent = harmonyResult.scorePercent,
+                                    skinHex = capturedSkinHex,
+                                )
+                            } else {
+                                val fallback = Bitmap.createBitmap(400, 500, Bitmap.Config.ARGB_8888)
+                                val c = Canvas(fallback)
+                                c.drawColor(android.graphics.Color.parseColor(activeColorHex))
+                                DrapeSnapRepository.saveSnap(
+                                    context = context,
+                                    bitmap = fallback,
+                                    colorHex = activeColorHex,
+                                    colorName = selectedColor.name,
+                                    fabricId = selectedFabric.id,
+                                    fabricName = selectedFabric.name,
+                                    matchScorePercent = harmonyResult.scorePercent,
+                                    skinHex = capturedSkinHex,
+                                )
+                            }
 
                             toastMessage = "📸 Captured! Saved to Compare & Lookbook."
                         },

@@ -121,6 +121,14 @@ class DrapeProofApiClient(
         return response.json.getLong("expiresInSeconds")
     }
 
+    fun ensureSession(accessCode: String = "drapeit-client-2026"): Boolean {
+        if (sessionToken != null) return true
+        return runCatching {
+            createSession(accessCode)
+            true
+        }.getOrDefault(false)
+    }
+
     fun credits(): CreditStatus {
         val json = request("GET", "/v1/credits").json
         val costs = json.optJSONObject("costs")

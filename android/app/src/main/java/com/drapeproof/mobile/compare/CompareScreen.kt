@@ -301,12 +301,25 @@ fun CompareScreen(
                     )
                     Spacer(Modifier.height(8.dp))
 
-                    if (selectedSnaps.size == 2) {
-                        // 2 PHOTOS: SIDE-BY-SIDE VERTICAL SPLIT
+                    if (selectedSnaps.size == 1) {
+                        // 1 PHOTO: FULL IMMERSIVE VIEW
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(380.dp),
+                        ) {
+                            CollagePhotoCard(
+                                snap = selectedSnaps[0],
+                                isWinner = true,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        }
+                    } else if (selectedSnaps.size == 2) {
+                        // 2 PHOTOS: EXPANSIVE SIDE-BY-SIDE VERTICAL SPLIT
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(260.dp),
+                                .height(320.dp),
                             horizontalArrangement = Arrangement.spacedBy(10.dp),
                         ) {
                             selectedSnaps.forEach { snap ->
@@ -318,13 +331,13 @@ fun CompareScreen(
                             }
                         }
                     } else {
-                        // 3 OR 4 PHOTOS: 2x2 QUAD GRID (2 UPSIDE, 2 DOWNSIDE SQUARES)
-                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            // Row 1 (2 upside squares)
+                        // 3 OR 4 PHOTOS: 2x2 QUAD GRID WITH GENEROUS HEIGHT
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            // Row 1
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(180.dp),
+                                    .height(230.dp),
                                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                             ) {
                                 selectedSnaps.take(2).forEach { snap ->
@@ -336,12 +349,12 @@ fun CompareScreen(
                                 }
                             }
 
-                            // Row 2 (2 downside squares)
+                            // Row 2
                             if (selectedSnaps.size > 2) {
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .height(180.dp),
+                                        .height(230.dp),
                                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                                 ) {
                                     selectedSnaps.drop(2).take(2).forEach { snap ->
@@ -392,8 +405,8 @@ private fun CollagePhotoCard(
 
     Card(
         shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = if (isWinner) 4.dp else 1.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.Black),
+        elevation = CardDefaults.cardElevation(defaultElevation = if (isWinner) 6.dp else 2.dp),
         modifier = modifier.border(
             width = if (isWinner) 2.5.dp else 1.dp,
             color = if (isWinner) EditorialPositive else EditorialStone.copy(alpha = 0.35f),
@@ -401,14 +414,30 @@ private fun CollagePhotoCard(
         ),
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
-            if (file.exists()) {
-                val bmp = BitmapFactory.decodeFile(file.absolutePath)
-                if (bmp != null) {
-                    Image(
-                        bitmap = bmp.asImageBitmap(),
-                        contentDescription = snap.fabricName,
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop,
+            val bmp = remember(snap.imagePath) {
+                if (file.exists()) BitmapFactory.decodeFile(file.absolutePath) else null
+            }
+
+            if (bmp != null) {
+                Image(
+                    bitmap = bmp.asImageBitmap(),
+                    contentDescription = snap.fabricName,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                )
+            } else {
+                // Fallback swatch background
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color(android.graphics.Color.parseColor(snap.colorHex))),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        snap.fabricName,
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.titleMedium,
                     )
                 }
             }
