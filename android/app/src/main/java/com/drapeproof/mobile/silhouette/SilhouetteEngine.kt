@@ -179,6 +179,7 @@ object SilhouetteEngine {
                         FabricDrape.RELAXED -> TopwearCut.BOXY_OVERSIZED
                         FabricDrape.FLUID -> TopwearCut.RELAXED_CASUAL
                         FabricDrape.HEAVY_PLUSH -> TopwearCut.TAILORED_ATHLETIC
+                        FabricDrape.FEATHERLIGHT -> TopwearCut.RELAXED_CASUAL
                     },
                     recommendedBottom = BottomwearCut.TAPERED_CHINOS,
                     bottomColorAdvice = "Versatile harmony — pairs well with khaki, olive, or classic dark denim.",

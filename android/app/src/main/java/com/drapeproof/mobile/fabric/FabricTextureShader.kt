@@ -67,6 +67,90 @@ object FabricTextureShader {
                     )
                 }
 
+                "leather" -> {
+                    // Sleek directional leather sheen with edge highlights & subtle fine grain
+                    drawPath(
+                        path = path,
+                        brush = Brush.linearGradient(
+                            colors = listOf(
+                                Color.White.copy(alpha = 0.35f),
+                                Color.Black.copy(alpha = 0.40f),
+                                Color.White.copy(alpha = 0.20f),
+                                Color.Black.copy(alpha = 0.55f),
+                            ),
+                            start = Offset(0f, neckTopY),
+                            end = Offset(width, height),
+                        ),
+                    )
+                    // Edge seam stitching
+                    drawPath(
+                        path = path,
+                        color = Color.Black.copy(alpha = 0.60f),
+                        style = Stroke(
+                            width = 2.dp.toPx(),
+                            pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 6f), 0f),
+                        ),
+                    )
+                }
+
+                "tweed" -> {
+                    // Herringbone Bouclé textured cross-hatching
+                    val step = 14.dp.toPx()
+                    var tx = -height
+                    while (tx < width * 2) {
+                        drawLine(
+                            color = Color.White.copy(alpha = 0.18f),
+                            start = Offset(tx, neckTopY),
+                            end = Offset(tx + height * 0.7f, height),
+                            strokeWidth = 2.dp.toPx(),
+                        )
+                        drawLine(
+                            color = Color.Black.copy(alpha = 0.22f),
+                            start = Offset(tx + height * 0.7f, neckTopY),
+                            end = Offset(tx, height),
+                            strokeWidth = 2.dp.toPx(),
+                        )
+                        tx += step
+                    }
+                }
+
+                "corduroy" -> {
+                    // Parallel vertical wale channels
+                    val waleSpacing = 9.dp.toPx()
+                    var cx = 0f
+                    while (cx < width) {
+                        drawLine(
+                            color = Color.Black.copy(alpha = 0.35f),
+                            start = Offset(cx, neckTopY),
+                            end = Offset(cx, height),
+                            strokeWidth = 3.dp.toPx(),
+                        )
+                        drawLine(
+                            color = Color.White.copy(alpha = 0.20f),
+                            start = Offset(cx + 3.dp.toPx(), neckTopY),
+                            end = Offset(cx + 3.dp.toPx(), height),
+                            strokeWidth = 1.5.dp.toPx(),
+                        )
+                        cx += waleSpacing
+                    }
+                }
+
+                "chiffon" -> {
+                    // Featherlight translucent weave with soft ethereal gradient
+                    drawPath(
+                        path = path,
+                        brush = Brush.verticalGradient(
+                            colors = listOf(
+                                Color.White.copy(alpha = 0.30f),
+                                Color.Transparent,
+                                Color.White.copy(alpha = 0.20f),
+                            ),
+                            startY = neckTopY,
+                            endY = height,
+                        ),
+                    )
+                }
+
                 "denim" -> {
                     // 45-degree 3x1 twill diagonal ribs
                     val spacing = 8.dp.toPx()
@@ -93,7 +177,7 @@ object FabricTextureShader {
                 }
 
                 "linen" -> {
-                    // Organic slub weave crosshatching (Horizontal & Vertical organic fibers)
+                    // Organic slub weave crosshatching
                     val horizSpacing = 10.dp.toPx()
                     var y = neckTopY
                     var idx = 0

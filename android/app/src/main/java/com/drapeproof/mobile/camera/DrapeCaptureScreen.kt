@@ -85,6 +85,7 @@ import com.drapeproof.mobile.data.StoredSkinProfile
 import com.drapeproof.mobile.fabric.FabricCatalog
 import com.drapeproof.mobile.fabric.FabricMaterial
 import com.drapeproof.mobile.fabric.FabricTextureShader
+import com.drapeproof.mobile.ui.UniversalColorPickerDialog
 import com.drapeproof.mobile.ui.theme.EditorialCream
 import com.drapeproof.mobile.ui.theme.EditorialInk
 import com.drapeproof.mobile.ui.theme.EditorialMuted
@@ -578,45 +579,17 @@ fun DrapeCaptureScreen(
 
             Spacer(Modifier.height(10.dp))
 
-            // CUSTOM HUE PICKER SLIDER (IF OPEN)
+            // UNIVERSAL COLOR PICKER DIALOG
             if (isCustomPickerOpen) {
-                Card(
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.Black.copy(alpha = 0.90f)),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 8.dp),
-                ) {
-                    Column(Modifier.padding(12.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text("Custom Color Dial", style = MaterialTheme.typography.labelSmall, color = Color.White)
-                            Text(
-                                "Close ✕",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = EditorialWarning,
-                                modifier = Modifier.clickable { isCustomPickerOpen = false },
-                            )
-                        }
-                        Slider(
-                            value = customHue,
-                            onValueChange = {
-                                customHue = it
-                                val rgb = android.graphics.Color.HSVToColor(floatArrayOf(it, 0.75f, 0.85f))
-                                customHex = String.format("#%06X", 0xFFFFFF and rgb)
-                                selectedColor = CameraColorItem("Custom Shade", customHex!!, "Custom")
-                            },
-                            valueRange = 0f..360f,
-                            colors = SliderDefaults.colors(
-                                thumbColor = EditorialSienna,
-                                activeTrackColor = EditorialSienna,
-                            ),
-                        )
-                    }
-                }
+                UniversalColorPickerDialog(
+                    initialColorHex = activeColorHex,
+                    onDismiss = { isCustomPickerOpen = false },
+                    onColorSelected = { hex, name ->
+                        customHex = hex
+                        selectedColor = CameraColorItem(name, hex, "Custom")
+                        isCustomPickerOpen = false
+                    },
+                )
             }
 
             // HORIZONTAL COLOR SWATCH ROW WITH FIXED COLOR PICKER ON RIGHT

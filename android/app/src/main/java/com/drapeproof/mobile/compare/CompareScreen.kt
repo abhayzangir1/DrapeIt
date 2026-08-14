@@ -200,7 +200,7 @@ fun CompareScreen(
                                     )
                                     .clickable {
                                         if (isSelected) {
-                                            if (selectedSnapIds.size > 2) selectedSnapIds.remove(snap.id)
+                                            if (selectedSnapIds.size > 1) selectedSnapIds.remove(snap.id)
                                         } else {
                                             if (selectedSnapIds.size < 4) selectedSnapIds.add(snap.id)
                                         }

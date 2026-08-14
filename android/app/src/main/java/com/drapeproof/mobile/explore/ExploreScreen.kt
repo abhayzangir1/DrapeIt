@@ -65,8 +65,13 @@ private data class CuratedColorItem(val name: String, val hex: String, val recom
 
 private val curatedExplorePalette = listOf(
     CuratedColorItem("Royal Burgundy", "#831843", "silk", OccasionPreset.EVENING),
+    CuratedColorItem("Cognac Saddle", "#78350F", "leather", OccasionPreset.EVERYDAY),
+    CuratedColorItem("Highland Tweed", "#4B5563", "tweed", OccasionPreset.OFFICE),
     CuratedColorItem("Deep Olive", "#3F6212", "linen", OccasionPreset.EVERYDAY),
+    CuratedColorItem("Obsidian Noir", "#0F172A", "satin", OccasionPreset.FORMAL),
+    CuratedColorItem("Amber Ochre", "#D97706", "corduroy", OccasionPreset.EVERYDAY),
     CuratedColorItem("Cobalt Navy", "#1D4ED8", "wool", OccasionPreset.OFFICE),
+    CuratedColorItem("Champagne Rose", "#E2B8B3", "chiffon", OccasionPreset.EVENING),
     CuratedColorItem("Terracotta Clay", "#B45309", "cotton", OccasionPreset.EVERYDAY),
     CuratedColorItem("Emerald Pine", "#047857", "velvet", OccasionPreset.EVENING),
     CuratedColorItem("Midnight Charcoal", "#1F2937", "cashmere", OccasionPreset.FORMAL),

@@ -7,6 +7,7 @@ enum class FabricLuster {
     SUBTLE_SHEEN,
     HIGH_GLOSS,
     DIRECTIONAL_VELVET,
+    LEATHER_GRAIN,
 }
 
 enum class FabricDrape {
@@ -14,6 +15,7 @@ enum class FabricDrape {
     RELAXED,
     FLUID,
     HEAVY_PLUSH,
+    FEATHERLIGHT,
 }
 
 data class FabricMaterial(
@@ -71,9 +73,39 @@ object FabricCatalog {
             weaveType = "High-Luster Filament",
         ),
         FabricMaterial(
+            id = "leather",
+            name = "Genuine Leather",
+            icon = "🧥",
+            description = "Rich tactile grain with architectural drape and sleek edge sheen.",
+            luster = FabricLuster.LEATHER_GRAIN,
+            drape = FabricDrape.STRUCTURED,
+            breathability = "Low",
+            weaveType = "Full-Grain Nappa",
+        ),
+        FabricMaterial(
+            id = "tweed",
+            name = "Heritage Tweed",
+            icon = "🧵",
+            description = "Multi-tonal woolen weave with distinguished structured texture.",
+            luster = FabricLuster.MATTE,
+            drape = FabricDrape.STRUCTURED,
+            breathability = "Medium",
+            weaveType = "Herringbone Bouclé",
+        ),
+        FabricMaterial(
+            id = "corduroy",
+            name = "Plush Corduroy",
+            icon = "👖",
+            description = "Parallel vertical wales with warm tactile ridges and soft drape.",
+            luster = FabricLuster.DIRECTIONAL_VELVET,
+            drape = FabricDrape.HEAVY_PLUSH,
+            breathability = "Medium",
+            weaveType = "8-Wale Ribbed Cut",
+        ),
+        FabricMaterial(
             id = "cashmere",
             name = "Pure Cashmere",
-            icon = "🧵",
+            icon = "🧣",
             description = "Ultra-fine cloud-soft luxury with gentle thermal drape.",
             luster = FabricLuster.MATTE,
             drape = FabricDrape.RELAXED,
@@ -103,12 +135,22 @@ object FabricCatalog {
         FabricMaterial(
             id = "velvet",
             name = "Plush Velvet",
-            icon = "🧥",
+            icon = "👑",
             description = "Deep directional light absorption with rich dimensional sheen.",
             luster = FabricLuster.DIRECTIONAL_VELVET,
             drape = FabricDrape.HEAVY_PLUSH,
             breathability = "Medium",
             weaveType = "Cut Pile",
+        ),
+        FabricMaterial(
+            id = "chiffon",
+            name = "Sheer Chiffon",
+            icon = "🪶",
+            description = "Featherlight translucent weave with floating ethereal drape.",
+            luster = FabricLuster.SUBTLE_SHEEN,
+            drape = FabricDrape.FEATHERLIGHT,
+            breathability = "Maximum",
+            weaveType = "Crepe Twist Plain",
         ),
         FabricMaterial(
             id = "knit",

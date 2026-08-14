@@ -45,6 +45,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -60,7 +61,9 @@ import androidx.compose.material3.TabRow
 import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -82,12 +85,14 @@ import androidx.compose.ui.unit.sp
 import com.drapeproof.mobile.avatar.AvatarLighting
 import com.drapeproof.mobile.avatar.PhotoAvatarStore
 import com.drapeproof.mobile.avatar.SavedAvatar
+import com.drapeproof.mobile.data.DrapeSnapRepository
 import com.drapeproof.mobile.data.SavedTryOnOutfit
 import com.drapeproof.mobile.data.WardrobeRepository
 import com.drapeproof.mobile.fabric.FabricCatalog
 import com.drapeproof.mobile.network.DrapeProofApiClient
 import com.drapeproof.mobile.network.RemoteTaskResult
 import com.drapeproof.mobile.network.UploadInput
+import com.drapeproof.mobile.ui.UniversalColorPickerDialog
 import com.drapeproof.mobile.ui.theme.EditorialCream
 import com.drapeproof.mobile.ui.theme.EditorialInk
 import com.drapeproof.mobile.ui.theme.EditorialMuted
@@ -130,10 +135,26 @@ fun TryOnScreen(
     var selectedCut by remember { mutableStateOf(initialCutName ?: "Relaxed Tailored") }
     var customGarmentUri by remember { mutableStateOf(initialGarmentUri) }
     var isFabricMenuOpen by remember { mutableStateOf(false) }
+    var isColorPickerOpen by remember { mutableStateOf(false) }
 
     // User Avatar
     var avatars by remember { mutableStateOf(PhotoAvatarStore.listAvatars(context)) }
     var activeAvatar by remember { mutableStateOf(PhotoAvatarStore.getActiveAvatar(context)) }
+
+    // Prompt Dialog States
+    var showAvatarPromptDialog by remember { mutableStateOf(false) }
+    var showGarmentPromptDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        if (avatars.isEmpty()) {
+            val snaps = DrapeSnapRepository.list(context)
+            snaps.firstOrNull()?.let { snap ->
+                val avatar = PhotoAvatarStore.saveAvatarFromUri(context, Uri.fromFile(File(snap.imagePath)), "Captured Portrait", AvatarLighting.DAYLIGHT)
+                avatars = PhotoAvatarStore.listAvatars(context)
+                activeAvatar = avatar
+            }
+        }
+    }
 
     // Generation state
     var isGenerating by remember { mutableStateOf(false) }
@@ -170,6 +191,325 @@ fun TryOnScreen(
                 }
             }
         }
+    }
+
+    fun executeGeneration() {
+        isGenerating = true
+        generationStatus = "Submitting to Perfect Corp YouCam AI Engine…"
+        scope.launch {
+            val userAvatarFile = activeAvatar?.imagePath?.let { File(it) }
+            val baseBitmap = if (userAvatarFile?.exists() == true) {
+                BitmapFactory.decodeFile(userAvatarFile.absolutePath)
+            } else {
+                null
+            }
+
+            val result = withContext(Dispatchers.IO) {
+                // 1. ATTEMPT REAL YOUCAM CLOUD API FIRST
+                var youCamBitmap: Bitmap? = null
+                if (api.cloudConfigured && baseBitmap != null) {
+                    runCatching {
+                        generationStatus = "Uploading avatar to YouCam Cloud…"
+                        val faceStream = ByteArrayOutputStream()
+                        baseBitmap.compress(Bitmap.CompressFormat.JPEG, 90, faceStream)
+                        val faceBytes = faceStream.toByteArray()
+
+                        // Reference garment / fabric swatch
+                        val garmentBytes = if (inputSource == TryOnInputSource.UPLOAD_GARMENT_IMAGE && customGarmentUri != null) {
+                            context.contentResolver.openInputStream(customGarmentUri!!)?.use { it.readBytes() }
+                        } else {
+                            val swatch = Bitmap.createBitmap(400, 400, Bitmap.Config.ARGB_8888)
+                            val c = Canvas(swatch)
+                            c.drawColor(android.graphics.Color.parseColor(selectedColorHex))
+                            val swatchStream = ByteArrayOutputStream()
+                            swatch.compress(Bitmap.CompressFormat.JPEG, 90, swatchStream)
+                            swatchStream.toByteArray()
+                        }
+
+                        if (garmentBytes != null) {
+                            val faceInput = UploadInput("person.jpg", "image/jpeg", faceBytes)
+                            val garmentInput = UploadInput("garment.jpg", "image/jpeg", garmentBytes)
+                            val tickets = api.requestUploadTickets("try-on", listOf(faceInput, garmentInput))
+                            api.upload(tickets[0], faceBytes)
+                            api.upload(tickets[1], garmentBytes)
+
+                            generationStatus = "Creating YouCam Cloth V3 task…"
+                            val operationId = UUID.randomUUID().toString()
+                            val task = api.startTryOn(
+                                sourceFileId = tickets[0].fileId,
+                                referenceFileId = tickets[1].fileId,
+                                garmentCategory = "upper_body",
+                                provider = "clothes",
+                                gender = "female",
+                                style = "style_modern_chic",
+                                operationId = operationId,
+                            )
+
+                            generationStatus = "YouCam AI neural cloth synthesis in progress…"
+                            var attempts = 0
+                            while (attempts < 30) {
+                                delay(2000)
+                                when (val pollRes = api.poll("try-on", task.taskId)) {
+                                    is RemoteTaskResult.TryOnImage -> {
+                                        val stream = URL(pollRes.imageUrl).openStream()
+                                        youCamBitmap = BitmapFactory.decodeStream(stream)
+                                        break
+                                    }
+                                    is RemoteTaskResult.Running -> {
+                                        attempts++
+                                    }
+                                    else -> break
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (youCamBitmap != null) {
+                    youCamBitmap
+                } else {
+                    // 2. HIGH-FIDELITY ON-DEVICE NEURAL REPLACEMENT
+                    runCatching {
+                        delay(500)
+                        generationStatus = "Draping ${selectedFabric.name} across shoulders…"
+                        delay(500)
+
+                        val width = baseBitmap?.width ?: 720
+                        val height = baseBitmap?.height ?: 960
+                        val rendered = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+                        val canvas = Canvas(rendered)
+
+                        if (baseBitmap != null) {
+                            canvas.drawBitmap(baseBitmap, 0f, 0f, null)
+                        } else {
+                            canvas.drawColor(android.graphics.Color.parseColor("#181512"))
+                        }
+
+                        val neckTopY = height * 0.44f
+                        val chestDipY = height * 0.52f
+                        val bottomY = height * 0.98f
+
+                        val garmentPath = Path().apply {
+                            moveTo(0f, neckTopY)
+                            cubicTo(
+                                width * 0.22f, neckTopY,
+                                width * 0.38f, chestDipY,
+                                width * 0.50f, chestDipY,
+                            )
+                            cubicTo(
+                                width * 0.62f, chestDipY,
+                                width * 0.78f, neckTopY,
+                                width.toFloat(), neckTopY,
+                            )
+                            lineTo(width.toFloat(), bottomY)
+                            lineTo(0f, bottomY)
+                            close()
+                        }
+
+                        val customGarmentBmp = customGarmentUri?.let { uri ->
+                            runCatching {
+                                context.contentResolver.openInputStream(uri)?.use { stream ->
+                                    BitmapFactory.decodeStream(stream)
+                                }
+                            }.getOrNull()
+                        }
+
+                        if (inputSource == TryOnInputSource.UPLOAD_GARMENT_IMAGE && customGarmentBmp != null) {
+                            val shader = BitmapShader(customGarmentBmp, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
+                            val matrix = Matrix()
+                            val scaleX = width.toFloat() / customGarmentBmp.width.toFloat()
+                            val scaleY = (bottomY - neckTopY) / customGarmentBmp.height.toFloat()
+                            matrix.setScale(scaleX, scaleY)
+                            matrix.postTranslate(0f, neckTopY)
+                            shader.setLocalMatrix(matrix)
+
+                            val customPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                                this.shader = shader
+                            }
+                            canvas.drawPath(garmentPath, customPaint)
+                        } else {
+                            val clothColor = android.graphics.Color.parseColor(selectedColorHex)
+
+                            val garmentPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                                color = clothColor
+                                alpha = 245
+                                style = Paint.Style.FILL
+                            }
+                            canvas.drawPath(garmentPath, garmentPaint)
+
+                            when (selectedFabric.id) {
+                                "silk", "satin" -> {
+                                    val sheenPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                                        shader = LinearGradient(
+                                            0f, neckTopY, width.toFloat(), bottomY,
+                                            intArrayOf(
+                                                android.graphics.Color.argb(90, 255, 255, 255),
+                                                android.graphics.Color.argb(0, 0, 0, 0),
+                                                android.graphics.Color.argb(70, 255, 255, 255),
+                                                android.graphics.Color.argb(100, 0, 0, 0),
+                                            ),
+                                            null,
+                                            Shader.TileMode.CLAMP,
+                                        )
+                                    }
+                                    canvas.drawPath(garmentPath, sheenPaint)
+                                }
+
+                                "denim" -> {
+                                    val denimLinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                                        color = android.graphics.Color.argb(45, 0, 0, 0)
+                                        strokeWidth = 3f
+                                    }
+                                    var lx = -height.toFloat()
+                                    while (lx < width * 2) {
+                                        canvas.drawLine(lx, neckTopY, lx + height, bottomY, denimLinePaint)
+                                        lx += 18f
+                                    }
+                                }
+
+                                "linen" -> {
+                                    val linenLinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                                        color = android.graphics.Color.argb(35, 0, 0, 0)
+                                        strokeWidth = 2f
+                                    }
+                                    var ly = neckTopY
+                                    while (ly < bottomY) {
+                                        canvas.drawLine(0f, ly, width.toFloat(), ly, linenLinePaint)
+                                        ly += 22f
+                                    }
+                                }
+
+                                "velvet" -> {
+                                    val velvetPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                                        shader = LinearGradient(
+                                            0f, 0f, width.toFloat(), 0f,
+                                            intArrayOf(
+                                                android.graphics.Color.argb(110, 0, 0, 0),
+                                                android.graphics.Color.argb(50, 255, 255, 255),
+                                                android.graphics.Color.argb(120, 0, 0, 0),
+                                            ),
+                                            null,
+                                            Shader.TileMode.CLAMP,
+                                        )
+                                    }
+                                    canvas.drawPath(garmentPath, velvetPaint)
+                                }
+                            }
+                        }
+
+                        val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                            shader = LinearGradient(
+                                0f, neckTopY, 0f, bottomY,
+                                intArrayOf(
+                                    android.graphics.Color.argb(70, 255, 255, 255),
+                                    android.graphics.Color.argb(0, 0, 0, 0),
+                                    android.graphics.Color.argb(95, 0, 0, 0),
+                                ),
+                                null,
+                                Shader.TileMode.CLAMP,
+                            )
+                        }
+                        canvas.drawPath(garmentPath, shadowPaint)
+
+                        val collarPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                            color = android.graphics.Color.argb(150, 255, 255, 255)
+                            style = Paint.Style.STROKE
+                            strokeWidth = 3.5f
+                        }
+                        canvas.drawPath(garmentPath, collarPaint)
+
+                        rendered
+                    }.getOrNull()
+                }
+            }
+
+            tryOnResultBitmap = result
+            isGenerating = false
+            generationStatus = null
+        }
+    }
+
+    // DIALOG 1: PROMPT FOR AVATAR
+    if (showAvatarPromptDialog) {
+        AlertDialog(
+            onDismissRequest = { showAvatarPromptDialog = false },
+            title = {
+                Text("Select Silhouette to Try On", fontWeight = FontWeight.Bold, color = EditorialInk)
+            },
+            text = {
+                Text(
+                    "You haven't uploaded a photo yet. Would you like to upload your selfie, or try it on an AI fashion model?",
+                    color = EditorialInk,
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showAvatarPromptDialog = false
+                        avatarPicker.launch("image/*")
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = EditorialSienna),
+                ) {
+                    Text("📷 Upload My Photo")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showAvatarPromptDialog = false
+                        scope.launch(Dispatchers.IO) {
+                            val modelAvatar = PhotoAvatarStore.createStudioModelAvatar(context)
+                            val updatedList = PhotoAvatarStore.listAvatars(context)
+                            withContext(Dispatchers.Main) {
+                                avatars = updatedList
+                                activeAvatar = modelAvatar
+                                executeGeneration()
+                            }
+                        }
+                    },
+                ) {
+                    Text("👤 Use AI Fit Model", fontWeight = FontWeight.Bold, color = EditorialSienna)
+                }
+            },
+        )
+    }
+
+    // DIALOG 2: PROMPT FOR GARMENT
+    if (showGarmentPromptDialog) {
+        AlertDialog(
+            onDismissRequest = { showGarmentPromptDialog = false },
+            title = {
+                Text("Select Garment to Try On", fontWeight = FontWeight.Bold, color = EditorialInk)
+            },
+            text = {
+                Text(
+                    "How would you like to dress your avatar? Choose from your analyzed palette look, or upload a product screenshot.",
+                    color = EditorialInk,
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showGarmentPromptDialog = false
+                        inputSource = TryOnInputSource.FROM_ANALYSIS
+                        executeGeneration()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = EditorialSienna),
+                ) {
+                    Text("🎨 Use ${selectedFabric.name} Look")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showGarmentPromptDialog = false
+                        garmentPicker.launch("image/*")
+                    },
+                ) {
+                    Text("🛍️ Upload Garment Photo", fontWeight = FontWeight.Bold, color = EditorialSienna)
+                }
+            },
+        )
     }
 
     Surface(
@@ -222,7 +562,7 @@ fun TryOnScreen(
 
             Spacer(Modifier.height(16.dp))
 
-            // 1. CLEAR STEP 1: CHOOSE TRY-ON METHOD (SEGMENTED SWITCHER)
+            // STEP 1: SELECT GARMENT SOURCE
             Text(
                 "STEP 1: SELECT GARMENT SOURCE",
                 style = MaterialTheme.typography.labelSmall,
@@ -277,7 +617,6 @@ fun TryOnScreen(
             ) {
                 Column(modifier = Modifier.padding(14.dp)) {
                     if (inputSource == TryOnInputSource.FROM_ANALYSIS) {
-                        // OPTION A: PALETTE LOOK
                         Text(
                             "Selected Drape Material & Color",
                             style = MaterialTheme.typography.titleSmall,
@@ -296,14 +635,20 @@ fun TryOnScreen(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween,
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.clickable { isColorPickerOpen = true },
+                            ) {
                                 Box(
                                     modifier = Modifier
-                                        .size(38.dp)
+                                        .size(40.dp)
                                         .clip(CircleShape)
                                         .background(selectedColorHex.asComposeColor())
                                         .border(2.dp, EditorialStone, CircleShape),
-                                )
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Text("🎨", fontSize = 12.sp)
+                                }
                                 Spacer(Modifier.width(10.dp))
                                 Column {
                                     Text(
@@ -313,41 +658,61 @@ fun TryOnScreen(
                                         color = EditorialInk,
                                     )
                                     Text(
-                                        selectedCut,
+                                        "$selectedCut • Tap to customize",
                                         style = MaterialTheme.typography.labelSmall,
                                         color = EditorialMuted,
                                     )
                                 }
                             }
 
-                            // Change Fabric button
-                            Box {
+                            // Fabric & Color Customizer Buttons
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 OutlinedButton(
-                                    onClick = { isFabricMenuOpen = true },
+                                    onClick = { isColorPickerOpen = true },
                                     shape = RoundedCornerShape(12.dp),
                                     modifier = Modifier.height(34.dp),
                                 ) {
-                                    Text("Change ▾", style = MaterialTheme.typography.labelSmall, color = EditorialInk)
+                                    Text("🎨 Color", style = MaterialTheme.typography.labelSmall, color = EditorialInk)
                                 }
 
-                                DropdownMenu(
-                                    expanded = isFabricMenuOpen,
-                                    onDismissRequest = { isFabricMenuOpen = false },
-                                ) {
-                                    FabricCatalog.allFabrics.forEach { fab ->
-                                        DropdownMenuItem(
-                                            text = { Text("${fab.icon} ${fab.name}", fontWeight = FontWeight.Bold) },
-                                            onClick = {
-                                                selectedFabric = fab
-                                                isFabricMenuOpen = false
-                                            },
-                                        )
+                                Box {
+                                    OutlinedButton(
+                                        onClick = { isFabricMenuOpen = true },
+                                        shape = RoundedCornerShape(12.dp),
+                                        modifier = Modifier.height(34.dp),
+                                    ) {
+                                        Text("Fabric ▾", style = MaterialTheme.typography.labelSmall, color = EditorialInk)
+                                    }
+
+                                    DropdownMenu(
+                                        expanded = isFabricMenuOpen,
+                                        onDismissRequest = { isFabricMenuOpen = false },
+                                    ) {
+                                        FabricCatalog.allFabrics.forEach { fab ->
+                                            DropdownMenuItem(
+                                                text = { Text("${fab.icon} ${fab.name}", fontWeight = FontWeight.Bold) },
+                                                onClick = {
+                                                    selectedFabric = fab
+                                                    isFabricMenuOpen = false
+                                                },
+                                            )
+                                        }
                                     }
                                 }
                             }
                         }
+
+                        if (isColorPickerOpen) {
+                            UniversalColorPickerDialog(
+                                initialColorHex = selectedColorHex,
+                                onDismiss = { isColorPickerOpen = false },
+                                onColorSelected = { hex, _ ->
+                                    selectedColorHex = hex
+                                    isColorPickerOpen = false
+                                },
+                            )
+                        }
                     } else {
-                        // OPTION B: STORE GARMENT UPLOAD
                         Text(
                             "Upload Garment Screenshot",
                             style = MaterialTheme.typography.titleSmall,
@@ -409,7 +774,7 @@ fun TryOnScreen(
 
             Spacer(Modifier.height(18.dp))
 
-            // 2. STEP 2: CHOOSE YOUR PORTRAIT AVATAR
+            // STEP 2: CHOOSE YOUR PORTRAIT AVATAR
             Card(
                 shape = RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -506,8 +871,8 @@ fun TryOnScreen(
                             Text("👤", fontSize = 24.sp)
                             Spacer(Modifier.width(10.dp))
                             Column {
-                                Text("Upload a full body or chest photo", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = EditorialInk)
-                                Text("Tap here to select from gallery", style = MaterialTheme.typography.bodySmall, color = EditorialMuted)
+                                Text("Upload a photo or tap to pick avatar", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = EditorialInk)
+                                Text("Tap here to choose from gallery", style = MaterialTheme.typography.bodySmall, color = EditorialMuted)
                             }
                         }
                     }
@@ -516,7 +881,7 @@ fun TryOnScreen(
 
             Spacer(Modifier.height(18.dp))
 
-            // 3. STEP 3: RESULT PREVIEW CARD
+            // STEP 3: RESULT PREVIEW CARD
             Card(
                 shape = RoundedCornerShape(22.dp),
                 colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -605,248 +970,28 @@ fun TryOnScreen(
 
                     Spacer(Modifier.height(16.dp))
 
-                    // GENERATE BUTTON
+                    val needsGarment = inputSource == TryOnInputSource.UPLOAD_GARMENT_IMAGE && customGarmentUri == null
+                    val needsAvatar = activeAvatar == null
+
                     val ctaText = when {
                         isGenerating -> "Generating Try-On…"
+                        needsGarment -> "📸 Select Garment Screenshot First"
+                        needsAvatar -> "👤 Select Portrait Photo First"
                         inputSource == TryOnInputSource.FROM_ANALYSIS -> "Try On ${selectedFabric.name} (${selectedCut}) ✨"
                         else -> "Try On Uploaded Garment ✨"
                     }
 
                     Button(
                         onClick = {
-                            isGenerating = true
-                            generationStatus = "Submitting to Perfect Corp YouCam AI Engine…"
-                            scope.launch {
-                                val userAvatarFile = activeAvatar?.imagePath?.let { File(it) }
-                                val baseBitmap = if (userAvatarFile?.exists() == true) {
-                                    BitmapFactory.decodeFile(userAvatarFile.absolutePath)
-                                } else {
-                                    null
-                                }
-
-                                val result = withContext(Dispatchers.IO) {
-                                    // 1. ATTEMPT REAL YOUCAM CLOUD API FIRST
-                                    var youCamBitmap: Bitmap? = null
-                                    if (api.cloudConfigured && baseBitmap != null) {
-                                        runCatching {
-                                            generationStatus = "Uploading avatar to YouCam Cloud…"
-                                            val faceStream = ByteArrayOutputStream()
-                                            baseBitmap.compress(Bitmap.CompressFormat.JPEG, 90, faceStream)
-                                            val faceBytes = faceStream.toByteArray()
-
-                                            // Reference garment / fabric swatch
-                                            val garmentBytes = if (inputSource == TryOnInputSource.UPLOAD_GARMENT_IMAGE && customGarmentUri != null) {
-                                                context.contentResolver.openInputStream(customGarmentUri!!)?.use { it.readBytes() }
-                                            } else {
-                                                val swatch = Bitmap.createBitmap(400, 400, Bitmap.Config.ARGB_8888)
-                                                val c = Canvas(swatch)
-                                                c.drawColor(android.graphics.Color.parseColor(selectedColorHex))
-                                                val swatchStream = ByteArrayOutputStream()
-                                                swatch.compress(Bitmap.CompressFormat.JPEG, 90, swatchStream)
-                                                swatchStream.toByteArray()
-                                            }
-
-                                            if (garmentBytes != null) {
-                                                val faceInput = UploadInput("person.jpg", "image/jpeg", faceBytes)
-                                                val garmentInput = UploadInput("garment.jpg", "image/jpeg", garmentBytes)
-                                                val tickets = api.requestUploadTickets("try-on", listOf(faceInput, garmentInput))
-                                                api.upload(tickets[0], faceBytes)
-                                                api.upload(tickets[1], garmentBytes)
-
-                                                generationStatus = "Creating YouCam Cloth V3 task…"
-                                                val operationId = UUID.randomUUID().toString()
-                                                val task = api.startTryOn(
-                                                    sourceFileId = tickets[0].fileId,
-                                                    referenceFileId = tickets[1].fileId,
-                                                    garmentCategory = "upper_body",
-                                                    provider = "clothes",
-                                                    gender = "female",
-                                                    style = "style_modern_chic",
-                                                    operationId = operationId,
-                                                )
-
-                                                generationStatus = "YouCam AI neural cloth synthesis in progress…"
-                                                var attempts = 0
-                                                while (attempts < 30) {
-                                                    delay(2000)
-                                                    when (val pollRes = api.poll("try-on", task.taskId)) {
-                                                        is RemoteTaskResult.TryOnImage -> {
-                                                            val stream = URL(pollRes.imageUrl).openStream()
-                                                            youCamBitmap = BitmapFactory.decodeStream(stream)
-                                                            break
-                                                        }
-                                                        is RemoteTaskResult.Running -> {
-                                                            attempts++
-                                                        }
-                                                        else -> break
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-
-                                    if (youCamBitmap != null) {
-                                        youCamBitmap
-                                    } else {
-                                        // 2. HIGH-FIDELITY ON-DEVICE NEURAL REPLACEMENT
-                                        runCatching {
-                                            delay(500)
-                                            generationStatus = "Draping ${selectedFabric.name} across shoulders…"
-                                            delay(500)
-
-                                            val width = baseBitmap?.width ?: 720
-                                            val height = baseBitmap?.height ?: 960
-                                            val rendered = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-                                            val canvas = Canvas(rendered)
-
-                                            if (baseBitmap != null) {
-                                                canvas.drawBitmap(baseBitmap, 0f, 0f, null)
-                                            } else {
-                                                canvas.drawColor(android.graphics.Color.parseColor("#181512"))
-                                            }
-
-                                            val neckTopY = height * 0.44f
-                                            val chestDipY = height * 0.52f
-                                            val bottomY = height * 0.98f
-
-                                            val garmentPath = Path().apply {
-                                                moveTo(0f, neckTopY)
-                                                cubicTo(
-                                                    width * 0.22f, neckTopY,
-                                                    width * 0.38f, chestDipY,
-                                                    width * 0.50f, chestDipY,
-                                                )
-                                                cubicTo(
-                                                    width * 0.62f, chestDipY,
-                                                    width * 0.78f, neckTopY,
-                                                    width.toFloat(), neckTopY,
-                                                )
-                                                lineTo(width.toFloat(), bottomY)
-                                                lineTo(0f, bottomY)
-                                                close()
-                                            }
-
-                                            val customGarmentBmp = customGarmentUri?.let { uri ->
-                                                runCatching {
-                                                    context.contentResolver.openInputStream(uri)?.use { stream ->
-                                                        BitmapFactory.decodeStream(stream)
-                                                    }
-                                                }.getOrNull()
-                                            }
-
-                                            if (inputSource == TryOnInputSource.UPLOAD_GARMENT_IMAGE && customGarmentBmp != null) {
-                                                val shader = BitmapShader(customGarmentBmp, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
-                                                val matrix = Matrix()
-                                                val scaleX = width.toFloat() / customGarmentBmp.width.toFloat()
-                                                val scaleY = (bottomY - neckTopY) / customGarmentBmp.height.toFloat()
-                                                matrix.setScale(scaleX, scaleY)
-                                                matrix.postTranslate(0f, neckTopY)
-                                                shader.setLocalMatrix(matrix)
-
-                                                val customPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                                                    this.shader = shader
-                                                }
-                                                canvas.drawPath(garmentPath, customPaint)
-                                            } else {
-                                                val clothColor = android.graphics.Color.parseColor(selectedColorHex)
-
-                                                val garmentPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                                                    color = clothColor
-                                                    alpha = 245
-                                                    style = Paint.Style.FILL
-                                                }
-                                                canvas.drawPath(garmentPath, garmentPaint)
-
-                                                when (selectedFabric.id) {
-                                                    "silk", "satin" -> {
-                                                        val sheenPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                                                            shader = LinearGradient(
-                                                                0f, neckTopY, width.toFloat(), bottomY,
-                                                                intArrayOf(
-                                                                    android.graphics.Color.argb(90, 255, 255, 255),
-                                                                    android.graphics.Color.argb(0, 0, 0, 0),
-                                                                    android.graphics.Color.argb(70, 255, 255, 255),
-                                                                    android.graphics.Color.argb(100, 0, 0, 0),
-                                                                ),
-                                                                null,
-                                                                Shader.TileMode.CLAMP,
-                                                            )
-                                                        }
-                                                        canvas.drawPath(garmentPath, sheenPaint)
-                                                    }
-
-                                                    "denim" -> {
-                                                        val denimLinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                                                            color = android.graphics.Color.argb(45, 0, 0, 0)
-                                                            strokeWidth = 3f
-                                                        }
-                                                        var lx = -height.toFloat()
-                                                        while (lx < width * 2) {
-                                                            canvas.drawLine(lx, neckTopY, lx + height, bottomY, denimLinePaint)
-                                                            lx += 18f
-                                                        }
-                                                    }
-
-                                                    "linen" -> {
-                                                        val linenLinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                                                            color = android.graphics.Color.argb(35, 0, 0, 0)
-                                                            strokeWidth = 2f
-                                                        }
-                                                        var ly = neckTopY
-                                                        while (ly < bottomY) {
-                                                            canvas.drawLine(0f, ly, width.toFloat(), ly, linenLinePaint)
-                                                            ly += 22f
-                                                        }
-                                                    }
-
-                                                    "velvet" -> {
-                                                        val velvetPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                                                            shader = LinearGradient(
-                                                                0f, 0f, width.toFloat(), 0f,
-                                                                intArrayOf(
-                                                                    android.graphics.Color.argb(110, 0, 0, 0),
-                                                                    android.graphics.Color.argb(50, 255, 255, 255),
-                                                                    android.graphics.Color.argb(120, 0, 0, 0),
-                                                                ),
-                                                                null,
-                                                                Shader.TileMode.CLAMP,
-                                                            )
-                                                        }
-                                                        canvas.drawPath(garmentPath, velvetPaint)
-                                                    }
-                                                }
-                                            }
-
-                                            val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                                                shader = LinearGradient(
-                                                    0f, neckTopY, 0f, bottomY,
-                                                    intArrayOf(
-                                                        android.graphics.Color.argb(70, 255, 255, 255),
-                                                        android.graphics.Color.argb(0, 0, 0, 0),
-                                                        android.graphics.Color.argb(95, 0, 0, 0),
-                                                    ),
-                                                    null,
-                                                    Shader.TileMode.CLAMP,
-                                                )
-                                            }
-                                            canvas.drawPath(garmentPath, shadowPaint)
-
-                                            val collarPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                                                color = android.graphics.Color.argb(150, 255, 255, 255)
-                                                style = Paint.Style.STROKE
-                                                strokeWidth = 3.5f
-                                            }
-                                            canvas.drawPath(garmentPath, collarPaint)
-
-                                            rendered
-                                        }.getOrNull()
-                                    }
-                                }
-
-                                tryOnResultBitmap = result
-                                isGenerating = false
-                                generationStatus = null
+                            if (needsAvatar) {
+                                showAvatarPromptDialog = true
+                                return@Button
                             }
+                            if (needsGarment) {
+                                showGarmentPromptDialog = true
+                                return@Button
+                            }
+                            executeGeneration()
                         },
                         enabled = !isGenerating,
                         modifier = Modifier
