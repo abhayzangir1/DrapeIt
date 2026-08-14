@@ -77,6 +77,19 @@ internal object YouCamLabStore {
         prefs(context).edit().remove(TRY_ON_TASK).remove(TRY_ON_RESULT).apply()
     }
 
+    fun deleteAllLocalData(context: Context) {
+        prefs(context).edit().clear().commit()
+        val resultsDir = File(context.filesDir, "youcam-results")
+        if (resultsDir.isDirectory) {
+            resultsDir.listFiles()?.forEach { it.delete() }
+            resultsDir.delete()
+        }
+        val cacheScarf = File(context.cacheDir, "drapeproof-demo-scarf-cobalt.png")
+        if (cacheScarf.exists()) cacheScarf.delete()
+        com.drapeproof.mobile.data.DrapeRecordRepository.deleteAll(context)
+        com.drapeproof.mobile.data.SkinProfileRepository.clear(context)
+    }
+
     private fun prefs(context: Context) =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 }

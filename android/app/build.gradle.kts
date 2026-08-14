@@ -8,8 +8,8 @@ plugins {
 }
 
 val offlineApiBaseUrl = "https://offline.drapeproof.invalid"
-val configuredApiBaseUrl = providers.gradleProperty("DRAPEPROOF_API_BASE_URL")
-  .orNull
+val configuredApiBaseUrl = (providers.gradleProperty("DRAPEIT_API_BASE_URL").orNull
+  ?: providers.gradleProperty("DRAPEPROOF_API_BASE_URL").orNull)
   ?.trim()
   ?.trimEnd('/')
   ?.takeIf(String::isNotBlank)

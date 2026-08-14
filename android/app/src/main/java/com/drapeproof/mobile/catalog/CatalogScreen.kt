@@ -21,7 +21,9 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -31,6 +33,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -125,7 +128,7 @@ fun CatalogScreen(onBack: () -> Unit, onOpenRecords: () -> Unit) {
             } else {
                 ProfileEvidenceCard(profile)
                 Spacer(Modifier.height(14.dp))
-                if (top != null && ranking != null) {
+                if (top != null) {
                     TopChoiceCard(top, ranking, profile)
                     Spacer(Modifier.height(12.dp))
                     Button(
@@ -140,13 +143,35 @@ fun CatalogScreen(onBack: () -> Unit, onOpenRecords: () -> Unit) {
                 }
             }
 
+            var showCompareDialog by remember { mutableStateOf(false) }
+
             Spacer(Modifier.height(24.dp))
-            Text("ALL SIX COLORWAYS", style = MaterialTheme.typography.labelSmall)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("ALL SIX COLORWAYS", style = MaterialTheme.typography.labelSmall)
+                if (ranking != null) {
+                    TextButton(onClick = { showCompareDialog = true }) {
+                        Text("Compare Top 3 Side-by-Side  ⇄")
+                    }
+                }
+            }
             Spacer(Modifier.height(9.dp))
             demoVariants.forEach { variant ->
                 val ranked = ranking?.rankedVariants?.firstOrNull { it.candidate.variantId == variant.id }
                 VariantRow(variant, ranked?.rank, ranked?.separationPercentile, ranked?.candidate?.separationDeltaE00)
                 Spacer(Modifier.height(8.dp))
+            }
+
+            if (showCompareDialog && ranking != null) {
+                CompareVariantsDialog(
+                    ranking = ranking,
+                    variants = demoVariants,
+                    intent = intent,
+                    onDismiss = { showCompareDialog = false },
+                )
             }
 
             Spacer(Modifier.height(24.dp))
@@ -211,7 +236,7 @@ private fun MissingProfileCard() {
             Text("A face sample is required", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(6.dp))
             Text(
-                "Go back and run a real-cloth scan or Photo contrast. DrapeProof will not invent a personalized rank without your own measured skin sample.",
+                "Go back and run a real-cloth scan or Photo contrast. DrapeIt will not invent a personalized rank without your own measured skin sample.",
                 style = MaterialTheme.typography.bodyMedium,
             )
         }
@@ -392,6 +417,90 @@ private fun saveCatalogRecord(
             ),
         ),
     )
+}
+
+@Composable
+private fun CompareVariantsDialog(
+    ranking: IntentRankingResult,
+    variants: List<MatteVariant>,
+    intent: ContrastIntent,
+    onDismiss: () -> Unit,
+) {
+    val topThree = ranking.rankedVariants.take(3)
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(24.dp),
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 6.dp,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+        ) {
+            Column(Modifier.padding(20.dp)) {
+                Text("Side-by-Side Comparison", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text("Target Intent: ${intent.label()}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary)
+                Spacer(Modifier.height(16.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    topThree.forEach { ranked ->
+                        val variant = variants.first { it.id == ranked.candidate.variantId }
+                        Card(
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.background),
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(10.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(android.graphics.Color.parseColor(variant.hex))),
+                                )
+                                Spacer(Modifier.height(6.dp))
+                                Text("#${ranked.rank} ${variant.name}", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                                Text("ΔE ${"%.1f".format(ranked.candidate.separationDeltaE00)}", style = MaterialTheme.typography.bodySmall)
+                                Text(
+                                    "p${(ranked.separationPercentile * 100).toInt()}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(18.dp))
+                Text(
+                    "Comparison Insights:",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                val first = topThree.firstOrNull()
+                val second = topThree.getOrNull(1)
+                if (first != null && second != null) {
+                    val firstVariant = variants.first { it.id == first.candidate.variantId }
+                    val secondVariant = variants.first { it.id == second.candidate.variantId }
+                    val diff = kotlin.math.abs(first.candidate.separationDeltaE00 - second.candidate.separationDeltaE00)
+                    Text(
+                        "${firstVariant.name} separates by ${"%.1f".format(diff)} ΔE00 more than ${secondVariant.name}, matching your ${intent.label().lowercase()} preference.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f),
+                    )
+                }
+
+                Spacer(Modifier.height(20.dp))
+                Button(
+                    onClick = onDismiss,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                ) { Text("Close Comparison") }
+            }
+        }
+    }
 }
 
 private fun ContrastIntent.label(): String = name.lowercase().replaceFirstChar(Char::uppercase)

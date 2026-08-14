@@ -6,25 +6,22 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -35,183 +32,187 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.drapeproof.mobile.camera.DrapeCaptureScreen
-import com.drapeproof.mobile.catalog.CatalogScreen
-import com.drapeproof.mobile.photo.PhotoAnalysisScreen
-import com.drapeproof.mobile.records.RecordsScreen
-import com.drapeproof.mobile.youcam.YouCamLabScreen
-import com.drapeproof.mobile.ui.theme.Cobalt
-import com.drapeproof.mobile.ui.theme.DrapeCoral
-import com.drapeproof.mobile.ui.theme.Moss
-import com.drapeproof.mobile.ui.theme.Plum
+import com.drapeproof.mobile.compare.CompareScreen
+import com.drapeproof.mobile.explore.ExploreScreen
+import com.drapeproof.mobile.looks.LooksScreen
+import com.drapeproof.mobile.onboarding.OnboardingLoginScreen
+import com.drapeproof.mobile.profile.ProfileScreen
+import com.drapeproof.mobile.silhouette.UserProfileStore
+import com.drapeproof.mobile.tryon.TryOnScreen
+import com.drapeproof.mobile.ui.theme.EditorialCream
+import com.drapeproof.mobile.ui.theme.EditorialInk
+import com.drapeproof.mobile.ui.theme.EditorialMuted
+import com.drapeproof.mobile.ui.theme.EditorialSand
+import com.drapeproof.mobile.ui.theme.EditorialSienna
+import com.drapeproof.mobile.ui.theme.EditorialStone
 
-private enum class Destination { HOME, LIVE, PHOTO, CATALOG, RECORDS, YOUCAM }
+enum class AppTab(val title: String, val icon: String) {
+    DRAPE("Drape", "🪞"),
+    EXPLORE("Explore", "🔍"),
+    LOOKS("Looks", "✨"),
+    PROFILE("Profile", "👤"),
+}
+
+private enum class SubFlow {
+    NONE,
+    COMPARE,
+    TRY_ON,
+}
 
 @Composable
 fun DrapeProofApp(
     sharedImageUri: Uri?,
     onSharedImageConsumed: () -> Unit,
 ) {
-    var destination by remember { mutableStateOf(Destination.HOME) }
+    val context = LocalContext.current
+    var isOnboarded by remember { mutableStateOf(UserProfileStore.isOnboarded(context)) }
+    var currentTab by remember { mutableStateOf(AppTab.DRAPE) }
+    var subFlow by remember { mutableStateOf(SubFlow.NONE) }
+
+    // Inter-screen styling parameters for Try-On
+    var tryOnFabricId by remember { mutableStateOf("silk") }
+    var tryOnColorHex by remember { mutableStateOf("#831843") }
+
     LaunchedEffect(sharedImageUri) {
-        if (sharedImageUri != null) destination = Destination.PHOTO
-    }
-    BackHandler(enabled = destination != Destination.HOME) { destination = Destination.HOME }
-
-    Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        when (destination) {
-            Destination.HOME -> HomeScreen(onNavigate = { destination = it })
-            Destination.LIVE -> DrapeCaptureScreen(onBack = { destination = Destination.HOME })
-            Destination.PHOTO -> PhotoAnalysisScreen(
-                initialFabricUri = sharedImageUri,
-                onInitialUriConsumed = onSharedImageConsumed,
-                onBack = { destination = Destination.HOME },
-                onSeeCatalog = { destination = Destination.CATALOG },
-            )
-            Destination.CATALOG -> CatalogScreen(
-                onBack = { destination = Destination.HOME },
-                onOpenRecords = { destination = Destination.RECORDS },
-            )
-            Destination.RECORDS -> RecordsScreen(onBack = { destination = Destination.HOME })
-            Destination.YOUCAM -> YouCamLabScreen(onBack = { destination = Destination.HOME })
+        if (sharedImageUri != null) {
+            currentTab = AppTab.LOOKS
         }
     }
-}
 
-@Composable
-private fun HomeScreen(onNavigate: (Destination) -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .statusBarsPadding()
-            .padding(horizontal = 20.dp),
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(top = 14.dp, bottom = 34.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Text("DRAPEPROOF", style = MaterialTheme.typography.labelSmall)
-            EvidencePill("NO APP BEAUTY FILTER")
+    if (!isOnboarded) {
+        OnboardingLoginScreen(onComplete = { isOnboarded = true })
+        return
+    }
+
+    BackHandler(enabled = subFlow != SubFlow.NONE || currentTab != AppTab.DRAPE) {
+        if (subFlow != SubFlow.NONE) {
+            subFlow = SubFlow.NONE
+        } else {
+            currentTab = AppTab.DRAPE
         }
+    }
 
-        Text("Color evidence,\nnot color rules.", style = MaterialTheme.typography.displayLarge)
-        Spacer(Modifier.height(16.dp))
-        Text(
-            "Compare a real fabric beside your face under one locked camera session—then choose the exact colorway for the contrast you want.",
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.78f),
-        )
-        Spacer(Modifier.height(28.dp))
-
-        Button(
-            onClick = { onNavigate(Destination.LIVE) },
-            modifier = Modifier.fillMaxWidth().height(58.dp),
-            shape = RoundedCornerShape(18.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = DrapeCoral),
+    Scaffold(
+        bottomBar = {
+            if (subFlow == SubFlow.NONE) {
+                NavigationBar(
+                    containerColor = EditorialSand.copy(alpha = 0.85f),
+                    tonalElevation = 6.dp,
+                ) {
+                    AppTab.values().forEach { tab ->
+                        val selected = currentTab == tab
+                        NavigationBarItem(
+                            selected = selected,
+                            onClick = { currentTab = tab },
+                            icon = {
+                                Text(tab.icon, fontSize = 20.sp)
+                            },
+                            label = {
+                                Text(
+                                    tab.title,
+                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (selected) EditorialSienna else EditorialMuted,
+                                    fontSize = 11.sp,
+                                )
+                            },
+                            colors = NavigationBarItemDefaults.colors(
+                                indicatorColor = EditorialCream,
+                                selectedIconColor = EditorialSienna,
+                                unselectedIconColor = EditorialMuted,
+                            ),
+                        )
+                    }
+                }
+            }
+        },
+    ) { paddingValues ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues),
         ) {
-            Text("Start a real-cloth scan  →", color = Color.White, style = MaterialTheme.typography.labelLarge)
-        }
-        Spacer(Modifier.height(10.dp))
-        OutlinedButton(
-            onClick = { onNavigate(Destination.PHOTO) },
-            modifier = Modifier.fillMaxWidth().height(54.dp),
-            shape = RoundedCornerShape(18.dp),
-        ) { Text("Check face + product photos") }
-        Spacer(Modifier.height(10.dp))
-        OutlinedButton(
-            onClick = { onNavigate(Destination.YOUCAM) },
-            modifier = Modifier.fillMaxWidth().height(54.dp),
-            shape = RoundedCornerShape(18.dp),
-        ) { Text("YouCam Lab · facial colors + apparel VTO") }
+            when (subFlow) {
+                SubFlow.COMPARE -> {
+                    CompareScreen(
+                        onBack = { subFlow = SubFlow.NONE },
+                        onSelectLookForTryOn = { fabricId, colorHex ->
+                            tryOnFabricId = fabricId
+                            tryOnColorHex = colorHex
+                            subFlow = SubFlow.TRY_ON
+                        },
+                    )
+                }
 
-        Spacer(Modifier.height(34.dp))
-        Text("ONE DECISION. THREE SIGNALS.", style = MaterialTheme.typography.labelSmall)
-        Spacer(Modifier.height(12.dp))
-        SignalCard(Moss, "Cloth–skin separation", "How softly or strongly the two captured colors separate.")
-        SignalCard(Cobalt, "Feature definition", "How eyes, brows and lips read against nearby skin—without calling it beauty.")
-        SignalCard(Plum, "Apparent face shift", "A camera-recorded change shown only when the capture controls pass.")
+                SubFlow.TRY_ON -> {
+                    TryOnScreen(
+                        initialFabricId = tryOnFabricId,
+                        initialColorHex = tryOnColorHex,
+                        initialCutName = "Relaxed Tailored",
+                        onNavigateToShop = { _, _, _, _ ->
+                            subFlow = SubFlow.NONE
+                            currentTab = AppTab.LOOKS
+                        },
+                    )
+                }
 
-        Spacer(Modifier.height(20.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            SmallRouteCard("6 colorways", "Explore catalog", Modifier.weight(1f)) { onNavigate(Destination.CATALOG) }
-            SmallRouteCard("Evidence trail", "Drape Records", Modifier.weight(1f)) { onNavigate(Destination.RECORDS) }
-        }
+                SubFlow.NONE -> {
+                    when (currentTab) {
+                        AppTab.DRAPE -> {
+                            DrapeCaptureScreen(
+                                onBack = { currentTab = AppTab.EXPLORE },
+                                onNavigateToCompare = { subFlow = SubFlow.COMPARE },
+                                onNavigateToTryOn = { fabricId, colorHex ->
+                                    tryOnFabricId = fabricId
+                                    tryOnColorHex = colorHex
+                                    subFlow = SubFlow.TRY_ON
+                                },
+                            )
+                        }
 
-        Spacer(Modifier.height(30.dp))
-        Card(
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            shape = RoundedCornerShape(22.dp),
-        ) {
-            Column(Modifier.padding(20.dp)) {
-                Text("What DrapeProof refuses to do", style = MaterialTheme.typography.titleMedium)
-                Spacer(Modifier.height(10.dp))
-                Text(
-                    "No seasonal type. No attractiveness score. No medical inference. Weak lighting or an uncertain product image gets a clear downgrade—not fake confidence.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f),
-                )
+                        AppTab.EXPLORE -> {
+                            ExploreScreen(
+                                onNavigateToDrape = { fabricId, colorHex ->
+                                    tryOnFabricId = fabricId
+                                    tryOnColorHex = colorHex
+                                    currentTab = AppTab.DRAPE
+                                },
+                                onNavigateToTryOn = { fabricId, colorHex ->
+                                    tryOnFabricId = fabricId
+                                    tryOnColorHex = colorHex
+                                    subFlow = SubFlow.TRY_ON
+                                },
+                            )
+                        }
+
+                        AppTab.LOOKS -> {
+                            LooksScreen(
+                                onNavigateToTryOn = { fabricId, colorHex ->
+                                    tryOnFabricId = fabricId
+                                    tryOnColorHex = colorHex
+                                    subFlow = SubFlow.TRY_ON
+                                },
+                                onNavigateToDrape = { fabricId, colorHex ->
+                                    tryOnFabricId = fabricId
+                                    tryOnColorHex = colorHex
+                                    currentTab = AppTab.DRAPE
+                                },
+                            )
+                        }
+
+                        AppTab.PROFILE -> {
+                            ProfileScreen(
+                                onRecalibrate = { currentTab = AppTab.DRAPE },
+                            )
+                        }
+                    }
+                }
             }
         }
-        Spacer(Modifier.height(40.dp))
-    }
-}
-
-@Composable
-private fun EvidencePill(label: String) {
-    Text(
-        label,
-        style = MaterialTheme.typography.labelSmall,
-        modifier = Modifier
-            .clip(CircleShape)
-            .background(MaterialTheme.colorScheme.tertiary.copy(alpha = 0.16f))
-            .padding(horizontal = 11.dp, vertical = 7.dp),
-        color = MaterialTheme.colorScheme.tertiary,
-    )
-}
-
-@Composable
-private fun SignalCard(color: Color, title: String, detail: String) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
-        verticalAlignment = Alignment.Top,
-    ) {
-        Box(Modifier.padding(top = 4.dp).size(14.dp).clip(CircleShape).background(color))
-        Column(Modifier.padding(start = 13.dp)) {
-            Text(title, style = MaterialTheme.typography.titleMedium)
-            Text(detail, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.65f))
-        }
-    }
-}
-
-@Composable
-private fun SmallRouteCard(kicker: String, title: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    Card(
-        onClick = onClick,
-        modifier = modifier.height(116.dp),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-    ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.SpaceBetween) {
-            Text(kicker.uppercase(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary)
-            Text("$title  →", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-        }
-    }
-}
-
-@Composable
-fun ScreenHeader(title: String, evidence: String? = null, onBack: () -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 18.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        OutlinedButton(onClick = onBack, contentPadding = PaddingValues(horizontal = 13.dp, vertical = 0.dp)) { Text("←") }
-        Text(title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(start = 14.dp).weight(1f))
-        if (evidence != null) EvidencePill(evidence)
     }
 }

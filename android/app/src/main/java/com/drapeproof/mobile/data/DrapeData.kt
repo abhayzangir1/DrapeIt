@@ -42,6 +42,10 @@ object SkinProfileRepository {
             capturedAtEpochMillis = preferences.getLong("captured_at", 0L),
         )
     }
+
+    fun clear(context: Context) {
+        context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE).edit().clear().apply()
+    }
 }
 
 /** A compact, locally persisted evidence trail. It contains measurements, never image bytes. */
@@ -105,6 +109,14 @@ object DrapeRecordRepository {
         val records = (listOf(record) + read(context).filterNot { it.recordId == record.recordId })
             .take(MAX_RECORDS)
         write(context, records)
+    }
+
+    @Synchronized
+    fun deleteAll(context: Context) {
+        val file = File(context.filesDir, FILE_NAME)
+        if (file.exists()) file.delete()
+        val staging = File(context.filesDir, "$FILE_NAME.pending")
+        if (staging.exists()) staging.delete()
     }
 
     fun exportJson(context: Context): String = JSONArray(all(context).map(::toJson)).toString(2)

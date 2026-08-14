@@ -566,7 +566,7 @@ fun YouCamLabScreen(onBack: () -> Unit) {
             Text("Two cloud proofs, under your control.", style = MaterialTheme.typography.headlineMedium)
             Spacer(Modifier.height(8.dp))
             Text(
-                "Use Facial Color Tones as a secondary measurement, then preview the selected apparel reference. DrapeProof's local contrast result remains the primary evidence.",
+                "Use Facial Color Tones as a secondary measurement, then preview the selected apparel reference. DrapeIt's local contrast result remains the primary evidence.",
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.72f),
             )
@@ -655,7 +655,7 @@ fun YouCamLabScreen(onBack: () -> Unit) {
 
             Spacer(Modifier.height(22.dp))
             Text(
-                "Task creation is single-shot: DrapeProof never automatically creates a second paid task after a network error. Polling stops when you leave this screen; the accepted task ID remains available to resume.",
+                "Task creation is single-shot: DrapeIt never automatically creates a second paid task after a network error. Polling stops when you leave this screen; the accepted task ID remains available to resume.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.58f),
             )
@@ -765,7 +765,7 @@ private fun ConsentCard(checked: Boolean, credits: CreditStatus?, onCheckedChang
             Column(Modifier.padding(start = 8.dp)) {
                 Text("I choose to send these selected photos", style = MaterialTheme.typography.titleSmall)
                 Text(
-                    "Only after I tap a run button, DrapeProof may send the selected face and/or apparel-reference image through its secure server to Perfect Corp for this result.",
+                    "Only after I tap a run button, DrapeIt may send the selected face and/or apparel-reference image through its secure server to Perfect Corp for this result.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f),
                 )
