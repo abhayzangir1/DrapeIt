@@ -14,6 +14,7 @@ import android.graphics.Shader
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
@@ -49,9 +50,15 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
+import androidx.compose.material3.TabRowDefaults
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -69,6 +76,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.drapeproof.mobile.avatar.AvatarLighting
@@ -97,9 +105,9 @@ import java.io.File
 import java.net.URL
 import java.util.UUID
 
-private enum class TryOnInputSource {
-    FROM_ANALYSIS,
-    UPLOAD_GARMENT_IMAGE,
+private enum class TryOnInputSource(val title: String, val subtitle: String) {
+    FROM_ANALYSIS("🎨 Palette Look", "Choose fabric & color from analysis"),
+    UPLOAD_GARMENT_IMAGE("🛍️ Store Garment", "Upload shirt photo from Zara, Amazon, etc."),
 }
 
 @Composable
@@ -121,6 +129,7 @@ fun TryOnScreen(
     var selectedColorHex by remember { mutableStateOf(initialColorHex ?: "#831843") }
     var selectedCut by remember { mutableStateOf(initialCutName ?: "Relaxed Tailored") }
     var customGarmentUri by remember { mutableStateOf(initialGarmentUri) }
+    var isFabricMenuOpen by remember { mutableStateOf(false) }
 
     // User Avatar
     var avatars by remember { mutableStateOf(PhotoAvatarStore.listAvatars(context)) }
@@ -175,6 +184,7 @@ fun TryOnScreen(
         ) {
             Spacer(Modifier.height(14.dp))
 
+            // HEADER
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -188,7 +198,7 @@ fun TryOnScreen(
                         color = EditorialInk,
                     )
                     Text(
-                        "Photorealistic garment drape on your silhouette",
+                        "Photorealistic clothing fit on your silhouette",
                         style = MaterialTheme.typography.bodySmall,
                         color = EditorialMuted,
                     )
@@ -201,7 +211,7 @@ fun TryOnScreen(
                         .padding(horizontal = 8.dp, vertical = 4.dp),
                 ) {
                     Text(
-                        "YOUCAM POWERED",
+                        "YOUCAM AI",
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
                         color = EditorialPositive,
@@ -212,79 +222,194 @@ fun TryOnScreen(
 
             Spacer(Modifier.height(16.dp))
 
-            // 2-Choice Mode Cards
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            // 1. CLEAR STEP 1: CHOOSE TRY-ON METHOD (SEGMENTED SWITCHER)
+            Text(
+                "STEP 1: SELECT GARMENT SOURCE",
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+                color = EditorialSienna,
+                letterSpacing = 1.sp,
+            )
+            Spacer(Modifier.height(8.dp))
+
+            TabRow(
+                selectedTabIndex = inputSource.ordinal,
+                containerColor = Color.White,
+                contentColor = EditorialSienna,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(16.dp))
+                    .border(1.dp, EditorialStone.copy(alpha = 0.35f), RoundedCornerShape(16.dp)),
+                indicator = { tabPositions ->
+                    TabRowDefaults.Indicator(
+                        modifier = Modifier.tabIndicatorOffset(tabPositions[inputSource.ordinal]),
+                        color = EditorialSienna,
+                        height = 3.dp,
+                    )
+                },
+                divider = {},
             ) {
-                val isAnalysis = inputSource == TryOnInputSource.FROM_ANALYSIS
-                val scaleAnalysis by animateFloatAsState(if (isAnalysis) 1.02f else 1.0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
-
-                Card(
-                    onClick = { inputSource = TryOnInputSource.FROM_ANALYSIS },
-                    modifier = Modifier
-                        .weight(1f)
-                        .scale(scaleAnalysis),
-                    shape = RoundedCornerShape(18.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = if (isAnalysis) EditorialSienna else Color.White,
-                    ),
-                    elevation = CardDefaults.cardElevation(defaultElevation = if (isAnalysis) 4.dp else 1.dp),
-                ) {
-                    Column(Modifier.padding(14.dp)) {
-                        Text("✨", fontSize = 20.sp)
-                        Spacer(Modifier.height(6.dp))
-                        Text(
-                            "Selected Look",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = if (isAnalysis) Color.White else EditorialInk,
-                        )
-                        Text(
-                            "${selectedFabric.name}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = if (isAnalysis) Color.White.copy(alpha = 0.80f) else EditorialMuted,
-                            fontSize = 11.sp,
-                        )
-                    }
+                TryOnInputSource.values().forEach { tab ->
+                    val isSelected = inputSource == tab
+                    Tab(
+                        selected = isSelected,
+                        onClick = { inputSource = tab },
+                        text = {
+                            Text(
+                                tab.title,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                color = if (isSelected) EditorialSienna else EditorialInk,
+                                fontSize = 12.sp,
+                            )
+                        },
+                    )
                 }
+            }
 
-                val isCustom = inputSource == TryOnInputSource.UPLOAD_GARMENT_IMAGE
-                val scaleCustom by animateFloatAsState(if (isCustom) 1.02f else 1.0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+            Spacer(Modifier.height(10.dp))
 
-                Card(
-                    onClick = { garmentPicker.launch("image/*") },
-                    modifier = Modifier
-                        .weight(1f)
-                        .scale(scaleCustom),
-                    shape = RoundedCornerShape(18.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = if (isCustom) EditorialSienna else Color.White,
-                    ),
-                    elevation = CardDefaults.cardElevation(defaultElevation = if (isCustom) 4.dp else 1.dp),
-                ) {
-                    Column(Modifier.padding(14.dp)) {
-                        Text("📸", fontSize = 20.sp)
-                        Spacer(Modifier.height(6.dp))
+            // DETAILED CARD FOR SELECTED GARMENT SOURCE
+            Card(
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, EditorialStone.copy(alpha = 0.35f), RoundedCornerShape(18.dp)),
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    if (inputSource == TryOnInputSource.FROM_ANALYSIS) {
+                        // OPTION A: PALETTE LOOK
                         Text(
-                            "Garment Photo",
+                            "Selected Drape Material & Color",
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Bold,
-                            color = if (isCustom) Color.White else EditorialInk,
+                            color = EditorialInk,
                         )
                         Text(
-                            if (customGarmentUri != null) "Screenshot Added ✓" else "Upload Screenshot",
+                            "Render this analyzed combination on your shoulders.",
                             style = MaterialTheme.typography.bodySmall,
-                            color = if (isCustom) Color.White.copy(alpha = 0.80f) else EditorialMuted,
-                            fontSize = 11.sp,
+                            color = EditorialMuted,
                         )
+                        Spacer(Modifier.height(10.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(38.dp)
+                                        .clip(CircleShape)
+                                        .background(selectedColorHex.asComposeColor())
+                                        .border(2.dp, EditorialStone, CircleShape),
+                                )
+                                Spacer(Modifier.width(10.dp))
+                                Column {
+                                    Text(
+                                        "${selectedFabric.icon} ${selectedFabric.name}",
+                                        style = MaterialTheme.typography.labelLarge,
+                                        fontWeight = FontWeight.Bold,
+                                        color = EditorialInk,
+                                    )
+                                    Text(
+                                        selectedCut,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = EditorialMuted,
+                                    )
+                                }
+                            }
+
+                            // Change Fabric button
+                            Box {
+                                OutlinedButton(
+                                    onClick = { isFabricMenuOpen = true },
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.height(34.dp),
+                                ) {
+                                    Text("Change ▾", style = MaterialTheme.typography.labelSmall, color = EditorialInk)
+                                }
+
+                                DropdownMenu(
+                                    expanded = isFabricMenuOpen,
+                                    onDismissRequest = { isFabricMenuOpen = false },
+                                ) {
+                                    FabricCatalog.allFabrics.forEach { fab ->
+                                        DropdownMenuItem(
+                                            text = { Text("${fab.icon} ${fab.name}", fontWeight = FontWeight.Bold) },
+                                            onClick = {
+                                                selectedFabric = fab
+                                                isFabricMenuOpen = false
+                                            },
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        // OPTION B: STORE GARMENT UPLOAD
+                        Text(
+                            "Upload Garment Screenshot",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = EditorialInk,
+                        )
+                        Text(
+                            "Upload a product photo from Zara, Amazon, or Pinterest to try on.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = EditorialMuted,
+                        )
+                        Spacer(Modifier.height(10.dp))
+
+                        if (customGarmentUri != null) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text("🛍️", fontSize = 28.sp)
+                                    Spacer(Modifier.width(10.dp))
+                                    Column {
+                                        Text(
+                                            "Garment Photo Loaded ✓",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = EditorialPositive,
+                                        )
+                                        Text(
+                                            "Ready to segment & fit",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = EditorialMuted,
+                                        )
+                                    }
+                                }
+
+                                OutlinedButton(
+                                    onClick = { garmentPicker.launch("image/*") },
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.height(34.dp),
+                                ) {
+                                    Text("Replace 📷", style = MaterialTheme.typography.labelSmall, color = EditorialInk)
+                                }
+                            }
+                        } else {
+                            Button(
+                                onClick = { garmentPicker.launch("image/*") },
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = EditorialSienna),
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Text("📸 Choose Garment from Gallery", color = Color.White, fontWeight = FontWeight.Bold)
+                            }
+                        }
                     }
                 }
             }
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(18.dp))
 
-            // AVATAR SELECTION ROW WITH REAL PHOTO THUMBNAILS
+            // 2. STEP 2: CHOOSE YOUR PORTRAIT AVATAR
             Card(
                 shape = RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -300,7 +425,7 @@ fun TryOnScreen(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
-                            "YOUR TRY-ON AVATAR",
+                            "STEP 2: YOUR AVATAR PHOTO",
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
                             color = EditorialSienna,
@@ -391,7 +516,7 @@ fun TryOnScreen(
 
             Spacer(Modifier.height(18.dp))
 
-            // RESULT PREVIEW CARD
+            // 3. STEP 3: RESULT PREVIEW CARD
             Card(
                 shape = RoundedCornerShape(22.dp),
                 colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -418,7 +543,7 @@ fun TryOnScreen(
                         )
                         Spacer(Modifier.height(10.dp))
                         Text(
-                            "${selectedFabric.name} • $selectedCut",
+                            if (inputSource == TryOnInputSource.FROM_ANALYSIS) "${selectedFabric.name} • $selectedCut" else "Uploaded Garment Fit",
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Bold,
                             color = EditorialInk,
@@ -468,7 +593,7 @@ fun TryOnScreen(
                                     Text("👗", fontSize = 42.sp)
                                     Spacer(Modifier.height(8.dp))
                                     Text(
-                                        "Ready to render ${selectedFabric.name} in $selectedCut",
+                                        "Select your avatar photo above",
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = EditorialInk,
                                         fontWeight = FontWeight.Medium,
@@ -481,6 +606,12 @@ fun TryOnScreen(
                     Spacer(Modifier.height(16.dp))
 
                     // GENERATE BUTTON
+                    val ctaText = when {
+                        isGenerating -> "Generating Try-On…"
+                        inputSource == TryOnInputSource.FROM_ANALYSIS -> "Try On ${selectedFabric.name} (${selectedCut}) ✨"
+                        else -> "Try On Uploaded Garment ✨"
+                    }
+
                     Button(
                         onClick = {
                             isGenerating = true
@@ -574,7 +705,6 @@ fun TryOnScreen(
                                                 canvas.drawColor(android.graphics.Color.parseColor("#181512"))
                                             }
 
-                                            // Neckline & shoulder drape path hugging anatomical contour
                                             val neckTopY = height * 0.44f
                                             val chestDipY = height * 0.52f
                                             val bottomY = height * 0.98f
@@ -596,7 +726,6 @@ fun TryOnScreen(
                                                 close()
                                             }
 
-                                            // Check if custom garment was uploaded
                                             val customGarmentBmp = customGarmentUri?.let { uri ->
                                                 runCatching {
                                                     context.contentResolver.openInputStream(uri)?.use { stream ->
@@ -606,7 +735,6 @@ fun TryOnScreen(
                                             }
 
                                             if (inputSource == TryOnInputSource.UPLOAD_GARMENT_IMAGE && customGarmentBmp != null) {
-                                                // MAP UPLOADED GARMENT TEXTURE DIRECTLY ONTO SILHOUETTE
                                                 val shader = BitmapShader(customGarmentBmp, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
                                                 val matrix = Matrix()
                                                 val scaleX = width.toFloat() / customGarmentBmp.width.toFloat()
@@ -620,10 +748,8 @@ fun TryOnScreen(
                                                 }
                                                 canvas.drawPath(garmentPath, customPaint)
                                             } else {
-                                                // RENDER RICH SELECTED FABRIC & COLORWAY
                                                 val clothColor = android.graphics.Color.parseColor(selectedColorHex)
 
-                                                // 1. Base Rich Fabric Fill
                                                 val garmentPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                                                     color = clothColor
                                                     alpha = 245
@@ -631,7 +757,6 @@ fun TryOnScreen(
                                                 }
                                                 canvas.drawPath(garmentPath, garmentPaint)
 
-                                                // 2. Material Weave Specific Overlays
                                                 when (selectedFabric.id) {
                                                     "silk", "satin" -> {
                                                         val sheenPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -692,7 +817,6 @@ fun TryOnScreen(
                                                 }
                                             }
 
-                                            // Natural Ambient Lighting & Shading
                                             val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                                                 shader = LinearGradient(
                                                     0f, neckTopY, 0f, bottomY,
@@ -707,7 +831,6 @@ fun TryOnScreen(
                                             }
                                             canvas.drawPath(garmentPath, shadowPaint)
 
-                                            // Realistic Tailored Collar Seam Outline
                                             val collarPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                                                 color = android.graphics.Color.argb(150, 255, 255, 255)
                                                 style = Paint.Style.STROKE
@@ -733,7 +856,7 @@ fun TryOnScreen(
                         colors = ButtonDefaults.buttonColors(containerColor = EditorialSienna),
                     ) {
                         Text(
-                            if (isGenerating) "Generating Try-On…" else "Generate AI Try-On ✨",
+                            ctaText,
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = Color.White,
@@ -791,4 +914,15 @@ fun TryOnScreen(
             Spacer(Modifier.height(24.dp))
         }
     }
+}
+
+private fun String.asComposeColor(): Color {
+    return runCatching {
+        val value = removePrefix("#").toLong(16)
+        Color(
+            red = ((value shr 16) and 0xFF).toInt(),
+            green = ((value shr 8) and 0xFF).toInt(),
+            blue = (value and 0xFF).toInt(),
+        )
+    }.getOrDefault(Color.Gray)
 }
