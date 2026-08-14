@@ -3,12 +3,14 @@ package com.drapeproof.mobile.tryon
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.BitmapShader
 import android.graphics.Canvas
+import android.graphics.LinearGradient
+import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.Shader
-import android.graphics.LinearGradient
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -487,7 +489,7 @@ fun TryOnScreen(
                                 val result = withContext(Dispatchers.IO) {
                                     runCatching {
                                         delay(400)
-                                        generationStatus = "Rendering ${selectedFabric.name} drape on shoulders…"
+                                        generationStatus = "Draping ${selectedFabric.name} across shoulders…"
                                         delay(500)
 
                                         val width = baseBitmap?.width ?: 720
@@ -501,10 +503,7 @@ fun TryOnScreen(
                                             canvas.drawColor(android.graphics.Color.parseColor("#181512"))
                                         }
 
-                                        // PHOTOREALISTIC CONTOURED GARMENT FIT (NO FLAT BOX)
-                                        val clothColor = android.graphics.Color.parseColor(selectedColorHex)
-
-                                        // Neck and shoulder drape path hugging anatomical neckline
+                                        // Neckline & shoulder drape path hugging anatomical contour
                                         val neckTopY = height * 0.44f
                                         val chestDipY = height * 0.52f
                                         val bottomY = height * 0.98f
@@ -526,34 +525,126 @@ fun TryOnScreen(
                                             close()
                                         }
 
-                                        // 1. Base Rich Fabric Fill
-                                        val garmentPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                                            color = clothColor
-                                            alpha = 245
-                                            style = Paint.Style.FILL
+                                        // Check if custom garment was uploaded
+                                        val customGarmentBmp = customGarmentUri?.let { uri ->
+                                            runCatching {
+                                                context.contentResolver.openInputStream(uri)?.use { stream ->
+                                                    BitmapFactory.decodeStream(stream)
+                                                }
+                                            }.getOrNull()
                                         }
-                                        canvas.drawPath(garmentPath, garmentPaint)
 
-                                        // 2. Anisotropic & Fabric Gradient Shading
-                                        val gradientPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                                        if (inputSource == TryOnInputSource.UPLOAD_GARMENT_IMAGE && customGarmentBmp != null) {
+                                            // MAP UPLOADED GARMENT TEXTURE DIRECTLY ONTO SILHOUETTE
+                                            val shader = BitmapShader(customGarmentBmp, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
+                                            val matrix = Matrix()
+                                            val scaleX = width.toFloat() / customGarmentBmp.width.toFloat()
+                                            val scaleY = (bottomY - neckTopY) / customGarmentBmp.height.toFloat()
+                                            matrix.setScale(scaleX, scaleY)
+                                            matrix.postTranslate(0f, neckTopY)
+                                            shader.setLocalMatrix(matrix)
+
+                                            val customPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                                                this.shader = shader
+                                            }
+                                            canvas.drawPath(garmentPath, customPaint)
+                                        } else {
+                                            // RENDER RICH SELECTED FABRIC & COLORWAY
+                                            val clothColor = android.graphics.Color.parseColor(selectedColorHex)
+
+                                            // 1. Base Rich Fabric Fill
+                                            val garmentPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                                                color = clothColor
+                                                alpha = 245
+                                                style = Paint.Style.FILL
+                                            }
+                                            canvas.drawPath(garmentPath, garmentPaint)
+
+                                            // 2. Material Weave Specific Overlays
+                                            when (selectedFabric.id) {
+                                                "silk", "satin" -> {
+                                                    // Pearlescent Sheen
+                                                    val sheenPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                                                        shader = LinearGradient(
+                                                            0f, neckTopY, width.toFloat(), bottomY,
+                                                            intArrayOf(
+                                                                android.graphics.Color.argb(90, 255, 255, 255),
+                                                                android.graphics.Color.argb(0, 0, 0, 0),
+                                                                android.graphics.Color.argb(70, 255, 255, 255),
+                                                                android.graphics.Color.argb(100, 0, 0, 0),
+                                                            ),
+                                                            null,
+                                                            Shader.TileMode.CLAMP,
+                                                        )
+                                                    }
+                                                    canvas.drawPath(garmentPath, sheenPaint)
+                                                }
+
+                                                "denim" -> {
+                                                    // Twill rib lines
+                                                    val denimLinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                                                        color = android.graphics.Color.argb(45, 0, 0, 0)
+                                                        strokeWidth = 3f
+                                                    }
+                                                    var lx = -height.toFloat()
+                                                    while (lx < width * 2) {
+                                                        canvas.drawLine(lx, neckTopY, lx + height, bottomY, denimLinePaint)
+                                                        lx += 18f
+                                                    }
+                                                }
+
+                                                "linen" -> {
+                                                    // Slub weave crosshatch
+                                                    val linenLinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                                                        color = android.graphics.Color.argb(35, 0, 0, 0)
+                                                        strokeWidth = 2f
+                                                    }
+                                                    var ly = neckTopY
+                                                    while (ly < bottomY) {
+                                                        canvas.drawLine(0f, ly, width.toFloat(), ly, linenLinePaint)
+                                                        ly += 22f
+                                                    }
+                                                }
+
+                                                "velvet" -> {
+                                                    // Deep velvet pile absorption
+                                                    val velvetPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                                                        shader = LinearGradient(
+                                                            0f, 0f, width.toFloat(), 0f,
+                                                            intArrayOf(
+                                                                android.graphics.Color.argb(110, 0, 0, 0),
+                                                                android.graphics.Color.argb(50, 255, 255, 255),
+                                                                android.graphics.Color.argb(120, 0, 0, 0),
+                                                            ),
+                                                            null,
+                                                            Shader.TileMode.CLAMP,
+                                                        )
+                                                    }
+                                                    canvas.drawPath(garmentPath, velvetPaint)
+                                                }
+                                            }
+                                        }
+
+                                        // Natural Ambient Lighting & Shading
+                                        val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                                             shader = LinearGradient(
                                                 0f, neckTopY, 0f, bottomY,
                                                 intArrayOf(
-                                                    android.graphics.Color.argb(80, 255, 255, 255),
+                                                    android.graphics.Color.argb(70, 255, 255, 255),
                                                     android.graphics.Color.argb(0, 0, 0, 0),
-                                                    android.graphics.Color.argb(90, 0, 0, 0),
+                                                    android.graphics.Color.argb(95, 0, 0, 0),
                                                 ),
                                                 null,
                                                 Shader.TileMode.CLAMP,
                                             )
                                         }
-                                        canvas.drawPath(garmentPath, gradientPaint)
+                                        canvas.drawPath(garmentPath, shadowPaint)
 
-                                        // 3. Realistic Tailored Collar Seam Outline
+                                        // Realistic Tailored Collar Seam Outline
                                         val collarPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                                            color = android.graphics.Color.argb(140, 255, 255, 255)
+                                            color = android.graphics.Color.argb(150, 255, 255, 255)
                                             style = Paint.Style.STROKE
-                                            strokeWidth = 4f
+                                            strokeWidth = 3.5f
                                         }
                                         canvas.drawPath(garmentPath, collarPaint)
 
