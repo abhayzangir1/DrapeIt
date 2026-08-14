@@ -1,186 +1,115 @@
-# DrapeIt — Technical Requirements & Design (TRD)
+# DrapeIt — Technical Requirements & Specification (TRD)
 
-**Version:** 1.0  
-**Date:** 2026-08-14  
-**Status:** Final Technical Specification for YouCam API Hackathon  
-
----
-
-## 1. Technical Objective
-Architect and build a high-performance native Android application delivering:
-1. **60 FPS On-Device Real-Time Loop:** CameraX + MediaPipe Face Mesh + Beard-Resilient Skin Sampler + Local CIELAB Perceptual Compatibility Engine + Material Weave Shader Drape.
-2. **Asynchronous Cloud AI Calibration & Generation:** Cloudflare Worker proxy connecting to Perfect Corp's YouCam Skin Tone API (one-time calibration) and YouCam Clothes V3 API (photorealistic virtual try-on).
-3. **Zero-Friction Local Persistence:** Encrypted local cache for personal color profiles and Proven Looks.
+**Version:** 2.0  
+**Target:** Android 14+ (compileSdk 36, targetSdk 36, minSdk 26)  
+**Modules:** `:app` (Jetpack Compose UI & CameraX), `:core` (Pure Kotlin Colorimetry Engine)  
+**Backend:** Cloudflare Workers (TypeScript) with Durable Object Budget Ledger
 
 ---
 
-## 2. Technology Stack & Platform
+## 1. Technical Architecture Overview
 
-* **Client Platform:** Android 14 (API 34) target, minSDK 26
-* **Language & UI:** Kotlin 2.0 + Jetpack Compose + Material 3 Foundation with Custom Editorial Luxury Design System
-* **Computer Vision:** Google MediaPipe Face Mesh (478 3D landmarks on-device) + CameraX 1.3
-* **Color Science Engine:** CIELAB (CIE 015:2018), CIEDE2000 $\Delta E_{00}$, sRGB linear transformation, unconstrained optical harmony
-* **Backend API Gateway:** Cloudflare Workers (TypeScript) with sub-second proxying, payload validation, and task polling
-* **Partner APIs:** Perfect Corp. YouCam REST APIs (Skin Tone / Facial Color Analysis + Clothes V3 VTO)
-* **Local Persistence:** Encrypted SharedPreferences + Private App Storage (`context.filesDir/avatars`)
+DrapeIt decouples local real-time perception from heavy cloud generative AI:
+1. **On-Device 60 FPS Perception Loop:** CameraX + MediaPipe FaceMesh + Exponential Landmark Filtering + Beard-Resilient Skin Sampling + CIELAB Perceptual Engine + 4-Pass PBR Textile Shaders.
+2. **Interactive Preparation Pipeline:** Compose-native Pinch/Zoom Garment Cropper + Solid White Background Normalizer.
+3. **Stateless Cloud AI Gateway:** Cloudflare Worker proxy connecting to Perfect Corp's YouCam Skin Tone Analysis and YouCam Clothes V3 Virtual Try-On APIs.
 
 ---
 
-## 3. System Architecture & 3-Lane Concurrency Model
+## 2. Technology Stack
 
-```
-                                    DRAPEIT
-                                       │
-                      ┌────────────────┴────────────────┐
-                      │                                 │
-           ┌──────────▼──────────┐           ┌──────────▼──────────┐
-           │ LANE A: REAL-TIME   │           │ LANE B: CALIBRATION │
-           │ (On-Device 60 FPS)  │           │ (YouCam Skin API)   │
-           └──────────┬──────────┘           └──────────┬──────────┘
-                      │                                 │
-         CameraX Frame Acquisition              One-time snapshot
-                      │                                 │
-         MediaPipe Face Mesh (Chin #152)        YouCam Skin Tone API
-                      │                                 │
-         Beard-Resilient Skin Sampling                  ▼
-                      │                     ┌───────────────────────┐
-         Capture Quality Evaluation         │ Personal Color Profile│
-                      │                     │  (Encrypted Cache)    │
-         CIELAB Compatibility Engine ◄──────┤                       │
-                      │                     └───────────────────────┘
-         100% Opaque Material Drape                     │
-                      │                                 │
-                      ▼                                 │
-           Live Score + "Why" HUD                       │
-                      │                                 │
-                      ├─────────────────────────────────┘
-                      │
-               User taps "AI Try-On"
-                      │
-                      ▼
-           ┌─────────────────────┐
-           │ LANE C: GENERATION  │
-           │ (YouCam Clothes V3) │
-           └──────────┬──────────┘
-                      │
-           Cloudflare Worker Gateway
-                      │
-           YouCam Clothes V3 VTO Task
-                      │
-                      ▼
-           Photorealistic Try-On Image
-                      │
-                      ▼
-           [ Proven Looks Repository ] ──► [ Find Similar ]
-```
+* **Client Core:** Kotlin 2.3.20, Coroutines 1.10.2, Jetpack Compose (BOM 2026.03.01), Material 3.
+* **Computer Vision:** Google MediaPipe Tasks Vision 0.10.35 (`FaceLandmarker` with 478 3D landmarks) + CameraX 1.6.1.
+* **Color Science:** Platform-independent pure Kotlin `:core` library (CIELAB 1976, CIEDE2000 $\Delta E_{00}$, sRGB $\leftrightarrow$ CIELAB $\leftrightarrow$ XYZ conversions).
+* **Shading Engine:** Dual-Layer PBR Shading via Compose Canvas, `ImageShader(TileMode.Repeated)`, `BlendMode.Overlay` / `BlendMode.Hardlight` / `BlendMode.Softlight` / `BlendMode.Multiply`.
+* **Backend API Gateway:** TypeScript Cloudflare Worker with SQLite-backed Durable Object for transactional unit budget tracking.
+* **APIs Integrated:** YouCam S2S Cloud `/s2s/v2.0/task/cloth-v3` and `/s2s/v2.0/task/skin-tone-analysis`.
 
 ---
 
-## 4. Computer Vision & Beard-Resilient Skin Sampling
+## 3. Computer Vision & Landmark Smoothing
 
-### A. Hair-Immune Facial Sample Landmarks
-To ensure accurate skin tone readings across all users (including men with full beards, mustaches, goatees, or heavy stubble), sampling is restricted to **upper-facial hair-immune zones**:
-1. **Mid-Forehead & Glabella:** Landmarks `10`, `151`, `9`, `8` *(100% hair-free anchor)*
-2. **High Inner Sub-Orbital Cheeks:** Landmarks `118`, `119` (left) and `347`, `348` (right) *(positioned directly under the tear trough, safely above any natural beard line)*
-3. **Upper Nasal Bridge:** Landmarks `6`, `197`
-4. **Upper Malar Temples:** Landmarks `127`, `356`
+### A. Face Tracking & Landmark Smoothing
+MediaPipe provides normalized 3D facial landmarks at 60 FPS. Raw tracking data exhibits micro-jitter when hand-held; to achieve physical cloth stability, coordinates are filtered using an exponential low-pass filter:
 
-### B. Patch Variance & Outlier Rejection Algorithm
-For each sample patch ($12 \times 12$ pixels):
-1. **Texture Energy / Variance Test:** Calculate local luminance variance $\sigma^2$. If $\sigma^2 > \text{Threshold}_{\text{smooth}}$, the patch contains high-frequency hair/stubble texture and is discarded.
-2. **Luminance Outlier Trimming:** If a patch's luminance $L^*$ is $> 18$ units darker than the forehead anchor, it is flagged as hair/shadow occlusion and discarded.
-3. **CIELAB Trimmed Median:** Surviving patch colors are converted to CIELAB, and the median $(L^*, a^*, b^*)$ vector is extracted.
+$$\hat{x}_t = \hat{x}_{t-1} + \alpha \cdot (x_t - \hat{x}_{t-1}), \quad \alpha = 0.28$$
+$$\hat{y}_t = \hat{y}_{t-1} + \alpha \cdot (y_t - \hat{y}_{t-1}), \quad \alpha = 0.28$$
 
-### C. Chin Tracking for Drape Geometry
-* Landmark `152` (bottom of chin) and landmarks `234`/`454` (jaw ear base) define the dynamic drape polygon, updating at 60 FPS to follow head and neck movements smoothly.
+* **Chin Anchor (Landmark 152):** Used as the primary top anchor for the chest drape polygon.
+* **Head Pose Yaw Estimation:** Derived from normalized cheek offsets $(\Delta x_{\text{chin}} - 0.5) \cdot \pi$ and passed to shaders to drive specular sheen angles dynamically.
 
----
-
-## 5. Capture Quality & Lighting Engine
-
-The app evaluates 5 real-time quality signals before finalizing measurements:
-$$\text{Confidence} = 0.30 \cdot S_{\text{exposure}} + 0.25 \cdot S_{\text{colorCast}} + 0.20 \cdot S_{\text{faceVisibility}} + 0.15 \cdot S_{\text{framing}} + 0.10 \cdot S_{\text{stability}}$$
-
-* **$S_{\text{exposure}}$:** Evaluates relative luminance ($0.20 \le Y \le 0.85$). Flags overexposure / underexposure.
-* **$S_{\text{colorCast}}$:** Evaluates white-point chromatic shift. Flags warm indoor incandescent lighting ($> 3000\text{K}$ shift).
-* **$S_{\text{faceVisibility}}$:** Validates MediaPipe facial landmark visibility scores ($> 0.85$).
-* **$S_{\text{framing}}$:** Confirms face oval center is within the central $50\%$ viewport bounding box.
-* **$S_{\text{stability}}$:** Checks inter-frame motion delta to discard motion blur.
+### B. Beard-Resilient Skin Sampling
+To prevent facial hair, stubble, or shadows from distorting color calculations:
+1. **Upper-Facial Sampling Zones:**
+   * Forehead Glabella (Landmarks 10, 151, 9, 8)
+   * High Sub-Orbital Cheeks (Landmarks 118, 119 and 347, 348)
+   * Upper Nasal Bridge (Landmarks 6, 197)
+2. **Variance & Luminance Outlier Trimming:** Discards sample patches with high local luminance variance ($\sigma^2 > \text{threshold}$) or luminance $L^*$ more than 18 units darker than the forehead baseline.
+3. **Median CIELAB Aggregation:** Computes the trimmed median $(L^*, a^*, b^*)$ vector across surviving patches.
 
 ---
 
-## 6. Perceptual Color Compatibility Engine
+## 4. Perceptual Color Compatibility Engine
 
 Converts sampled skin $(L^*_{\text{skin}}, a^*_{\text{skin}}, b^*_{\text{skin}})$ and candidate fabric color $(L^*_{\text{fabric}}, a^*_{\text{fabric}}, b^*_{\text{fabric}})$ to calculate:
 
-### 1. Luminance Contrast ($\Delta L^*$)
-$$\Delta L^* = |L^*_{\text{skin}} - L^*_{\text{fabric}}|$$
-* Penalizes colors with $\Delta L^* < 12$ (washes out facial features).
-* Rewards moderate-to-high contrast ($20 \le \Delta L^* \le 55$).
+1. **Lightness Contrast ($\Delta L^*$):**
+   $$\Delta L^* = |L^*_{\text{skin}} - L^*_{\text{fabric}}|$$
+   Penalizes washed-out combinations ($\Delta L^* < 12$), rewards clean facial separation ($20 \le \Delta L^* \le 55$).
 
-### 2. Chroma Saturation Relationship ($\Delta C^*$)
-$$C^* = \sqrt{a^{*2} + b^{*2}}, \quad \Delta C^* = |C^*_{\text{skin}} - C^*_{\text{fabric}}|$$
-* Penalizes hyper-saturated neon shades that overpower subtle skin tones.
+2. **Chroma Saturation ($\Delta C^*$):**
+   $$C^* = \sqrt{a^{*2} + b^{*2}}, \quad \Delta C^* = |C^*_{\text{skin}} - C^*_{\text{fabric}}|$$
 
-### 3. Hue & Undertone Alignment ($\Delta h$)
-$$h = \operatorname{atan2}(b^*, a^*)$$
-* Evaluates warm vs. cool undertone compatibility.
-* Identifies discordant sickly/ashen color clashes, dropping compatibility scores realistically into the $15\% - 45\%$ range.
+3. **Hue & Undertone Alignment ($\Delta h$):**
+   $$h = \operatorname{atan2}(b^*, a^*)$$
 
-### 4. Overall Compatibility Score
-$$\text{Score} = \left(0.40 \cdot S_{\text{contrast}} + 0.35 \cdot S_{\text{undertone}} + 0.25 \cdot S_{\text{chroma}}\right) \times 100\%$$
+4. **Overall Harmony Score:**
+   $$\text{Score} = \left(0.40 \cdot S_{\text{contrast}} + 0.35 \cdot S_{\text{undertone}} + 0.25 \cdot S_{\text{chroma}}\right) \times 100\%$$
 
 ---
 
-## 7. Material-Aware Fabric Model & Shaders
+## 5. Dual-Layer PBR Fabric Shading Engine
 
-Each fabric is modeled with physical optical coefficients:
+To render authentic textiles without 3D polygon meshes, `FabricTextureShader.kt` executes a **4-pass luminance-preserving composite** using 14 seamless tileable grayscale bump maps:
 
 ```kotlin
-data class FabricProfile(
+data class FabricMaterial(
     val id: String,
     val name: String,
-    val weaveType: WeaveType,
-    val roughness: Float,
-    val luster: Float,
-    val specularStrength: Float,
-    val absorption: Float,
-    val textureStrength: Float
+    val icon: String,
+    val description: String,
+    val luster: FabricLuster,
+    val drape: FabricDrape,
+    val breathability: String,
+    val weaveType: String,
+    val blendMode: BlendMode = BlendMode.Overlay,
+    val textureAlpha: Float = 0.92f,
+    val aoAlpha: Float = 0.28f,
+    val specularStrength: Float = 0.15f,
+    val anisotropy: Float = 0.0f,
+    val sheen: Float = 0.0f,
 )
 ```
 
-### Hero Shading Pipelines:
-* **Mulberry Silk / Satin:** `Brush.verticalGradient` with specular sheen crest bands ($A=0.38$) and liquid drape trough shadows.
-* **Structured Denim:** 45° diagonal 3x1 twill weave shadow lines + double contrast collar top-stitching.
-* **Natural Linen:** Horizontal and vertical organic slub weave ridges ($18\text{dp}$ interval).
-* **Plush Velvet:** `Brush.horizontalGradient` with deep directional light absorption and velvety pile edge sheen.
-* **Merino Wool & Cashmere:** Dense, soft matte diffuse micro-grain.
+### Composite Passes:
+1. **Base Pass:** Solid fill with user's selected `#HEX` color.
+2. **Micro-Weave Pass:** Repeating `ImageShader(tileBitmap, TileMode.Repeated)` rendered with `BlendMode.Overlay` / `BlendMode.Hardlight` / `BlendMode.Softlight` at `textureAlpha`.
+3. **Ambient Occlusion Pass:** Radial gradient from neck center with `BlendMode.Multiply` at `aoAlpha`.
+4. **Specular Sheen Pass:** Linear gradient sweep centered at `width * (0.50 + sin(yaw) * 0.35)` with `BlendMode.Overlay`.
+5. **Velvet Fresnel Pass:** Rim highlight gradient with `BlendMode.Screen` at `sheen` intensity.
 
 ---
 
-## 8. State Machine & Architecture
+## 6. On-Device Garment Cropping & Normalization
 
-```kotlin
-enum class DrapeAppState {
-    UNINITIALIZED,
-    PERMISSION_REQUIRED,
-    CALIBRATING,
-    READY,
-    LIVE_DRAPE,
-    PHOTO_MODE,
-    COMPARE,
-    TRY_ANYTHING,
-    TRY_ON_PROCESSING,
-    TRY_ON_RESULT,
-    SAVED,
-    ERROR
-}
-```
+* **Interactive Gesture Viewport:** Handles 2-finger pinch-to-zoom, pan translation, and 90° rotation inside a 3:4 aspect bounding frame.
+* **YouCam AI Canvas Normalization:** Renders the cropped garment onto an off-screen `1024x1280` canvas with solid white background (`#FFFFFF`) and 5% padding.
+* **Encoding:** Scales down to $\le 1280\text{px}$ longest edge and compresses to 88% quality sRGB JPEG on `Dispatchers.Default`.
 
 ---
 
-## 9. Cloud Gateway & YouCam Integration
+## 7. Security & Cloudflare Proxy Gateway
 
-* **Endpoint:** `POST https://youcam-proxy.drapeit.workers.dev/v1/tasks/try-on`
-* **Security:** API keys and credentials reside exclusively in Cloudflare Worker environment secrets. Zero hardcoded secrets in APK.
-* **Resilience:** If network is unavailable or rate-limited, local 60 FPS live drape continues uninterrupted.
+* **Client Security:** Zero API keys bundled in APK. The app acquires temporary session tokens from `POST /v1/session`.
+* **State & Quota Ledger:** The Worker uses a SQLite-backed Durable Object (`PAID_TASK_LEDGER`) to track unit costs (2 units for Clothes V3, 20 units for Skin Tone Analysis) and enforce safety floors.
+* **Offline Resilience:** If network connectivity is lost, on-device AR live drape, PBR material shaders, and photo compare continue operating with 0% feature loss.

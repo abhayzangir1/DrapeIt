@@ -1,58 +1,60 @@
-# Judge Test Guide
+# DrapeIt — Judge Testing Guide
 
-DrapeProof is an Android prototype for API 26 or newer. The judge APK is built against the live HTTPS Worker; the private judge access code is supplied out-of-band and is intentionally absent from this repository.
+**Target:** Android (API 26+)  
+**App Name:** DrapeIt  
+**APK Location:** `android/app/build/outputs/apk/debug/app-debug.apk`
 
-## Install
+---
 
-1. Download the signed judge APK and verify its published SHA-256.
-2. On the phone, allow installation from the chosen file browser when Android asks.
-3. Install and open **DrapeProof**.
-4. Grant camera permission for the real-cloth path. If permission was permanently denied, use the app's **Open Settings** action and return to the app after enabling Camera.
+## 1. Quick Installation
 
-Minimum supported version: Android 8.0 / API 26.
+1. Install the debug APK directly via ADB:
+   ```powershell
+   & "C:\Users\abhay\AppData\Local\Android\Sdk\platform-tools\adb.exe" install -r "android/app/build/outputs/apk/debug/app-debug.apk"
+   ```
+2. Open **DrapeIt** on your device.
+3. Grant camera permission when requested to enable on-device FaceMesh tracking and AR draping.
 
-## Five-minute priority path
+---
 
-### 1. Real cloth
+## 2. 5-Minute Evaluator Walkthrough
 
-- Use a clean front camera, broad indirect daylight, and no beauty/filter mode.
-- Hold the phone steady with the face centered and a neutral expression.
-- Begin the opening baseline with no cloth in the marked lower zone.
-- When prompted, place one **solid, matte, unpatterned** cloth below the face without covering the chin or cheeks.
-- Remove it when prompted for the closing baseline.
-- Review the evidence tier, cloth–skin separation, feature definition, and the apparent-shift field. Apparent shift is withheld when the controlled-pair gates do not pass.
+### Step 1: Live AR Drape & PBR Material Shaders (`🪞 Drape Tab`)
+* **Live AR Face Tracking:** Point the front camera at your face. The app automatically tracks your chin (MediaPipe Landmark 152) and drapes a virtual cloth polygon across your chest.
+* **14 Physical Material Shaders:** Tap the fabric carousel at the bottom and switch between materials:
+  * Observe the anisotropic specular sheen on **Silk** and **Satin**.
+  * Observe the Voronoi tactile grain on **Leather**.
+  * Observe the herringbone bouclé crosshatch on **Tweed**.
+  * Observe the 8-wale vertical ridges on **Corduroy**.
+  * Observe the sheer pass-through on **Chiffon**.
+* **Head Motion Sheen:** Move your head slightly side-to-side; notice how the specular highlights sweep across the fabric surface dynamically based on your head yaw angle.
 
-For a deliberate downgrade check, repeat while changing the light or using a glossy/patterned fabric. The app should explain the failed gate instead of presenting a strong controlled-pair claim.
+### Step 2: Universal 360° HSV Color Picker
+* Tap the `🎨 Color Wheel` icon on the camera control bar.
+* Adjust the 360° Hue spectrum slider and Saturation/Value sliders, or enter a direct `#RRGGBB` hex code (e.g. `#831843` or `#1E3A8A`).
+* Notice how the physical fabric weave remains crisp and tactile over any selected color without being crushed by flat color overlays.
 
-### 2. Photo contrast
+### Step 3: Interactive Garment Cropper & Normalizer (`✨ Looks Tab -> Try Anything`)
+* Go to the **Looks** tab $\rightarrow$ select the **Try Anything** sub-tab.
+* Tap **Upload Screenshot / Photo** and choose an apparel product photo from your gallery.
+* In the **Garment Cropper Modal**, use 2-finger gestures to pinch-to-zoom, pan, or rotate the garment within the 3:4 portrait guide.
+* Tap `✓ Use Garment` — the app crops the piece, automatically flattens it onto a clean `#FFFFFF` solid background with 5% padding, and normalizes it to max 1280px for the YouCam Clothes V3 AI engine.
 
-- Use one photo containing both the face and fabric for the stronger photo tier, then tap representative cheek and fabric points.
-- The app also accepts separate face and product/dress images, but clearly labels that result as a lower-confidence estimate because the lighting and camera pipelines differ.
-- Photo measurement runs locally and does not upload the selected image.
+### Step 4: AI Virtual Try-On (`📸 Try-On Studio`)
+* From the Drape or Looks screen, tap `📸 AI Try-On`.
+* If you haven't uploaded a selfie yet, the app prompts you with options:
+  * Upload a portrait photo, or
+  * Tap **`👤 Use AI Fit Model`** for an instant studio silhouette.
+* Tap `✨ Generate Photorealistic Try-On` — the app dispatches the task to the YouCam Clothes V3 Cloud API via the secure Cloudflare Worker proxy, polls the task status with a pulsating progress indicator, and displays the high-fidelity fitted outfit.
 
-### 3. Product decision
+### Step 5: Side-by-Side Photo Compare (`⚖️ Compare Tab`)
+* From the top mode selector in the Drape tab, switch to `[ ⚖️ COMPARE ]`.
+* Select 2 to 4 of your captured looks.
+* Inspect the side-by-side collage showing CIEDE2000 harmony percentiles, fabric details, and gold **✨ WINNER** badges.
 
-- Save a valid skin sample, open the exact-color catalog, and compare **Soft**, **Balanced**, and **Bold** intent.
-- Rankings apply only to the six color variants of the demo SKU. They are contrast choices, not attractiveness or universal “best color” scores.
+---
 
-### 4. YouCam Lab
+## 3. Privacy & Security Assertions
 
-- Enter the private judge access code and connect to the displayed DrapeProof Worker host.
-- Select a front-facing face JPEG for Facial Color Tones.
-- Select a front-facing person image plus an apparel/dress reference for Clothes V3.
-- Selecting files does not upload them. Read and tick the explicit cloud-consent control, then start the chosen task.
-- Keep the app open while it uploads and polls. A task can take tens of seconds depending on the provider.
-- Facial colors are supporting palette evidence. The Clothes result is a preview only and never changes the physical contrast score.
-
-Cloud actions consume hackathon units. The screen reports the live feature costs and the protected reserve before submission.
-
-## Privacy and limitations
-
-- Live camera frames are analyzed in memory and are not saved by the capture path.
-- Local photo contrast does not upload images.
-- A cloud run sends the explicitly selected input(s) to YouCam through the secure Worker flow.
-- The API key is never present in the APK.
-- Camera colors remain device- and illumination-dependent. DrapeProof is not a colorimeter, medical tool, skin diagnosis, season classifier, or attractiveness score.
-- Clear Android app storage or uninstall to remove local records and saved VTO results. Provider/server safety records are separate.
-
-For the complete manual matrix, including failure evidence and a repeated-capture test, use [Device Test Matrix](DEVICE_TEST_MATRIX.md).
+* **Zero Master Keys in APK:** The Android application never bundles third-party API credentials; all cloud calls use short-lived session tokens from the backend proxy.
+* **On-Device Confidentiality:** Camera video streams and facial landmark coordinates remain strictly on-device in memory. Network calls only occur when the user explicitly triggers an AI Try-On or Skin Tone calibration task.
