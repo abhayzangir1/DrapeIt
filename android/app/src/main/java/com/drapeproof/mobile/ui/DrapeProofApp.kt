@@ -2,27 +2,14 @@ package com.drapeproof.mobile.ui
 
 import android.net.Uri
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -30,9 +17,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -46,11 +31,10 @@ import com.drapeproof.mobile.profile.ProfileScreen
 import com.drapeproof.mobile.silhouette.UserProfileStore
 import com.drapeproof.mobile.tryon.TryOnScreen
 import com.drapeproof.mobile.ui.theme.EditorialCream
-import com.drapeproof.mobile.ui.theme.EditorialInk
 import com.drapeproof.mobile.ui.theme.EditorialMuted
 import com.drapeproof.mobile.ui.theme.EditorialSand
 import com.drapeproof.mobile.ui.theme.EditorialSienna
-import com.drapeproof.mobile.ui.theme.EditorialStone
+import com.drapeproof.mobile.youcam.YouCamLabScreen
 
 enum class AppTab(val title: String, val icon: String) {
     DRAPE("Drape", "🪞"),
@@ -63,6 +47,7 @@ private enum class SubFlow {
     NONE,
     COMPARE,
     TRY_ON,
+    YOUCAM_LAB,
 }
 
 @Composable
@@ -161,6 +146,12 @@ fun DrapeProofApp(
                     )
                 }
 
+                SubFlow.YOUCAM_LAB -> {
+                    YouCamLabScreen(
+                        onBack = { subFlow = SubFlow.NONE },
+                    )
+                }
+
                 SubFlow.NONE -> {
                     when (currentTab) {
                         AppTab.DRAPE -> {
@@ -208,6 +199,7 @@ fun DrapeProofApp(
                         AppTab.PROFILE -> {
                             ProfileScreen(
                                 onRecalibrate = { currentTab = AppTab.DRAPE },
+                                onOpenYouCamLab = { subFlow = SubFlow.YOUCAM_LAB },
                             )
                         }
                     }

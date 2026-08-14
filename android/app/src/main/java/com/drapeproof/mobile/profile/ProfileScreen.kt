@@ -54,6 +54,7 @@ import com.drapeproof.mobile.ui.theme.EditorialWarning
 @Composable
 fun ProfileScreen(
     onRecalibrate: () -> Unit,
+    onOpenYouCamLab: () -> Unit,
 ) {
     val context = LocalContext.current
     val storedProfile = remember { SkinProfileRepository.load(context) }
@@ -130,7 +131,6 @@ fun ProfileScreen(
 
                     Spacer(Modifier.height(16.dp))
 
-                    // Coordinates pill
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -209,6 +209,17 @@ fun ProfileScreen(
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Text("📷 Re-Calibrate Color Profile", color = Color.White, fontWeight = FontWeight.Bold)
+            }
+
+            Spacer(Modifier.height(10.dp))
+
+            // YOUCAM LAB & DIAGNOSTICS
+            OutlinedButton(
+                onClick = onOpenYouCamLab,
+                shape = RoundedCornerShape(14.dp),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("🔬 YouCam API Lab & Diagnostics", color = EditorialInk, fontWeight = FontWeight.Bold)
             }
 
             Spacer(Modifier.height(18.dp))
