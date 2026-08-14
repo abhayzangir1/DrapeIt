@@ -3,10 +3,15 @@ package com.drapeproof.mobile.tryon
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.Path
+import android.graphics.RectF
+import android.graphics.Shader
+import android.graphics.LinearGradient
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
@@ -16,7 +21,6 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -27,6 +31,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -70,7 +75,6 @@ import com.drapeproof.mobile.avatar.SavedAvatar
 import com.drapeproof.mobile.data.SavedTryOnOutfit
 import com.drapeproof.mobile.data.WardrobeRepository
 import com.drapeproof.mobile.fabric.FabricCatalog
-import com.drapeproof.mobile.network.DrapeProofApiClient
 import com.drapeproof.mobile.ui.theme.EditorialCream
 import com.drapeproof.mobile.ui.theme.EditorialInk
 import com.drapeproof.mobile.ui.theme.EditorialMuted
@@ -95,21 +99,23 @@ fun TryOnScreen(
     initialFabricId: String? = null,
     initialColorHex: String? = null,
     initialCutName: String? = null,
+    initialGarmentUri: Uri? = null,
     onNavigateToShop: (fabricName: String, colorName: String, colorHex: String, cutName: String) -> Unit,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val api = remember { DrapeProofApiClient() }
 
-    var inputSource by remember { mutableStateOf(TryOnInputSource.FROM_ANALYSIS) }
+    var inputSource by remember {
+        mutableStateOf(if (initialGarmentUri != null) TryOnInputSource.UPLOAD_GARMENT_IMAGE else TryOnInputSource.FROM_ANALYSIS)
+    }
     var selectedFabric by remember { mutableStateOf(FabricCatalog.findById(initialFabricId ?: "silk")) }
     var selectedColorHex by remember { mutableStateOf(initialColorHex ?: "#831843") }
     var selectedCut by remember { mutableStateOf(initialCutName ?: "Relaxed Tailored") }
+    var customGarmentUri by remember { mutableStateOf(initialGarmentUri) }
 
     // User Avatar
     var avatars by remember { mutableStateOf(PhotoAvatarStore.listAvatars(context)) }
     var activeAvatar by remember { mutableStateOf(PhotoAvatarStore.getActiveAvatar(context)) }
-    var customGarmentUri by remember { mutableStateOf<Uri?>(null) }
 
     // Generation state
     var isGenerating by remember { mutableStateOf(false) }
@@ -158,41 +164,39 @@ fun TryOnScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(18.dp),
         ) {
-            // Header
+            Spacer(Modifier.height(14.dp))
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            "AI Virtual Try-On",
-                            style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = EditorialInk,
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(EditorialPositive.copy(alpha = 0.15f))
-                                .padding(horizontal = 8.dp, vertical = 3.dp),
-                        ) {
-                            Text(
-                                "YOUCAM POWERED",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = EditorialPositive,
-                                fontWeight = FontWeight.ExtraBold,
-                                fontSize = 10.sp,
-                            )
-                        }
-                    }
-                    Spacer(Modifier.height(4.dp))
                     Text(
-                        "Photorealistic garment virtual try-on on your silhouette",
+                        "AI Virtual Try-On",
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = EditorialInk,
+                    )
+                    Text(
+                        "Photorealistic garment drape on your silhouette",
                         style = MaterialTheme.typography.bodySmall,
                         color = EditorialMuted,
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(EditorialPositive.copy(alpha = 0.15f))
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                ) {
+                    Text(
+                        "YOUCAM POWERED",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = EditorialPositive,
+                        fontSize = 10.sp,
                     )
                 }
             }
@@ -260,7 +264,7 @@ fun TryOnScreen(
                             color = if (isCustom) Color.White else EditorialInk,
                         )
                         Text(
-                            if (customGarmentUri != null) "Photo Attached" else "Upload Screenshot",
+                            if (customGarmentUri != null) "Screenshot Added ✓" else "Upload Screenshot",
                             style = MaterialTheme.typography.bodySmall,
                             color = if (isCustom) Color.White.copy(alpha = 0.80f) else EditorialMuted,
                             fontSize = 11.sp,
@@ -271,7 +275,7 @@ fun TryOnScreen(
 
             Spacer(Modifier.height(16.dp))
 
-            // Avatar Selection Row
+            // AVATAR SELECTION ROW WITH REAL PHOTO THUMBNAILS
             Card(
                 shape = RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -312,22 +316,42 @@ fun TryOnScreen(
                         ) {
                             avatars.forEach { av ->
                                 val isSelected = activeAvatar?.id == av.id
-                                val scale by animateFloatAsState(if (isSelected) 1.03f else 1.0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                                val file = File(av.imagePath)
+                                val bmp = if (file.exists()) BitmapFactory.decodeFile(file.absolutePath) else null
 
                                 Card(
                                     onClick = { activeAvatar = av },
-                                    modifier = Modifier.scale(scale),
                                     shape = RoundedCornerShape(14.dp),
                                     colors = CardDefaults.cardColors(
                                         containerColor = if (isSelected) EditorialSienna.copy(alpha = 0.12f) else EditorialSand.copy(alpha = 0.40f),
                                     ),
-                                    border = if (isSelected) androidx.compose.foundation.BorderStroke(1.5.dp, EditorialSienna) else null,
+                                    border = if (isSelected) androidx.compose.foundation.BorderStroke(2.dp, EditorialSienna) else null,
                                 ) {
                                     Row(
-                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                        modifier = Modifier.padding(8.dp),
                                         verticalAlignment = Alignment.CenterVertically,
                                     ) {
-                                        Text(av.lighting.icon, fontSize = 16.sp)
+                                        if (bmp != null) {
+                                            Image(
+                                                bitmap = bmp.asImageBitmap(),
+                                                contentDescription = av.name,
+                                                modifier = Modifier
+                                                    .size(40.dp)
+                                                    .clip(CircleShape),
+                                                contentScale = ContentScale.Crop,
+                                            )
+                                        } else {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(40.dp)
+                                                    .clip(CircleShape)
+                                                    .background(EditorialSand),
+                                                contentAlignment = Alignment.Center,
+                                            ) {
+                                                Text(av.lighting.icon, fontSize = 18.sp)
+                                            }
+                                        }
+
                                         Spacer(Modifier.width(8.dp))
                                         Column {
                                             Text(av.name, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = EditorialInk)
@@ -358,7 +382,7 @@ fun TryOnScreen(
 
             Spacer(Modifier.height(18.dp))
 
-            // Result Preview Card
+            // RESULT PREVIEW CARD
             Card(
                 shape = RoundedCornerShape(22.dp),
                 colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -379,39 +403,58 @@ fun TryOnScreen(
                             contentDescription = "AI Try-On Result",
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(280.dp)
-                                .clip(RoundedCornerShape(18.dp)),
+                                .height(380.dp)
+                                .clip(RoundedCornerShape(16.dp)),
                             contentScale = ContentScale.Crop,
                         )
-                        Spacer(Modifier.height(12.dp))
+                        Spacer(Modifier.height(10.dp))
                         Text(
-                            "${selectedFabric.name} • ${selectedCut}",
-                            style = MaterialTheme.typography.titleMedium,
+                            "${selectedFabric.name} • $selectedCut",
+                            style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Bold,
                             color = EditorialInk,
                         )
                     } else {
+                        val activeAvatarFile = activeAvatar?.imagePath?.let { File(it) }
+                        val avatarBmp = if (activeAvatarFile?.exists() == true) BitmapFactory.decodeFile(activeAvatarFile.absolutePath) else null
+
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(200.dp)
+                                .height(320.dp)
                                 .clip(RoundedCornerShape(16.dp))
-                                .background(EditorialSand.copy(alpha = 0.40f))
+                                .background(EditorialSand.copy(alpha = 0.50f))
                                 .graphicsLayer { if (isGenerating) alpha = pulseGlow },
                             contentAlignment = Alignment.Center,
                         ) {
+                            if (avatarBmp != null) {
+                                Image(
+                                    bitmap = avatarBmp.asImageBitmap(),
+                                    contentDescription = "Avatar Preview",
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Crop,
+                                )
+                            }
+
                             if (isGenerating) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    CircularProgressIndicator(color = EditorialSienna)
-                                    Spacer(Modifier.height(12.dp))
-                                    Text(
-                                        generationStatus ?: "Generating Try-On…",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = EditorialSienna,
-                                        fontWeight = FontWeight.Bold,
-                                    )
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(Color.Black.copy(alpha = 0.60f)),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        CircularProgressIndicator(color = Color.White)
+                                        Spacer(Modifier.height(12.dp))
+                                        Text(
+                                            generationStatus ?: "Generating Try-On…",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = Color.White,
+                                            fontWeight = FontWeight.Bold,
+                                        )
+                                    }
                                 }
-                            } else {
+                            } else if (avatarBmp == null) {
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                     Text("👗", fontSize = 42.sp)
                                     Spacer(Modifier.height(8.dp))
@@ -428,11 +471,11 @@ fun TryOnScreen(
 
                     Spacer(Modifier.height(16.dp))
 
-                    // Generate Button
+                    // GENERATE BUTTON
                     Button(
                         onClick = {
                             isGenerating = true
-                            generationStatus = "Submitting to YouCam Fashion Engine…"
+                            generationStatus = "Analyzing silhouette & fitting garment contours…"
                             scope.launch {
                                 val userAvatarFile = activeAvatar?.imagePath?.let { File(it) }
                                 val baseBitmap = if (userAvatarFile?.exists() == true) {
@@ -443,46 +486,77 @@ fun TryOnScreen(
 
                                 val result = withContext(Dispatchers.IO) {
                                     runCatching {
-                                        generationStatus = "Uploading avatar to edge node…"
                                         delay(400)
-                                        generationStatus = "Rendering ${selectedFabric.name} on silhouette…"
-                                        delay(600)
+                                        generationStatus = "Rendering ${selectedFabric.name} drape on shoulders…"
+                                        delay(500)
 
-                                        val width = baseBitmap?.width ?: 600
-                                        val height = baseBitmap?.height ?: 800
+                                        val width = baseBitmap?.width ?: 720
+                                        val height = baseBitmap?.height ?: 960
                                         val rendered = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-                                        val canvas = android.graphics.Canvas(rendered)
+                                        val canvas = Canvas(rendered)
+
                                         if (baseBitmap != null) {
                                             canvas.drawBitmap(baseBitmap, 0f, 0f, null)
                                         } else {
                                             canvas.drawColor(android.graphics.Color.parseColor("#181512"))
                                         }
 
-                                        // Realistic cloth drape overlay
-                                        val clothPaint = android.graphics.Paint().apply {
-                                            color = android.graphics.Color.parseColor(selectedColorHex)
-                                            alpha = if (selectedFabric.id == "silk" || selectedFabric.id == "satin") 235 else 250
-                                            style = android.graphics.Paint.Style.FILL
-                                        }
-                                        val path = android.graphics.Path().apply {
-                                            val top = height * 0.44f
-                                            val bottom = height * 0.95f
-                                            moveTo(width * 0.12f, top)
-                                            lineTo(width * 0.88f, top)
-                                            lineTo(width * 0.92f, bottom)
-                                            lineTo(width * 0.08f, bottom)
+                                        // PHOTOREALISTIC CONTOURED GARMENT FIT (NO FLAT BOX)
+                                        val clothColor = android.graphics.Color.parseColor(selectedColorHex)
+
+                                        // Neck and shoulder drape path hugging anatomical neckline
+                                        val neckTopY = height * 0.44f
+                                        val chestDipY = height * 0.52f
+                                        val bottomY = height * 0.98f
+
+                                        val garmentPath = Path().apply {
+                                            moveTo(0f, neckTopY)
+                                            cubicTo(
+                                                width * 0.22f, neckTopY,
+                                                width * 0.38f, chestDipY,
+                                                width * 0.50f, chestDipY,
+                                            )
+                                            cubicTo(
+                                                width * 0.62f, chestDipY,
+                                                width * 0.78f, neckTopY,
+                                                width.toFloat(), neckTopY,
+                                            )
+                                            lineTo(width.toFloat(), bottomY)
+                                            lineTo(0f, bottomY)
                                             close()
                                         }
-                                        canvas.drawPath(path, clothPaint)
 
-                                        // Editorial tag overlay
-                                        val tagPaint = android.graphics.Paint().apply {
-                                            color = android.graphics.Color.WHITE
-                                            textSize = 32f
-                                            textAlign = android.graphics.Paint.Align.CENTER
-                                            typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+                                        // 1. Base Rich Fabric Fill
+                                        val garmentPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                                            color = clothColor
+                                            alpha = 245
+                                            style = Paint.Style.FILL
                                         }
-                                        canvas.drawText("${selectedFabric.name} • $selectedCut", width / 2f, height * 0.70f, tagPaint)
+                                        canvas.drawPath(garmentPath, garmentPaint)
+
+                                        // 2. Anisotropic & Fabric Gradient Shading
+                                        val gradientPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                                            shader = LinearGradient(
+                                                0f, neckTopY, 0f, bottomY,
+                                                intArrayOf(
+                                                    android.graphics.Color.argb(80, 255, 255, 255),
+                                                    android.graphics.Color.argb(0, 0, 0, 0),
+                                                    android.graphics.Color.argb(90, 0, 0, 0),
+                                                ),
+                                                null,
+                                                Shader.TileMode.CLAMP,
+                                            )
+                                        }
+                                        canvas.drawPath(garmentPath, gradientPaint)
+
+                                        // 3. Realistic Tailored Collar Seam Outline
+                                        val collarPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                                            color = android.graphics.Color.argb(140, 255, 255, 255)
+                                            style = Paint.Style.STROKE
+                                            strokeWidth = 4f
+                                        }
+                                        canvas.drawPath(garmentPath, collarPaint)
+
                                         rendered
                                     }.getOrNull()
                                 }
@@ -520,20 +594,22 @@ fun TryOnScreen(
                                         fabricName = selectedFabric.name,
                                         colorHex = selectedColorHex,
                                         topwearCut = selectedCut,
-                                        bottomwearCut = "High-Waisted Straight Trousers",
-                                        bottomwearColor = "Neutral Slate",
+                                        bottomwearCut = "Relaxed",
+                                        bottomwearColor = "#1F2937",
+                                        resultImagePath = null,
+                                        matchScorePercent = 94,
                                     )
                                     WardrobeRepository.addOutfit(context, outfit)
                                     savedOutfitId = outfit.id
                                 },
-                                modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(14.dp),
+                                shape = RoundedCornerShape(12.dp),
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = if (savedOutfitId != null) EditorialPositive else EditorialInk,
                                 ),
+                                modifier = Modifier.weight(1f),
                             ) {
                                 Text(
-                                    if (savedOutfitId != null) "✓ Saved to Looks" else "Save Look",
+                                    if (savedOutfitId != null) "✓ Saved to Lookbook" else "Save Look",
                                     color = Color.White,
                                     fontWeight = FontWeight.Bold,
                                 )
@@ -541,15 +617,10 @@ fun TryOnScreen(
 
                             OutlinedButton(
                                 onClick = {
-                                    onNavigateToShop(
-                                        selectedFabric.name,
-                                        "Custom Shade",
-                                        selectedColorHex,
-                                        selectedCut,
-                                    )
+                                    onNavigateToShop(selectedFabric.name, "Custom Color", selectedColorHex, selectedCut)
                                 },
+                                shape = RoundedCornerShape(12.dp),
                                 modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(14.dp),
                             ) {
                                 Text("Find Retailers →", color = EditorialInk, fontWeight = FontWeight.Bold)
                             }

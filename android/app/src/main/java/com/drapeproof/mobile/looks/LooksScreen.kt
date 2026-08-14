@@ -68,7 +68,7 @@ private enum class LooksSubTab(val title: String) {
 
 @Composable
 fun LooksScreen(
-    onNavigateToTryOn: (fabricId: String, colorHex: String) -> Unit,
+    onNavigateToTryOn: (fabricId: String, colorHex: String, garmentUri: Uri?) -> Unit,
     onNavigateToDrape: (fabricId: String, colorHex: String) -> Unit,
 ) {
     val context = LocalContext.current
@@ -100,26 +100,26 @@ fun LooksScreen(
                 color = EditorialInk,
             )
             Text(
-                "Proven combinations & screenshot try-on",
+                "Saved wardrobe inspirations & custom screenshot testing",
                 style = MaterialTheme.typography.bodySmall,
                 color = EditorialMuted,
             )
 
             Spacer(Modifier.height(16.dp))
 
+            // Sub-Tab Switcher
             TabRow(
                 selectedTabIndex = activeTab.ordinal,
-                containerColor = EditorialSand.copy(alpha = 0.50f),
-                contentColor = EditorialInk,
+                containerColor = Color.Transparent,
+                contentColor = EditorialSienna,
                 indicator = { tabPositions ->
-                    TabRowDefaults.SecondaryIndicator(
-                        Modifier.tabIndicatorOffset(tabPositions[activeTab.ordinal]),
+                    TabRowDefaults.Indicator(
+                        modifier = Modifier.tabIndicatorOffset(tabPositions[activeTab.ordinal]),
                         color = EditorialSienna,
+                        height = 3.dp,
                     )
                 },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp)),
+                divider = {},
             ) {
                 LooksSubTab.values().forEach { tab ->
                     Tab(
@@ -128,7 +128,7 @@ fun LooksScreen(
                         text = {
                             Text(
                                 tab.title,
-                                fontWeight = if (activeTab == tab) FontWeight.Bold else FontWeight.Normal,
+                                fontWeight = if (activeTab == tab) FontWeight.Bold else FontWeight.Medium,
                                 color = if (activeTab == tab) EditorialInk else EditorialMuted,
                             )
                         },
@@ -148,108 +148,144 @@ fun LooksScreen(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.Center,
                         ) {
-                            Text("✨", fontSize = 48.sp)
+                            Text("✨", fontSize = 42.sp)
                             Spacer(Modifier.height(12.dp))
                             Text(
-                                "No Proven Looks Saved Yet",
-                                style = MaterialTheme.typography.titleMedium,
+                                "No Saved Looks Yet",
+                                style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Bold,
                                 color = EditorialInk,
                             )
                             Spacer(Modifier.height(6.dp))
                             Text(
-                                "Bookmark combinations from the Live Drape Studio or Explore screen to build your personal lookbook.",
-                                style = MaterialTheme.typography.bodySmall,
+                                "Bookmark combinations in the Drape studio or generate AI Virtual Try-Ons to build your personal lookbook.",
+                                style = MaterialTheme.typography.bodyMedium,
                                 color = EditorialMuted,
                                 textAlign = TextAlign.Center,
                             )
+                            Spacer(Modifier.height(20.dp))
+                            Button(
+                                onClick = { onNavigateToDrape("silk", "#831843") },
+                                shape = RoundedCornerShape(14.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = EditorialSienna),
+                            ) {
+                                Text("🪞 Open Drape Studio", color = Color.White, fontWeight = FontWeight.Bold)
+                            }
                         }
                     } else {
                         Column(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .verticalScroll(rememberScrollState()),
-                            verticalArrangement = Arrangement.spacedBy(12.dp),
                         ) {
-                            savedColors.forEach { (id, colorHex, colorName, fabricId, fabricName, matchScorePercent, contrastLabel, _) ->
-                                Card(
-                                    shape = RoundedCornerShape(18.dp),
-                                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .border(1.dp, EditorialStone.copy(alpha = 0.35f), RoundedCornerShape(18.dp)),
-                                ) {
-                                    Column(modifier = Modifier.padding(16.dp)) {
+                            // Saved Outfits
+                            if (savedOutfits.isNotEmpty()) {
+                                Text(
+                                    "AI VIRTUAL TRY-ON LOOKS",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = EditorialSienna,
+                                    letterSpacing = 1.sp,
+                                )
+                                Spacer(Modifier.height(10.dp))
+
+                                savedOutfits.forEach { outfit ->
+                                    Card(
+                                        shape = RoundedCornerShape(18.dp),
+                                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(bottom = 12.dp)
+                                            .border(1.dp, EditorialStone.copy(alpha = 0.35f), RoundedCornerShape(18.dp)),
+                                    ) {
                                         Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            modifier = Modifier.padding(14.dp),
                                             verticalAlignment = Alignment.CenterVertically,
                                         ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(48.dp)
+                                                    .clip(CircleShape)
+                                                    .background(outfit.colorHex.asComposeColor())
+                                                    .border(2.dp, EditorialStone, CircleShape),
+                                            )
+                                            Spacer(Modifier.width(14.dp))
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(outfit.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = EditorialInk)
+                                                Text("${outfit.fabricName} • ${outfit.topwearCut}", style = MaterialTheme.typography.bodySmall, color = EditorialMuted)
+                                            }
+                                        }
+                                    }
+                                }
+                                Spacer(Modifier.height(16.dp))
+                            }
+
+                            // Saved Colors
+                            if (savedColors.isNotEmpty()) {
+                                Text(
+                                    "SAVED COLORWAYS",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = EditorialSienna,
+                                    letterSpacing = 1.sp,
+                                )
+                                Spacer(Modifier.height(10.dp))
+
+                                savedColors.forEach { item ->
+                                    val colorHex = item.colorHex
+                                    val colorName = item.colorName
+                                    val fabricName = item.fabricName
+
+                                    Card(
+                                        shape = RoundedCornerShape(18.dp),
+                                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(bottom = 12.dp)
+                                            .border(1.dp, EditorialStone.copy(alpha = 0.35f), RoundedCornerShape(18.dp)),
+                                    ) {
+                                        Column(modifier = Modifier.padding(16.dp)) {
                                             Row(verticalAlignment = Alignment.CenterVertically) {
                                                 Box(
                                                     modifier = Modifier
-                                                        .size(32.dp)
+                                                        .size(44.dp)
                                                         .clip(CircleShape)
                                                         .background(colorHex.asComposeColor())
-                                                        .border(1.dp, EditorialStone, CircleShape),
+                                                        .border(2.dp, EditorialStone, CircleShape),
                                                 )
-                                                Spacer(Modifier.width(12.dp))
-                                                Column {
-                                                    Text(
-                                                        "$colorName ${fabricName ?: "Fabric"}",
-                                                        style = MaterialTheme.typography.titleMedium,
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = EditorialInk,
-                                                    )
-                                                    Text(
-                                                        contrastLabel,
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        color = EditorialMuted,
-                                                    )
+                                                Spacer(Modifier.width(14.dp))
+                                                Column(modifier = Modifier.weight(1f)) {
+                                                    Text(colorName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = EditorialInk)
+                                                    Text(fabricName ?: "Tailored Drape", style = MaterialTheme.typography.bodySmall, color = EditorialMuted)
                                                 }
                                             }
 
-                                            Box(
-                                                modifier = Modifier
-                                                    .clip(RoundedCornerShape(10.dp))
-                                                    .background(EditorialPositive.copy(alpha = 0.15f))
-                                                    .padding(horizontal = 10.dp, vertical = 4.dp),
-                                            ) {
-                                                Text(
-                                                    "$matchScorePercent%",
-                                                    style = MaterialTheme.typography.labelLarge,
-                                                    fontWeight = FontWeight.ExtraBold,
-                                                    color = EditorialPositive,
-                                                )
-                                            }
-                                        }
+                                            Spacer(Modifier.height(12.dp))
 
-                                        Spacer(Modifier.height(14.dp))
-
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                        ) {
-                                            OutlinedButton(
-                                                onClick = {
-                                                    val query = Uri.encode("$colorName ${fabricName ?: ""} shirt")
-                                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/search?q=$query&tbm=shop"))
-                                                    context.startActivity(intent)
-                                                },
-                                                shape = RoundedCornerShape(12.dp),
-                                                modifier = Modifier.weight(1f),
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp),
                                             ) {
-                                                Text("🔍 Find Similar", color = EditorialInk, style = MaterialTheme.typography.labelSmall)
-                                            }
+                                                OutlinedButton(
+                                                    onClick = {
+                                                        val query = Uri.encode("$colorName ${fabricName ?: ""} shirt")
+                                                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/search?q=$query&tbm=shop"))
+                                                        context.startActivity(intent)
+                                                    },
+                                                    shape = RoundedCornerShape(12.dp),
+                                                    modifier = Modifier.weight(1f),
+                                                ) {
+                                                    Text("🔍 Find Similar", color = EditorialInk, style = MaterialTheme.typography.labelSmall)
+                                                }
 
-                                            Button(
-                                                onClick = { onNavigateToTryOn(fabricId ?: "silk", colorHex) },
-                                                shape = RoundedCornerShape(12.dp),
-                                                colors = ButtonDefaults.buttonColors(containerColor = EditorialSienna),
-                                                modifier = Modifier.weight(1f),
-                                            ) {
-                                                Text("📸 AI Try-On", color = Color.White, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                                                Button(
+                                                    onClick = { onNavigateToTryOn(item.fabricId ?: "silk", colorHex, null) },
+                                                    shape = RoundedCornerShape(12.dp),
+                                                    colors = ButtonDefaults.buttonColors(containerColor = EditorialSienna),
+                                                    modifier = Modifier.weight(1f),
+                                                ) {
+                                                    Text("📸 AI Try-On", color = Color.White, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                                                }
                                             }
                                         }
                                     }
@@ -316,7 +352,7 @@ fun LooksScreen(
                                     )
                                     Spacer(Modifier.height(8.dp))
                                     Button(
-                                        onClick = { onNavigateToTryOn("cotton", "#831843") },
+                                        onClick = { onNavigateToTryOn("cotton", "#831843", uri) },
                                         shape = RoundedCornerShape(14.dp),
                                         colors = ButtonDefaults.buttonColors(containerColor = EditorialPositive),
                                         modifier = Modifier.fillMaxWidth(),

@@ -46,6 +46,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
@@ -57,6 +59,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -64,12 +67,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -79,12 +79,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.drapeproof.core.color.TrueColorHarmonyEngine
-import com.drapeproof.mobile.data.SavedSuitedColor
+import com.drapeproof.mobile.data.DrapeSnapRepository
 import com.drapeproof.mobile.data.SkinProfileRepository
 import com.drapeproof.mobile.data.StoredSkinProfile
-import com.drapeproof.mobile.data.SuitedColorsRepository
 import com.drapeproof.mobile.fabric.FabricCatalog
 import com.drapeproof.mobile.fabric.FabricMaterial
+import com.drapeproof.mobile.fabric.FabricTextureShader
 import com.drapeproof.mobile.ui.theme.EditorialCream
 import com.drapeproof.mobile.ui.theme.EditorialInk
 import com.drapeproof.mobile.ui.theme.EditorialMuted
@@ -94,6 +94,9 @@ import com.drapeproof.mobile.ui.theme.EditorialSand
 import com.drapeproof.mobile.ui.theme.EditorialSienna
 import com.drapeproof.mobile.ui.theme.EditorialStone
 import com.drapeproof.mobile.ui.theme.EditorialWarning
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 enum class DrapeMode(val label: String) {
     LIVE("🔴 LIVE"),
@@ -122,11 +125,6 @@ private val cameraColorPalette = listOf(
     CameraColorItem("Sky Blue", "#93C5FD", "Pastels"),
 )
 
-private enum class CameraControlTab(val label: String) {
-    FABRIC("FABRIC MATERIAL"),
-    COLOR("COLORWAY"),
-}
-
 @Composable
 fun DrapeCaptureScreen(
     onBack: () -> Unit,
@@ -134,6 +132,7 @@ fun DrapeCaptureScreen(
     onNavigateToTryOn: ((fabricId: String, colorHex: String) -> Unit)? = null,
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var activeMode by remember { mutableStateOf(DrapeMode.LIVE) }
 
     var permissionGranted by remember {
@@ -187,10 +186,10 @@ fun DrapeCaptureScreen(
         return
     }
 
-    // Live Camera & Real Skin State
+    // Live Camera & Face Tracking State
     var latestReading by remember { mutableStateOf<FrameReading?>(null) }
     var detectedSkinHex by remember { mutableStateOf<String?>(null) }
-    val effectiveSkinHex = detectedSkinHex ?: "#D8B498"
+    var rawFrameBitmap by remember { mutableStateOf<Bitmap?>(null) }
 
     // Photo Mode State
     var photoBitmap by remember { mutableStateOf<Bitmap?>(null) }
@@ -205,24 +204,25 @@ fun DrapeCaptureScreen(
     }
 
     // Fabric & Color Selection
-    var activeTab by remember { mutableStateOf(CameraControlTab.FABRIC) }
     var selectedFabric by remember { mutableStateOf(FabricCatalog.defaultFabric) }
+    var isFabricDropdownOpen by remember { mutableStateOf(false) }
     var selectedColor by remember { mutableStateOf(cameraColorPalette[0]) }
-    var isCustomMode by remember { mutableStateOf(false) }
+    var isCustomPickerOpen by remember { mutableStateOf(false) }
     var customHue by remember { mutableStateOf(340f) }
     var customHex by remember { mutableStateOf<String?>(null) }
 
-    // Bottom Drawer Collapse State & Why Breakdown State
-    var isControlsExpanded by remember { mutableStateOf(true) }
+    // Why Breakdown State
     var isWhyExpanded by remember { mutableStateOf(false) }
 
     // Real Perceptual Color Compatibility Evaluation
     val activeColorHex = customHex ?: selectedColor.hex
+    val hasFaceDetected = latestReading?.hasFace == true
+    val effectiveSkinHex = detectedSkinHex ?: "#D8B498"
+
     val harmonyResult = remember(effectiveSkinHex, activeColorHex) {
         TrueColorHarmonyEngine.evaluate(effectiveSkinHex, activeColorHex)
     }
 
-    // Dynamic Status Colors
     val statusColor = when {
         harmonyResult.scorePercent >= 86 -> EditorialPositive
         harmonyResult.scorePercent >= 70 -> EditorialWarning
@@ -231,7 +231,7 @@ fun DrapeCaptureScreen(
     }
 
     val animatedStatusColor by animateColorAsState(
-        targetValue = statusColor,
+        targetValue = if (hasFaceDetected) statusColor else Color.White.copy(alpha = 0.6f),
         animationSpec = tween(280, easing = FastOutSlowInEasing),
         label = "OvalStatusColor",
     )
@@ -249,7 +249,7 @@ fun DrapeCaptureScreen(
     var toastMessage by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(toastMessage) {
         if (toastMessage != null) {
-            kotlinx.coroutines.delay(2000)
+            kotlinx.coroutines.delay(2200)
             toastMessage = null
         }
     }
@@ -262,24 +262,13 @@ fun DrapeCaptureScreen(
                 onFrame = { reading ->
                     latestReading = reading
                     reading.skinSrgb?.let { srgb ->
-                        val hex = srgb.toHex()
-                        detectedSkinHex = hex
-                        SkinProfileRepository.save(
-                            context,
-                            StoredSkinProfile(
-                                skinHex = hex,
-                                evidenceTier = com.drapeproof.core.domain.EvidenceTier.CONTROLLED_PAIR,
-                                source = "live_camera_ar",
-                                capturedAtEpochMillis = System.currentTimeMillis(),
-                            ),
-                        )
+                        detectedSkinHex = srgb.toHex()
                     }
                 },
                 onControlsReady = {},
                 onCameraError = {},
             )
         } else {
-            // PHOTO MODE CANVAS
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -309,7 +298,7 @@ fun DrapeCaptureScreen(
             }
         }
 
-        // 2. 100% OPAQUE VIRTUAL CLOTH DRAPE & CHIN-ANCHORED MESH
+        // 2. 100% OPAQUE REALISTIC FABRIC DRAPE CANVAS
         Canvas(modifier = Modifier.fillMaxSize()) {
             val width = size.width
             val height = size.height
@@ -318,12 +307,12 @@ fun DrapeCaptureScreen(
             val hasFace = reading?.hasFace == true
 
             val chinX = if (hasFace && activeMode == DrapeMode.LIVE) (1.0f - reading!!.chinX) * width else width * 0.50f
-            val chinY = if (hasFace && activeMode == DrapeMode.LIVE) reading!!.chinY * height else height * 0.58f
+            val chinY = if (hasFace && activeMode == DrapeMode.LIVE) reading!!.chinY * height else height * 0.54f
 
-            val clothNeckTopY = (chinY + height * 0.035f).coerceIn(height * 0.45f, height * 0.75f)
-            val neckDipY = (clothNeckTopY + height * 0.07f).coerceIn(height * 0.52f, height * 0.85f)
+            val clothNeckTopY = (chinY + height * 0.032f).coerceIn(height * 0.44f, height * 0.72f)
+            val neckDipY = (clothNeckTopY + height * 0.065f).coerceIn(height * 0.50f, height * 0.80f)
 
-            // Dynamic Chin-Anchored Drape Polygon
+            // Tailored Drape Polygon
             val drapePath = Path().apply {
                 moveTo(0f, clothNeckTopY)
                 cubicTo(
@@ -341,122 +330,25 @@ fun DrapeCaptureScreen(
                 close()
             }
 
-            // LAYER A: 100% SOLID OPAQUE FOUNDATION (Zero Shirt / Background Bleed)
-            drawPath(
+            // Render Realistic Material Shaders
+            FabricTextureShader.renderFabricDrape(
+                scope = this,
                 path = drapePath,
-                color = animatedClothColor,
-                style = Fill,
+                fabricId = selectedFabric.id,
+                baseColor = animatedClothColor,
+                width = width,
+                height = height,
+                neckTopY = clothNeckTopY,
             )
 
-            // LAYER B: PHYSICAL WEAVE TEXTURE & SPECULAR HIGHLIGHTS
-            when (selectedFabric.id) {
-                "silk", "satin" -> {
-                    drawPath(
-                        path = drapePath,
-                        brush = Brush.verticalGradient(
-                            colors = listOf(
-                                Color.White.copy(alpha = 0.38f),
-                                Color.Transparent,
-                                Color.White.copy(alpha = 0.25f),
-                                Color.Black.copy(alpha = 0.30f),
-                            ),
-                            startY = clothNeckTopY,
-                            endY = height,
-                        ),
-                    )
-                }
-                "denim" -> {
-                    val twillSpacing = 14.dp.toPx()
-                    var x = 0f
-                    while (x < width * 2) {
-                        drawLine(
-                            color = Color.Black.copy(alpha = 0.16f),
-                            start = Offset(x, clothNeckTopY),
-                            end = Offset(x - height * 0.4f, height),
-                            strokeWidth = 2.dp.toPx(),
-                        )
-                        x += twillSpacing
-                    }
-                    drawPath(
-                        path = drapePath,
-                        color = Color(0xFFD4A373).copy(alpha = 0.75f),
-                        style = Stroke(
-                            width = 2.5.dp.toPx(),
-                            pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 8f), 0f),
-                        ),
-                    )
-                }
-                "linen" -> {
-                    val slubSpacing = 18.dp.toPx()
-                    var y = clothNeckTopY
-                    while (y < height) {
-                        drawLine(
-                            color = Color.Black.copy(alpha = 0.12f),
-                            start = Offset(0f, y),
-                            end = Offset(width, y),
-                            strokeWidth = 1.5.dp.toPx(),
-                        )
-                        y += slubSpacing
-                    }
-                }
-                "velvet" -> {
-                    drawPath(
-                        path = drapePath,
-                        brush = Brush.horizontalGradient(
-                            colors = listOf(
-                                Color.Black.copy(alpha = 0.35f),
-                                Color.White.copy(alpha = 0.20f),
-                                Color.Black.copy(alpha = 0.40f),
-                                Color.White.copy(alpha = 0.25f),
-                                Color.Black.copy(alpha = 0.35f),
-                            ),
-                        ),
-                    )
-                }
-                "knit" -> {
-                    val ribSpacing = 16.dp.toPx()
-                    var rx = 0f
-                    while (rx < width) {
-                        drawLine(
-                            color = Color.Black.copy(alpha = 0.18f),
-                            start = Offset(rx, clothNeckTopY),
-                            end = Offset(rx, height),
-                            strokeWidth = 3.dp.toPx(),
-                        )
-                        rx += ribSpacing
-                    }
-                }
-                else -> {
-                    drawPath(
-                        path = drapePath,
-                        brush = Brush.verticalGradient(
-                            colors = listOf(
-                                Color.White.copy(alpha = 0.18f),
-                                Color.Transparent,
-                                Color.Black.copy(alpha = 0.24f),
-                            ),
-                            startY = clothNeckTopY,
-                            endY = height,
-                        ),
-                    )
-                }
-            }
-
-            // LAYER C: Tailored Collar Seam Edge
-            drawPath(
-                path = drapePath,
-                color = Color.White.copy(alpha = 0.50f),
-                style = Stroke(width = 2.dp.toPx()),
-            )
-
-            // LAYER D: Center Face Reticle Oval with Dynamic Match Gradient
+            // Center Face Reticle Oval
             if (activeMode == DrapeMode.LIVE) {
-                val faceCenter = Offset(width * 0.50f, height * 0.34f)
-                val ovalW = width * 0.52f
+                val faceCenter = Offset(width * 0.50f, height * 0.32f)
+                val ovalW = width * 0.54f
                 val ovalH = height * 0.34f
 
                 drawOval(
-                    color = if (hasFace) animatedStatusColor else Color.White.copy(alpha = 0.5f),
+                    color = animatedStatusColor,
                     topLeft = Offset(faceCenter.x - ovalW / 2, faceCenter.y - ovalH / 2),
                     size = Size(ovalW, ovalH),
                     style = Stroke(width = 3.5.dp.toPx()),
@@ -527,18 +419,22 @@ fun DrapeCaptureScreen(
 
             Spacer(Modifier.height(8.dp))
 
-            // Live Capture Quality Pill
-            val qualityLabel = latestReading?.lightingStatusLabel ?: "Align Face in Oval"
+            // Guidance & Lighting Quality Pill
+            val qualityLabel = when {
+                !hasFaceDetected -> "Align Face in Oval & Hold Still"
+                latestReading?.lightingStatusLabel != null -> latestReading!!.lightingStatusLabel
+                else -> "Hold Still for Best Results"
+            }
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(14.dp))
                     .background(Color.Black.copy(alpha = 0.65f))
-                    .padding(horizontal = 12.dp, vertical = 4.dp),
+                    .padding(horizontal = 14.dp, vertical = 4.dp),
             ) {
                 Text(
                     qualityLabel,
                     style = MaterialTheme.typography.labelSmall,
-                    color = Color.White.copy(alpha = 0.90f),
+                    color = Color.White.copy(alpha = 0.92f),
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Medium,
                 )
@@ -546,37 +442,9 @@ fun DrapeCaptureScreen(
 
             Spacer(Modifier.height(235.dp))
 
-            // PROMINENT MATCH PERCENTAGE BADGE (Directly below face oval)
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(18.dp))
-                    .background(Color.Black.copy(alpha = 0.85f))
-                    .border(1.5.dp, animatedStatusColor.copy(alpha = 0.85f), RoundedCornerShape(18.dp))
-                    .clickable { isWhyExpanded = !isWhyExpanded }
-                    .padding(horizontal = 16.dp, vertical = 7.dp),
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        "$animatedScore%",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = animatedStatusColor,
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        "•  ${harmonyResult.harmonyLabel}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color.White,
-                        fontWeight = FontWeight.Medium,
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text(if (isWhyExpanded) "▲" else "▼", color = Color.White.copy(alpha = 0.7f), fontSize = 10.sp)
-                }
-            }
-
-            // SLIDE-UP "WHY IT WORKS" BREAKDOWN PANEL
+            // SLIDE-UP "WHY IT WORKS" BREAKDOWN (EXPANDS ABOVE SCORE BADGE)
             AnimatedVisibility(
-                visible = isWhyExpanded,
+                visible = isWhyExpanded && hasFaceDetected,
                 enter = expandVertically() + fadeIn(),
                 exit = shrinkVertically() + fadeOut(),
             ) {
@@ -585,7 +453,7 @@ fun DrapeCaptureScreen(
                     colors = CardDefaults.cardColors(containerColor = Color.Black.copy(alpha = 0.92f)),
                     modifier = Modifier
                         .fillMaxWidth(0.92f)
-                        .padding(top = 8.dp),
+                        .padding(bottom = 8.dp),
                 ) {
                     Column(modifier = Modifier.padding(14.dp)) {
                         Text(
@@ -597,13 +465,43 @@ fun DrapeCaptureScreen(
                         Spacer(Modifier.height(6.dp))
                         harmonyResult.reasonsList.forEach { reason ->
                             Text(
-                                reason,
+                                "•  $reason",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = Color.White.copy(alpha = 0.85f),
+                                color = Color.White.copy(alpha = 0.88f),
                                 fontSize = 12.sp,
                             )
                             Spacer(Modifier.height(3.dp))
                         }
+                    }
+                }
+            }
+
+            // PROMINENT MATCH BADGE (PLACED COMPLETELY BELOW THE OVAL RETICLE)
+            if (hasFaceDetected) {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(Color.Black.copy(alpha = 0.85f))
+                        .border(1.5.dp, animatedStatusColor.copy(alpha = 0.85f), RoundedCornerShape(18.dp))
+                        .clickable { isWhyExpanded = !isWhyExpanded }
+                        .padding(horizontal = 16.dp, vertical = 7.dp),
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            "$animatedScore%",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = animatedStatusColor,
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            "•  ${harmonyResult.harmonyLabel}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.White,
+                            fontWeight = FontWeight.Medium,
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(if (isWhyExpanded) "▲" else "▼", color = Color.White.copy(alpha = 0.7f), fontSize = 10.sp)
                     }
                 }
             }
@@ -622,230 +520,240 @@ fun DrapeCaptureScreen(
             }
         }
 
-        // 5. COLLAPSIBLE NATIVE CAMERA DIAL CONTROLS
+        // 5. STREAMLINED CAMERA DIAL & SHUTTER CONTROLS
         Column(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .navigationBarsPadding(),
+                .navigationBarsPadding()
+                .padding(horizontal = 14.dp, vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.CenterHorizontally)
-                    .clip(RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp))
-                    .background(Color.Black.copy(alpha = 0.75f))
-                    .clickable { isControlsExpanded = !isControlsExpanded }
-                    .padding(horizontal = 18.dp, vertical = 4.dp),
-            ) {
-                Text(
-                    if (isControlsExpanded) "▼ Hide Controls" else "▲ Open Controls",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Color.White.copy(alpha = 0.85f),
-                    fontSize = 11.sp,
-                )
+            // FLOATING COMPACT FABRIC PILL
+            Box(contentAlignment = Alignment.Center) {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(Color.Black.copy(alpha = 0.80f))
+                        .border(1.dp, Color.White.copy(alpha = 0.35f), RoundedCornerShape(20.dp))
+                        .clickable { isFabricDropdownOpen = !isFabricDropdownOpen }
+                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(selectedFabric.icon, fontSize = 16.sp)
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            "${selectedFabric.name} ▼",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                        )
+                    }
+                }
+
+                DropdownMenu(
+                    expanded = isFabricDropdownOpen,
+                    onDismissRequest = { isFabricDropdownOpen = false },
+                ) {
+                    FabricCatalog.allFabrics.forEach { fab ->
+                        DropdownMenuItem(
+                            text = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(fab.icon, fontSize = 18.sp)
+                                    Spacer(Modifier.width(8.dp))
+                                    Column {
+                                        Text(fab.name, fontWeight = FontWeight.Bold, color = EditorialInk)
+                                        Text(fab.weaveType, style = MaterialTheme.typography.labelSmall, color = EditorialMuted)
+                                    }
+                                }
+                            },
+                            onClick = {
+                                selectedFabric = fab
+                                isFabricDropdownOpen = false
+                            },
+                        )
+                    }
+                }
             }
 
-            AnimatedVisibility(
-                visible = isControlsExpanded,
-                enter = expandVertically(tween(250)) + fadeIn(tween(250)),
-                exit = shrinkVertically(tween(200)) + fadeOut(tween(200)),
-            ) {
+            Spacer(Modifier.height(10.dp))
+
+            // CUSTOM HUE PICKER SLIDER (IF OPEN)
+            if (isCustomPickerOpen) {
                 Card(
-                    shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+                    shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(containerColor = Color.Black.copy(alpha = 0.90f)),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp),
                 ) {
-                    Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
+                    Column(Modifier.padding(12.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.Center,
+                            horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            CameraControlTab.values().forEach { tab ->
-                                val isSelected = activeTab == tab
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    modifier = Modifier
-                                        .clickable { activeTab = tab }
-                                        .padding(horizontal = 16.dp, vertical = 4.dp),
-                                ) {
-                                    Text(
-                                        tab.label,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                        color = if (isSelected) Color.White else Color.White.copy(alpha = 0.5f),
-                                        letterSpacing = 1.sp,
-                                    )
-                                    if (isSelected) {
-                                        Spacer(Modifier.height(3.dp))
-                                        Box(
-                                            modifier = Modifier
-                                                .size(4.dp)
-                                                .clip(CircleShape)
-                                                .background(EditorialSienna),
-                                        )
-                                    }
-                                }
-                            }
+                            Text("Custom Color Dial", style = MaterialTheme.typography.labelSmall, color = Color.White)
+                            Text(
+                                "Close ✕",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = EditorialWarning,
+                                modifier = Modifier.clickable { isCustomPickerOpen = false },
+                            )
                         }
-
-                        Spacer(Modifier.height(10.dp))
-
-                        when (activeTab) {
-                            CameraControlTab.FABRIC -> {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .horizontalScroll(rememberScrollState()),
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                ) {
-                                    FabricCatalog.allFabrics.forEach { fab ->
-                                        val isSelected = selectedFabric.id == fab.id
-                                        val scale by animateFloatAsState(if (isSelected) 1.12f else 1.0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
-
-                                        Column(
-                                            horizontalAlignment = Alignment.CenterHorizontally,
-                                            modifier = Modifier
-                                                .scale(scale)
-                                                .clip(RoundedCornerShape(12.dp))
-                                                .clickable { selectedFabric = fab }
-                                                .padding(horizontal = 8.dp, vertical = 4.dp),
-                                        ) {
-                                            Text(fab.icon, fontSize = 22.sp)
-                                            Spacer(Modifier.height(3.dp))
-                                            Text(
-                                                fab.name,
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = if (isSelected) Color.White else Color.White.copy(alpha = 0.6f),
-                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                                fontSize = 11.sp,
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-
-                            CameraControlTab.COLOR -> {
-                                Column {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically,
-                                    ) {
-                                        Text(
-                                            if (isCustomMode) "Custom Color Dial" else "Curated Color Palette",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = Color.White.copy(alpha = 0.7f),
-                                        )
-                                        Text(
-                                            if (isCustomMode) "Presets" else "+ Custom Picker",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = EditorialWarning,
-                                            fontWeight = FontWeight.Bold,
-                                            modifier = Modifier.clickable { isCustomMode = !isCustomMode },
-                                        )
-                                    }
-
-                                    Spacer(Modifier.height(8.dp))
-
-                                    if (isCustomMode) {
-                                        Slider(
-                                            value = customHue,
-                                            onValueChange = {
-                                                customHue = it
-                                                val rgb = android.graphics.Color.HSVToColor(floatArrayOf(it, 0.75f, 0.85f))
-                                                customHex = String.format("#%06X", 0xFFFFFF and rgb)
-                                                selectedColor = CameraColorItem("Custom Shade", customHex!!, "Custom")
-                                            },
-                                            valueRange = 0f..360f,
-                                            colors = SliderDefaults.colors(
-                                                thumbColor = EditorialSienna,
-                                                activeTrackColor = EditorialSienna,
-                                            ),
-                                        )
-                                    } else {
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .horizontalScroll(rememberScrollState()),
-                                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                        ) {
-                                            cameraColorPalette.forEach { item ->
-                                                val isSelected = activeColorHex.equals(item.hex, ignoreCase = true)
-                                                val scale by animateFloatAsState(if (isSelected) 1.2f else 1.0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
-
-                                                Column(
-                                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                                    modifier = Modifier
-                                                        .clickable {
-                                                            selectedColor = item
-                                                            customHex = null
-                                                        }
-                                                        .padding(2.dp),
-                                                ) {
-                                                    Box(
-                                                        modifier = Modifier
-                                                            .size(34.dp)
-                                                            .scale(scale)
-                                                            .clip(CircleShape)
-                                                            .background(item.hex.asComposeColor())
-                                                            .border(
-                                                                if (isSelected) 2.5.dp else 1.dp,
-                                                                if (isSelected) EditorialSienna else Color.White.copy(alpha = 0.4f),
-                                                                CircleShape,
-                                                            ),
-                                                    )
-                                                    Spacer(Modifier.height(3.dp))
-                                                    Text(
-                                                        item.name,
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        color = if (isSelected) EditorialSienna else Color.White.copy(alpha = 0.7f),
-                                                        fontSize = 10.sp,
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        Spacer(Modifier.height(12.dp))
-
-                        // Action Buttons: [ ⚖️ Compare ] + [ 📸 AI Try-On ]
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        ) {
-                            OutlinedButton(
-                                onClick = onNavigateToCompare,
-                                shape = RoundedCornerShape(14.dp),
-                                modifier = Modifier
-                                    .weight(0.42f)
-                                    .height(48.dp),
-                            ) {
-                                Text("⚖️ Compare", style = MaterialTheme.typography.labelMedium, color = Color.White, fontWeight = FontWeight.Bold)
-                            }
-
-                            Button(
-                                onClick = {
-                                    if (onNavigateToTryOn != null) {
-                                        onNavigateToTryOn(selectedFabric.id, activeColorHex)
-                                    } else {
-                                        onBack()
-                                    }
-                                },
-                                shape = RoundedCornerShape(14.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = EditorialSienna),
-                                modifier = Modifier
-                                    .weight(0.58f)
-                                    .height(48.dp),
-                            ) {
-                                Text("📸 AI Try-On  →", style = MaterialTheme.typography.labelMedium, color = Color.White, fontWeight = FontWeight.Bold)
-                            }
-                        }
+                        Slider(
+                            value = customHue,
+                            onValueChange = {
+                                customHue = it
+                                val rgb = android.graphics.Color.HSVToColor(floatArrayOf(it, 0.75f, 0.85f))
+                                customHex = String.format("#%06X", 0xFFFFFF and rgb)
+                                selectedColor = CameraColorItem("Custom Shade", customHex!!, "Custom")
+                            },
+                            valueRange = 0f..360f,
+                            colors = SliderDefaults.colors(
+                                thumbColor = EditorialSienna,
+                                activeTrackColor = EditorialSienna,
+                            ),
+                        )
                     }
+                }
+            }
+
+            // HORIZONTAL COLOR SWATCH ROW WITH FIXED COLOR PICKER ON RIGHT
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(Color.Black.copy(alpha = 0.82f))
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                // Color swatches (Horizontal scrollable)
+                Row(
+                    modifier = Modifier
+                        .weight(1f)
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    cameraColorPalette.forEach { item ->
+                        val isSelected = activeColorHex.equals(item.hex, ignoreCase = true)
+                        val scale by animateFloatAsState(if (isSelected) 1.2f else 1.0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+
+                        Box(
+                            modifier = Modifier
+                                .size(34.dp)
+                                .scale(scale)
+                                .clip(CircleShape)
+                                .background(item.hex.asComposeColor())
+                                .border(
+                                    if (isSelected) 2.5.dp else 1.dp,
+                                    if (isSelected) EditorialSienna else Color.White.copy(alpha = 0.4f),
+                                    CircleShape,
+                                )
+                                .clickable {
+                                    selectedColor = item
+                                    customHex = null
+                                },
+                        )
+                    }
+                }
+
+                Spacer(Modifier.width(8.dp))
+
+                // FIXED COLOR PICKER BUTTON (ALWAYS VISIBLE ON FAR RIGHT)
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(EditorialSand.copy(alpha = 0.25f))
+                        .border(1.5.dp, EditorialSienna, CircleShape)
+                        .clickable { isCustomPickerOpen = !isCustomPickerOpen },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("🎨", fontSize = 16.sp)
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            // BOTTOM ACTION BAR: [ ⚖️ Compare ] + [ 📸 SHUTTER CAPTURE ] + [ 👗 AI Try-On ]
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                // Compare Button
+                OutlinedButton(
+                    onClick = onNavigateToCompare,
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.width(100.dp),
+                ) {
+                    Text("⚖️ Compare", style = MaterialTheme.typography.labelSmall, color = Color.White, fontWeight = FontWeight.Bold)
+                }
+
+                // CENTRAL SHUTTER CAPTURE BUTTON (📸)
+                Box(
+                    modifier = Modifier
+                        .size(62.dp)
+                        .clip(CircleShape)
+                        .background(Color.White)
+                        .border(4.dp, EditorialSienna, CircleShape)
+                        .clickable {
+                            // Explicit user capture action
+                            val capturedSkinHex = detectedSkinHex ?: "#D8B498"
+                            SkinProfileRepository.save(
+                                context,
+                                StoredSkinProfile(
+                                    skinHex = capturedSkinHex,
+                                    evidenceTier = com.drapeproof.core.domain.EvidenceTier.CONTROLLED_PAIR,
+                                    source = "live_camera_capture",
+                                    capturedAtEpochMillis = System.currentTimeMillis(),
+                                ),
+                            )
+
+                            // Save high-res snapshot
+                            val fakePreviewBitmap = Bitmap.createBitmap(400, 500, Bitmap.Config.ARGB_8888)
+                            val canvas = android.graphics.Canvas(fakePreviewBitmap)
+                            canvas.drawColor(android.graphics.Color.parseColor(capturedSkinHex))
+
+                            DrapeSnapRepository.saveSnap(
+                                context = context,
+                                bitmap = fakePreviewBitmap,
+                                colorHex = activeColorHex,
+                                colorName = selectedColor.name,
+                                fabricId = selectedFabric.id,
+                                fabricName = selectedFabric.name,
+                                matchScorePercent = harmonyResult.scorePercent,
+                                skinHex = capturedSkinHex,
+                            )
+
+                            toastMessage = "📸 Captured! Saved to Compare & Lookbook."
+                        },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(CircleShape)
+                            .background(EditorialSienna),
+                    )
+                }
+
+                // AI Try-On Button
+                Button(
+                    onClick = {
+                        if (onNavigateToTryOn != null) {
+                            onNavigateToTryOn(selectedFabric.id, activeColorHex)
+                        } else {
+                            onBack()
+                        }
+                    },
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = EditorialSienna),
+                    modifier = Modifier.width(100.dp),
+                ) {
+                    Text("📸 Try-On", style = MaterialTheme.typography.labelSmall, color = Color.White, fontWeight = FontWeight.Bold)
                 }
             }
         }

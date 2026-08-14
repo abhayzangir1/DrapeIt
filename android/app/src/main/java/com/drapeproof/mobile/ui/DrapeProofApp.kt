@@ -5,7 +5,6 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
@@ -63,9 +62,11 @@ fun DrapeProofApp(
     // Inter-screen styling parameters for Try-On
     var tryOnFabricId by remember { mutableStateOf("silk") }
     var tryOnColorHex by remember { mutableStateOf("#831843") }
+    var tryOnGarmentUri by remember { mutableStateOf<Uri?>(null) }
 
     LaunchedEffect(sharedImageUri) {
         if (sharedImageUri != null) {
+            tryOnGarmentUri = sharedImageUri
             currentTab = AppTab.LOOKS
         }
     }
@@ -129,6 +130,7 @@ fun DrapeProofApp(
                         onSelectLookForTryOn = { fabricId, colorHex ->
                             tryOnFabricId = fabricId
                             tryOnColorHex = colorHex
+                            tryOnGarmentUri = null
                             subFlow = SubFlow.TRY_ON
                         },
                     )
@@ -139,6 +141,7 @@ fun DrapeProofApp(
                         initialFabricId = tryOnFabricId,
                         initialColorHex = tryOnColorHex,
                         initialCutName = "Relaxed Tailored",
+                        initialGarmentUri = tryOnGarmentUri,
                         onNavigateToShop = { _, _, _, _ ->
                             subFlow = SubFlow.NONE
                             currentTab = AppTab.LOOKS
@@ -161,6 +164,7 @@ fun DrapeProofApp(
                                 onNavigateToTryOn = { fabricId, colorHex ->
                                     tryOnFabricId = fabricId
                                     tryOnColorHex = colorHex
+                                    tryOnGarmentUri = null
                                     subFlow = SubFlow.TRY_ON
                                 },
                             )
@@ -176,6 +180,7 @@ fun DrapeProofApp(
                                 onNavigateToTryOn = { fabricId, colorHex ->
                                     tryOnFabricId = fabricId
                                     tryOnColorHex = colorHex
+                                    tryOnGarmentUri = null
                                     subFlow = SubFlow.TRY_ON
                                 },
                             )
@@ -183,9 +188,10 @@ fun DrapeProofApp(
 
                         AppTab.LOOKS -> {
                             LooksScreen(
-                                onNavigateToTryOn = { fabricId, colorHex ->
+                                onNavigateToTryOn = { fabricId, colorHex, garmentUri ->
                                     tryOnFabricId = fabricId
                                     tryOnColorHex = colorHex
+                                    tryOnGarmentUri = garmentUri
                                     subFlow = SubFlow.TRY_ON
                                 },
                                 onNavigateToDrape = { fabricId, colorHex ->
