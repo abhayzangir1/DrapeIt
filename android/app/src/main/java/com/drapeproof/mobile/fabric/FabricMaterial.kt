@@ -1,5 +1,6 @@
 package com.drapeproof.mobile.fabric
 
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 
 enum class FabricLuster {
@@ -27,7 +28,12 @@ data class FabricMaterial(
     val drape: FabricDrape,
     val breathability: String,
     val weaveType: String,
-    val textureOpacity: Float = 0.95f,
+    val blendMode: BlendMode = BlendMode.Overlay,
+    val textureAlpha: Float = 0.92f,
+    val aoAlpha: Float = 0.28f,
+    val specularStrength: Float = 0.15f,
+    val anisotropy: Float = 0.0f,
+    val sheen: Float = 0.0f,
 )
 
 object FabricCatalog {
@@ -41,6 +47,10 @@ object FabricCatalog {
             drape = FabricDrape.STRUCTURED,
             breathability = "Very High",
             weaveType = "Plain Weave",
+            blendMode = BlendMode.Softlight,
+            textureAlpha = 0.88f,
+            aoAlpha = 0.22f,
+            specularStrength = 0.08f,
         ),
         FabricMaterial(
             id = "linen",
@@ -51,6 +61,10 @@ object FabricCatalog {
             drape = FabricDrape.RELAXED,
             breathability = "Maximum",
             weaveType = "Slub Weave",
+            blendMode = BlendMode.Overlay,
+            textureAlpha = 0.95f,
+            aoAlpha = 0.32f,
+            specularStrength = 0.05f,
         ),
         FabricMaterial(
             id = "silk",
@@ -61,6 +75,11 @@ object FabricCatalog {
             drape = FabricDrape.FLUID,
             breathability = "High",
             weaveType = "Satin Weave",
+            blendMode = BlendMode.Overlay,
+            textureAlpha = 0.82f,
+            aoAlpha = 0.20f,
+            specularStrength = 0.75f,
+            anisotropy = 0.70f,
         ),
         FabricMaterial(
             id = "satin",
@@ -71,6 +90,11 @@ object FabricCatalog {
             drape = FabricDrape.FLUID,
             breathability = "Medium",
             weaveType = "High-Luster Filament",
+            blendMode = BlendMode.Overlay,
+            textureAlpha = 0.78f,
+            aoAlpha = 0.18f,
+            specularStrength = 0.92f,
+            anisotropy = 0.85f,
         ),
         FabricMaterial(
             id = "leather",
@@ -81,6 +105,10 @@ object FabricCatalog {
             drape = FabricDrape.STRUCTURED,
             breathability = "Low",
             weaveType = "Full-Grain Nappa",
+            blendMode = BlendMode.Hardlight,
+            textureAlpha = 0.98f,
+            aoAlpha = 0.35f,
+            specularStrength = 0.48f,
         ),
         FabricMaterial(
             id = "tweed",
@@ -91,6 +119,10 @@ object FabricCatalog {
             drape = FabricDrape.STRUCTURED,
             breathability = "Medium",
             weaveType = "Herringbone Bouclé",
+            blendMode = BlendMode.Hardlight,
+            textureAlpha = 1.0f,
+            aoAlpha = 0.38f,
+            specularStrength = 0.10f,
         ),
         FabricMaterial(
             id = "corduroy",
@@ -101,6 +133,11 @@ object FabricCatalog {
             drape = FabricDrape.HEAVY_PLUSH,
             breathability = "Medium",
             weaveType = "8-Wale Ribbed Cut",
+            blendMode = BlendMode.Hardlight,
+            textureAlpha = 0.98f,
+            aoAlpha = 0.40f,
+            specularStrength = 0.28f,
+            sheen = 0.20f,
         ),
         FabricMaterial(
             id = "cashmere",
@@ -111,6 +148,10 @@ object FabricCatalog {
             drape = FabricDrape.RELAXED,
             breathability = "High",
             weaveType = "Fine Spun",
+            blendMode = BlendMode.Softlight,
+            textureAlpha = 0.85f,
+            aoAlpha = 0.24f,
+            specularStrength = 0.08f,
         ),
         FabricMaterial(
             id = "wool",
@@ -121,6 +162,10 @@ object FabricCatalog {
             drape = FabricDrape.STRUCTURED,
             breathability = "High",
             weaveType = "Worsted Weave",
+            blendMode = BlendMode.Overlay,
+            textureAlpha = 0.94f,
+            aoAlpha = 0.30f,
+            specularStrength = 0.12f,
         ),
         FabricMaterial(
             id = "denim",
@@ -131,6 +176,10 @@ object FabricCatalog {
             drape = FabricDrape.STRUCTURED,
             breathability = "Medium",
             weaveType = "3x1 Twill",
+            blendMode = BlendMode.Hardlight,
+            textureAlpha = 0.96f,
+            aoAlpha = 0.34f,
+            specularStrength = 0.12f,
         ),
         FabricMaterial(
             id = "velvet",
@@ -141,6 +190,11 @@ object FabricCatalog {
             drape = FabricDrape.HEAVY_PLUSH,
             breathability = "Medium",
             weaveType = "Cut Pile",
+            blendMode = BlendMode.Overlay,
+            textureAlpha = 0.96f,
+            aoAlpha = 0.42f,
+            specularStrength = 0.06f,
+            sheen = 0.88f,
         ),
         FabricMaterial(
             id = "chiffon",
@@ -151,6 +205,10 @@ object FabricCatalog {
             drape = FabricDrape.FEATHERLIGHT,
             breathability = "Maximum",
             weaveType = "Crepe Twist Plain",
+            blendMode = BlendMode.Screen,
+            textureAlpha = 0.70f,
+            aoAlpha = 0.15f,
+            specularStrength = 0.32f,
         ),
         FabricMaterial(
             id = "knit",
@@ -161,6 +219,10 @@ object FabricCatalog {
             drape = FabricDrape.RELAXED,
             breathability = "High",
             weaveType = "2x2 Rib Knit",
+            blendMode = BlendMode.Hardlight,
+            textureAlpha = 0.96f,
+            aoAlpha = 0.36f,
+            specularStrength = 0.14f,
         ),
         FabricMaterial(
             id = "polyester",
@@ -171,6 +233,10 @@ object FabricCatalog {
             drape = FabricDrape.STRUCTURED,
             breathability = "High",
             weaveType = "Micro-Piqué",
+            blendMode = BlendMode.Overlay,
+            textureAlpha = 0.90f,
+            aoAlpha = 0.25f,
+            specularStrength = 0.30f,
         ),
     )
 

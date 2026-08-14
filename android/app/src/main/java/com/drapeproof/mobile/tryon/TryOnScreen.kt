@@ -173,10 +173,25 @@ fun TryOnScreen(
         label = "PulseGlow",
     )
 
+    // Garment Cropper State
+    var rawGarmentBitmapToCrop by remember { mutableStateOf<Bitmap?>(null) }
+    var isCropperOpen by remember { mutableStateOf(false) }
+
     val garmentPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) {
-            customGarmentUri = uri
-            inputSource = TryOnInputSource.UPLOAD_GARMENT_IMAGE
+            val bmp = runCatching {
+                context.contentResolver.openInputStream(uri)?.use { stream ->
+                    BitmapFactory.decodeStream(stream)
+                }
+            }.getOrNull()
+
+            if (bmp != null) {
+                rawGarmentBitmapToCrop = bmp
+                isCropperOpen = true
+            } else {
+                customGarmentUri = uri
+                inputSource = TryOnInputSource.UPLOAD_GARMENT_IMAGE
+            }
         }
     }
 
@@ -737,25 +752,44 @@ fun TryOnScreen(
                                     Spacer(Modifier.width(10.dp))
                                     Column {
                                         Text(
-                                            "Garment Photo Loaded ✓",
+                                            "Garment Cleaned & Prepared ✓",
                                             style = MaterialTheme.typography.labelMedium,
                                             fontWeight = FontWeight.Bold,
                                             color = EditorialPositive,
                                         )
                                         Text(
-                                            "Ready to segment & fit",
+                                            "Background removed & aligned",
                                             style = MaterialTheme.typography.labelSmall,
                                             color = EditorialMuted,
                                         )
                                     }
                                 }
 
-                                OutlinedButton(
-                                    onClick = { garmentPicker.launch("image/*") },
-                                    shape = RoundedCornerShape(12.dp),
-                                    modifier = Modifier.height(34.dp),
-                                ) {
-                                    Text("Replace 📷", style = MaterialTheme.typography.labelSmall, color = EditorialInk)
+                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    OutlinedButton(
+                                        onClick = {
+                                            runCatching {
+                                                context.contentResolver.openInputStream(customGarmentUri!!)?.use { stream ->
+                                                    BitmapFactory.decodeStream(stream)
+                                                }
+                                            }.getOrNull()?.let { bmp ->
+                                                rawGarmentBitmapToCrop = bmp
+                                                isCropperOpen = true
+                                            }
+                                        },
+                                        shape = RoundedCornerShape(12.dp),
+                                        modifier = Modifier.height(34.dp),
+                                    ) {
+                                        Text("✂️ Crop", style = MaterialTheme.typography.labelSmall, color = EditorialInk)
+                                    }
+
+                                    OutlinedButton(
+                                        onClick = { garmentPicker.launch("image/*") },
+                                        shape = RoundedCornerShape(12.dp),
+                                        modifier = Modifier.height(34.dp),
+                                    ) {
+                                        Text("Replace 📷", style = MaterialTheme.typography.labelSmall, color = EditorialInk)
+                                    }
                                 }
                             }
                         } else {
@@ -767,6 +801,22 @@ fun TryOnScreen(
                             ) {
                                 Text("📸 Choose Garment from Gallery", color = Color.White, fontWeight = FontWeight.Bold)
                             }
+                        }
+
+                        if (isCropperOpen && rawGarmentBitmapToCrop != null) {
+                            GarmentCropperModal(
+                                sourceBitmap = rawGarmentBitmapToCrop!!,
+                                onDismiss = {
+                                    isCropperOpen = false
+                                    rawGarmentBitmapToCrop = null
+                                },
+                                onCropped = { file ->
+                                    customGarmentUri = Uri.fromFile(file)
+                                    inputSource = TryOnInputSource.UPLOAD_GARMENT_IMAGE
+                                    isCropperOpen = false
+                                    rawGarmentBitmapToCrop = null
+                                },
+                            )
                         }
                     }
                 }

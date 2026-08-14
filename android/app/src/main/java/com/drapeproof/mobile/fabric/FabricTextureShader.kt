@@ -1,311 +1,143 @@
 package com.drapeproof.mobile.fabric
 
+import android.content.Context
+import android.graphics.BitmapFactory
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.ImageShader
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.ShaderBrush
+import androidx.compose.ui.graphics.TileMode
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Fill
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.dp
 import kotlin.math.sin
 
 object FabricTextureShader {
 
+    private val tileCache = mutableMapOf<String, ImageBitmap>()
+
+    fun getOrLoadTile(context: Context, fabricId: String): ImageBitmap? {
+        val key = fabricId.lowercase()
+        tileCache[key]?.let { return it }
+
+        val resName = "fabric_$key"
+        val resId = context.resources.getIdentifier(resName, "drawable", context.packageName)
+        if (resId != 0) {
+            runCatching {
+                val opts = BitmapFactory.Options().apply { inPreferredConfig = android.graphics.Bitmap.Config.ARGB_8888 }
+                val bmp = BitmapFactory.decodeResource(context.resources, resId, opts)
+                if (bmp != null) {
+                    val imgBmp = bmp.asImageBitmap()
+                    tileCache[key] = imgBmp
+                    return imgBmp
+                }
+            }
+        }
+        return null
+    }
+
+    /**
+     * Dual-Layer Luminance-Preserving PBR Fabric Rendering Engine.
+     * Renders real physical textile micro-structure, ambient occlusion depth,
+     * and motion-driven specular highlights over any user-selected #HEX color.
+     */
     fun renderFabricDrape(
         scope: DrawScope,
         path: Path,
-        fabricId: String,
+        fabric: FabricMaterial,
         baseColor: Color,
         width: Float,
         height: Float,
         neckTopY: Float,
+        tileBitmap: ImageBitmap?,
+        motionYaw: Float = 0f,
     ) {
         with(scope) {
-            // 1. BASE SOLID FOUNDATION (100% Opaque, zero shirt bleed)
+            // PASS 1: Base Solid #HEX Fill
+            val baseAlpha = if (fabric.id == "chiffon") 0.60f else 1.0f
             drawPath(
                 path = path,
-                color = baseColor,
+                color = baseColor.copy(alpha = baseAlpha),
                 style = Fill,
             )
 
-            // 2. MATERIAL-SPECIFIC PHYSICALLY-BASED WEAVE & LUSTER SHADER
-            when (fabricId) {
-                "silk", "satin" -> {
-                    // Multi-band anisotropic specular sheen
-                    drawPath(
-                        path = path,
-                        brush = Brush.verticalGradient(
-                            colors = listOf(
-                                Color.White.copy(alpha = 0.42f),
-                                Color.Transparent,
-                                Color.White.copy(alpha = 0.30f),
-                                Color.Black.copy(alpha = 0.28f),
-                                Color.White.copy(alpha = 0.35f),
-                                Color.Black.copy(alpha = 0.38f),
-                            ),
-                            startY = neckTopY,
-                            endY = height,
-                        ),
-                    )
-
-                    // Secondary pearlescent highlights
-                    drawPath(
-                        path = path,
-                        brush = Brush.horizontalGradient(
-                            colors = listOf(
-                                Color.Transparent,
-                                Color.White.copy(alpha = 0.22f),
-                                Color.Transparent,
-                                Color.White.copy(alpha = 0.18f),
-                                Color.Transparent,
-                            ),
-                        ),
-                    )
-                }
-
-                "leather" -> {
-                    // Sleek directional leather sheen with edge highlights & subtle fine grain
-                    drawPath(
-                        path = path,
-                        brush = Brush.linearGradient(
-                            colors = listOf(
-                                Color.White.copy(alpha = 0.35f),
-                                Color.Black.copy(alpha = 0.40f),
-                                Color.White.copy(alpha = 0.20f),
-                                Color.Black.copy(alpha = 0.55f),
-                            ),
-                            start = Offset(0f, neckTopY),
-                            end = Offset(width, height),
-                        ),
-                    )
-                    // Edge seam stitching
-                    drawPath(
-                        path = path,
-                        color = Color.Black.copy(alpha = 0.60f),
-                        style = Stroke(
-                            width = 2.dp.toPx(),
-                            pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 6f), 0f),
-                        ),
-                    )
-                }
-
-                "tweed" -> {
-                    // Herringbone Bouclé textured cross-hatching
-                    val step = 14.dp.toPx()
-                    var tx = -height
-                    while (tx < width * 2) {
-                        drawLine(
-                            color = Color.White.copy(alpha = 0.18f),
-                            start = Offset(tx, neckTopY),
-                            end = Offset(tx + height * 0.7f, height),
-                            strokeWidth = 2.dp.toPx(),
-                        )
-                        drawLine(
-                            color = Color.Black.copy(alpha = 0.22f),
-                            start = Offset(tx + height * 0.7f, neckTopY),
-                            end = Offset(tx, height),
-                            strokeWidth = 2.dp.toPx(),
-                        )
-                        tx += step
-                    }
-                }
-
-                "corduroy" -> {
-                    // Parallel vertical wale channels
-                    val waleSpacing = 9.dp.toPx()
-                    var cx = 0f
-                    while (cx < width) {
-                        drawLine(
-                            color = Color.Black.copy(alpha = 0.35f),
-                            start = Offset(cx, neckTopY),
-                            end = Offset(cx, height),
-                            strokeWidth = 3.dp.toPx(),
-                        )
-                        drawLine(
-                            color = Color.White.copy(alpha = 0.20f),
-                            start = Offset(cx + 3.dp.toPx(), neckTopY),
-                            end = Offset(cx + 3.dp.toPx(), height),
-                            strokeWidth = 1.5.dp.toPx(),
-                        )
-                        cx += waleSpacing
-                    }
-                }
-
-                "chiffon" -> {
-                    // Featherlight translucent weave with soft ethereal gradient
-                    drawPath(
-                        path = path,
-                        brush = Brush.verticalGradient(
-                            colors = listOf(
-                                Color.White.copy(alpha = 0.30f),
-                                Color.Transparent,
-                                Color.White.copy(alpha = 0.20f),
-                            ),
-                            startY = neckTopY,
-                            endY = height,
-                        ),
-                    )
-                }
-
-                "denim" -> {
-                    // 45-degree 3x1 twill diagonal ribs
-                    val spacing = 8.dp.toPx()
-                    var x = -height
-                    while (x < width * 2) {
-                        drawLine(
-                            color = Color.Black.copy(alpha = 0.22f),
-                            start = Offset(x, neckTopY),
-                            end = Offset(x + height, height),
-                            strokeWidth = 2.dp.toPx(),
-                        )
-                        x += spacing
-                    }
-
-                    // Contrast gold double-topstitching at collar seam
-                    drawPath(
-                        path = path,
-                        color = Color(0xFFD4A373).copy(alpha = 0.90f),
-                        style = Stroke(
-                            width = 2.5.dp.toPx(),
-                            pathEffect = PathEffect.dashPathEffect(floatArrayOf(12f, 8f), 0f),
-                        ),
-                    )
-                }
-
-                "linen" -> {
-                    // Organic slub weave crosshatching
-                    val horizSpacing = 10.dp.toPx()
-                    var y = neckTopY
-                    var idx = 0
-                    while (y < height) {
-                        val thickness = if (idx % 3 == 0) 2.2.dp.toPx() else 1.2.dp.toPx()
-                        drawLine(
-                            color = Color.Black.copy(alpha = if (idx % 3 == 0) 0.18f else 0.10f),
-                            start = Offset(0f, y),
-                            end = Offset(width, y),
-                            strokeWidth = thickness,
-                        )
-                        y += horizSpacing
-                        idx++
-                    }
-
-                    val vertSpacing = 12.dp.toPx()
-                    var vx = 0f
-                    var vidx = 0
-                    while (vx < width) {
-                        val thickness = if (vidx % 2 == 0) 1.8.dp.toPx() else 1.0.dp.toPx()
-                        drawLine(
-                            color = Color.Black.copy(alpha = 0.12f),
-                            start = Offset(vx, neckTopY),
-                            end = Offset(vx, height),
-                            strokeWidth = thickness,
-                        )
-                        vx += vertSpacing
-                        vidx++
-                    }
-                }
-
-                "velvet" -> {
-                    // Directional pile nap absorption with velvety edge luster
-                    drawPath(
-                        path = path,
-                        brush = Brush.horizontalGradient(
-                            colors = listOf(
-                                Color.Black.copy(alpha = 0.45f),
-                                Color.White.copy(alpha = 0.24f),
-                                Color.Black.copy(alpha = 0.50f),
-                                Color.White.copy(alpha = 0.28f),
-                                Color.Black.copy(alpha = 0.45f),
-                            ),
-                        ),
-                    )
-                    drawPath(
-                        path = path,
-                        brush = Brush.verticalGradient(
-                            colors = listOf(
-                                Color.White.copy(alpha = 0.15f),
-                                Color.Transparent,
-                                Color.Black.copy(alpha = 0.35f),
-                            ),
-                            startY = neckTopY,
-                            endY = height,
-                        ),
-                    )
-                }
-
-                "knit" -> {
-                    // 2x2 Vertical ribbed knit channels
-                    val ribSpacing = 12.dp.toPx()
-                    var rx = 0f
-                    while (rx < width) {
-                        drawLine(
-                            color = Color.Black.copy(alpha = 0.25f),
-                            start = Offset(rx, neckTopY),
-                            end = Offset(rx, height),
-                            strokeWidth = 3.5.dp.toPx(),
-                        )
-                        drawLine(
-                            color = Color.White.copy(alpha = 0.18f),
-                            start = Offset(rx + 4.dp.toPx(), neckTopY),
-                            end = Offset(rx + 4.dp.toPx(), height),
-                            strokeWidth = 1.5.dp.toPx(),
-                        )
-                        rx += ribSpacing
-                    }
-                }
-
-                "cashmere", "wool" -> {
-                    // Dense brushed micro-fiber texture with soft curvature shading
-                    drawPath(
-                        path = path,
-                        brush = Brush.verticalGradient(
-                            colors = listOf(
-                                Color.White.copy(alpha = 0.18f),
-                                Color.Transparent,
-                                Color.Black.copy(alpha = 0.28f),
-                            ),
-                            startY = neckTopY,
-                            endY = height,
-                        ),
-                    )
-                    var wx = 0f
-                    while (wx < width) {
-                        drawLine(
-                            color = Color.Black.copy(alpha = 0.08f),
-                            start = Offset(wx, neckTopY),
-                            end = Offset(wx, height),
-                            strokeWidth = 1.dp.toPx(),
-                        )
-                        wx += 6.dp.toPx()
-                    }
-                }
-
-                else -> {
-                    drawPath(
-                        path = path,
-                        brush = Brush.verticalGradient(
-                            colors = listOf(
-                                Color.White.copy(alpha = 0.18f),
-                                Color.Transparent,
-                                Color.Black.copy(alpha = 0.22f),
-                            ),
-                            startY = neckTopY,
-                            endY = height,
-                        ),
-                    )
-                }
+            // PASS 2: Real Scanned Bump / Luminance Micro-Weave (Preserves highlights & shadow valleys)
+            if (tileBitmap != null) {
+                val shader = ImageShader(
+                    image = tileBitmap,
+                    tileModeX = TileMode.Repeated,
+                    tileModeY = TileMode.Repeated,
+                )
+                drawPath(
+                    path = path,
+                    brush = ShaderBrush(shader),
+                    style = Fill,
+                    alpha = fabric.textureAlpha,
+                    blendMode = fabric.blendMode,
+                )
             }
 
-            // 3. TAILORED COLLAR STITCH BORDER
+            // PASS 3: Ambient Occlusion & Anatomical Chest Curvature Depth
             drawPath(
                 path = path,
-                color = Color.White.copy(alpha = 0.55f),
-                style = Stroke(width = 2.dp.toPx()),
+                brush = Brush.radialGradient(
+                    colors = listOf(
+                        Color.Transparent,
+                        Color.Black.copy(alpha = fabric.aoAlpha * 0.45f),
+                        Color.Black.copy(alpha = fabric.aoAlpha),
+                    ),
+                    center = Offset(width * 0.50f, neckTopY + height * 0.20f),
+                    radius = width * 0.70f,
+                ),
+                blendMode = BlendMode.Multiply,
             )
+
+            // PASS 4: Motion/Tilt Responsive Specular Sheen (Moves dynamically with user head pose)
+            if (fabric.specularStrength > 0.05f) {
+                val sheenOffsetNorm = (sin(motionYaw.toDouble()).toFloat() * 0.35f).coerceIn(-0.35f, 0.35f)
+                val sheenCenterX = width * (0.50f + sheenOffsetNorm)
+
+                val sheenAlpha = if (fabric.id == "silk" || fabric.id == "satin") {
+                    fabric.specularStrength * 0.45f
+                } else {
+                    fabric.specularStrength * 0.22f
+                }
+
+                drawPath(
+                    path = path,
+                    brush = Brush.linearGradient(
+                        colors = listOf(
+                            Color.Transparent,
+                            Color.White.copy(alpha = sheenAlpha),
+                            Color.Transparent,
+                        ),
+                        start = Offset(sheenCenterX - width * 0.25f, neckTopY),
+                        end = Offset(sheenCenterX + width * 0.25f, height),
+                    ),
+                    blendMode = BlendMode.Overlay,
+                )
+            }
+
+            // PASS 5: Velvet Inverted Fresnel Rim Highlights (Edges catch sheen, center absorbs light)
+            if (fabric.sheen > 0.10f) {
+                drawPath(
+                    path = path,
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            Color.White.copy(alpha = fabric.sheen * 0.32f),
+                            Color.Transparent,
+                            Color.White.copy(alpha = fabric.sheen * 0.22f),
+                        ),
+                        startY = neckTopY,
+                        endY = height,
+                    ),
+                    blendMode = BlendMode.Screen,
+                )
+            }
         }
     }
 }

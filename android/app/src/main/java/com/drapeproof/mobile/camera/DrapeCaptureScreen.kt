@@ -255,6 +255,28 @@ fun DrapeCaptureScreen(
         }
     }
 
+    // Landmark Low-Pass Filter Smoothing (removes tracking jitter for stable, weighted drape)
+    var smoothedChinX by remember { mutableStateOf(0.50f) }
+    var smoothedChinY by remember { mutableStateOf(0.54f) }
+    var smoothedYaw by remember { mutableStateOf(0.0f) }
+
+    LaunchedEffect(latestReading) {
+        val reading = latestReading
+        if (reading != null && reading.hasFace) {
+            val targetX = 1.0f - reading.chinX
+            val targetY = reading.chinY
+            smoothedChinX += 0.28f * (targetX - smoothedChinX)
+            smoothedChinY += 0.28f * (targetY - smoothedChinY)
+            val targetYaw = (targetX - 0.50f) * 3.14f
+            smoothedYaw += 0.20f * (targetYaw - smoothedYaw)
+        }
+    }
+
+    // Decoupled Fabric Tile Texture Cache
+    val activeTile = remember(selectedFabric.id) {
+        FabricTextureShader.getOrLoadTile(context, selectedFabric.id)
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         // 1. LIVE CAMERA OR PHOTO MODE VIEWPORT
         if (activeMode == DrapeMode.LIVE) {
@@ -276,21 +298,41 @@ fun DrapeCaptureScreen(
                     .background(Color.Black),
                 contentAlignment = Alignment.Center,
             ) {
-                photoBitmap?.let { bmp ->
+                if (photoBitmap != null) {
                     Image(
-                        bitmap = bmp.asImageBitmap(),
-                        contentDescription = "Uploaded Photo",
+                        bitmap = photoBitmap!!.asImageBitmap(),
+                        contentDescription = "Uploaded Selfie",
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop,
                     )
-                } ?: run {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("📷", fontSize = 48.sp)
+                } else {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
+                    ) {
+                        Text("🖼️", fontSize = 48.sp)
                         Spacer(Modifier.height(12.dp))
+                        Text(
+                            "Upload a Selfie Photo",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            "Select a clear portrait to test luxury fabrics and colors directly on your photo.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.White.copy(alpha = 0.7f),
+                            textAlign = TextAlign.Center,
+                        )
+                        Spacer(Modifier.height(18.dp))
                         Button(
                             onClick = { photoPickerLauncher.launch("image/*") },
+                            shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = EditorialSienna),
-                            shape = RoundedCornerShape(14.dp),
                         ) {
                             Text("Select Photo from Gallery", color = Color.White)
                         }
@@ -299,21 +341,20 @@ fun DrapeCaptureScreen(
             }
         }
 
-        // 2. 100% OPAQUE REALISTIC FABRIC DRAPE CANVAS
+        // 2. 100% OPAQUE REALISTIC FABRIC DRAPE CANVAS (PBR Textures + Luminance-Preserving Blend)
         Canvas(modifier = Modifier.fillMaxSize()) {
             val width = size.width
             val height = size.height
 
-            val reading = latestReading
-            val hasFace = reading?.hasFace == true
+            val hasFace = latestReading?.hasFace == true
 
-            val chinX = if (hasFace && activeMode == DrapeMode.LIVE) (1.0f - reading!!.chinX) * width else width * 0.50f
-            val chinY = if (hasFace && activeMode == DrapeMode.LIVE) reading!!.chinY * height else height * 0.54f
+            val chinX = if (hasFace && activeMode == DrapeMode.LIVE) smoothedChinX * width else width * 0.50f
+            val chinY = if (hasFace && activeMode == DrapeMode.LIVE) smoothedChinY * height else height * 0.54f
 
             val clothNeckTopY = (chinY + height * 0.032f).coerceIn(height * 0.44f, height * 0.72f)
             val neckDipY = (clothNeckTopY + height * 0.065f).coerceIn(height * 0.50f, height * 0.80f)
 
-            // Tailored Drape Polygon
+            // Tailored Anatomical Drape Polygon
             val drapePath = Path().apply {
                 moveTo(0f, clothNeckTopY)
                 cubicTo(
@@ -331,15 +372,17 @@ fun DrapeCaptureScreen(
                 close()
             }
 
-            // Render Realistic Material Shaders
+            // Render Photorealistic PBR Material Shaders
             FabricTextureShader.renderFabricDrape(
                 scope = this,
                 path = drapePath,
-                fabricId = selectedFabric.id,
+                fabric = selectedFabric,
                 baseColor = animatedClothColor,
                 width = width,
                 height = height,
                 neckTopY = clothNeckTopY,
+                tileBitmap = activeTile,
+                motionYaw = smoothedYaw,
             )
 
             // Center Face Reticle Oval
