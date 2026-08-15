@@ -62,6 +62,7 @@ import com.drapeproof.mobile.ui.theme.EditorialWarning
 fun ProfileScreen(
     onRecalibrate: () -> Unit = {},
     onOpenYouCamLab: () -> Unit,
+    onOpenTutorial: () -> Unit = {},
 ) {
     val context = LocalContext.current
     var profile by remember { mutableStateOf(SkinProfileRepository.load(context)) }
@@ -379,13 +380,25 @@ fun ProfileScreen(
                         }
                     }
 
-                    OutlinedButton(
-                        onClick = onOpenYouCamLab,
-                        shape = RoundedCornerShape(10.dp),
-                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                        modifier = Modifier.height(34.dp),
-                    ) {
-                        Text("Diagnostics", color = EditorialInk, fontWeight = FontWeight.SemiBold, fontSize = 11.sp)
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        OutlinedButton(
+                            onClick = onOpenTutorial,
+                            shape = RoundedCornerShape(10.dp),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                            modifier = Modifier.height(34.dp),
+                        ) {
+                            Text("Tutorial", color = EditorialInk, fontWeight = FontWeight.SemiBold, fontSize = 11.sp)
+                        }
+
+                        Button(
+                            onClick = onOpenYouCamLab,
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = EditorialSienna),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                            modifier = Modifier.height(34.dp),
+                        ) {
+                            Text("Diagnostics", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 11.sp)
+                        }
                     }
                 }
             }
@@ -406,7 +419,7 @@ fun ProfileScreen(
             )
         }
 
-        // DEDICATED LIVE KYC-STYLE CAMERA COLORIMETRY SCANNER
+        // DEDICATED LIVE FACIAL SCANNER MODAL
         if (isLiveScannerOpen) {
             LiveSkinScanScreen(
                 onDismiss = { isLiveScannerOpen = false },

@@ -326,16 +326,41 @@ fun LooksScreen(
                                         }
                                     }
 
-                                    // VERTICALLY CENTERED TRASH DELETE BUTTON
-                                    Box(
-                                        modifier = Modifier
-                                            .size(38.dp)
-                                            .clip(CircleShape)
-                                            .background(EditorialSand.copy(alpha = 0.40f))
-                                            .clickable { snapToDeleteId = snap.id },
-                                        contentAlignment = Alignment.Center,
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
                                     ) {
-                                        Text("🗑️", fontSize = 16.sp)
+                                        // DOWNLOAD / SAVE BUTTON
+                                        Box(
+                                            modifier = Modifier
+                                                .size(36.dp)
+                                                .clip(CircleShape)
+                                                .background(EditorialSand.copy(alpha = 0.40f))
+                                                .clickable {
+                                                    bmp?.let { snapBitmap ->
+                                                        com.drapeproof.mobile.util.ImageExportUtils.saveImageToGallery(
+                                                            context = context,
+                                                            bitmap = snapBitmap,
+                                                            title = "DrapeIt_Look_${snap.id}",
+                                                        )
+                                                    }
+                                                },
+                                            contentAlignment = Alignment.Center,
+                                        ) {
+                                            Text("💾", fontSize = 14.sp)
+                                        }
+
+                                        // VERTICALLY CENTERED TRASH DELETE BUTTON
+                                        Box(
+                                            modifier = Modifier
+                                                .size(36.dp)
+                                                .clip(CircleShape)
+                                                .background(EditorialSand.copy(alpha = 0.40f))
+                                                .clickable { snapToDeleteId = snap.id },
+                                            contentAlignment = Alignment.Center,
+                                        ) {
+                                            Text("🗑️", fontSize = 14.sp)
+                                        }
                                     }
                                 }
                             }

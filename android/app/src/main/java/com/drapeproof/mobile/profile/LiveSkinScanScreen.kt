@@ -4,12 +4,9 @@ import android.Manifest
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -34,6 +31,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -57,18 +55,18 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
-import com.drapeproof.mobile.ui.sound.SoundEffectManager
 import com.drapeproof.mobile.camera.ControlledCameraPreview
 import com.drapeproof.mobile.camera.FrameReading
 import com.drapeproof.mobile.data.SkinProfileRepository
+import com.drapeproof.mobile.ui.sound.SoundEffectManager
 import com.drapeproof.mobile.ui.theme.EditorialCream
 import com.drapeproof.mobile.ui.theme.EditorialInk
 import com.drapeproof.mobile.ui.theme.EditorialMuted
 import com.drapeproof.mobile.ui.theme.EditorialPositive
 import com.drapeproof.mobile.ui.theme.EditorialSand
 import com.drapeproof.mobile.ui.theme.EditorialSienna
+import com.drapeproof.mobile.ui.theme.EditorialStone
 import com.drapeproof.mobile.ui.theme.EditorialWarning
-import kotlinx.coroutines.delay
 
 @Composable
 fun LiveSkinScanScreen(
@@ -96,7 +94,7 @@ fun LiveSkinScanScreen(
     var latestReading by remember { mutableStateOf<FrameReading?>(null) }
     var detectedSkinHex by remember { mutableStateOf<String?>(null) }
     var calibrationProgress by remember { mutableFloatStateOf(0f) }
-    var isCalibrated by remember { mutableStateOf(false) }
+    var isScanLocked by remember { mutableStateOf(false) }
 
     val animatedProgress by animateFloatAsState(
         targetValue = calibrationProgress,
@@ -104,34 +102,31 @@ fun LiveSkinScanScreen(
         label = "progressAnim",
     )
 
-    // Virtual KYC Calibration Engine
+    // Progressive Skin Tone Accumulator
     LaunchedEffect(latestReading) {
+        if (isScanLocked) return@LaunchedEffect
+
         val reading = latestReading
-        if (reading != null && reading.hasFace && reading.basicCaptureReady) {
-            reading.skinSrgb?.let { srgb ->
-                detectedSkinHex = srgb.toHex()
-            }
+        if (reading != null && reading.hasFace && reading.basicCaptureReady && (reading.skinSrgb != null)) {
+            val hex = reading.skinSrgb.toHex()
+            detectedSkinHex = hex
+
             if (calibrationProgress < 1.0f) {
-                calibrationProgress = (calibrationProgress + 0.08f).coerceAtMost(1.0f)
-            } else if (!isCalibrated) {
-                isCalibrated = true
+                calibrationProgress = (calibrationProgress + 0.07f).coerceAtMost(1.0f)
+            } else {
+                isScanLocked = true
                 SoundEffectManager.playSuccess(currentView)
-                val finalHex = detectedSkinHex ?: "#D8B498"
-                val profile = SkinProfileRepository.deriveProfileFromSkinHex(finalHex, source = "live_kyc_scan")
-                SkinProfileRepository.save(context, profile)
-                delay(1200)
-                onScanSuccess(finalHex)
             }
         } else {
-            if (calibrationProgress > 0.1f && !isCalibrated) {
-                calibrationProgress = (calibrationProgress - 0.04f).coerceAtLeast(0f)
+            if (calibrationProgress > 0.05f) {
+                calibrationProgress = (calibrationProgress - 0.03f).coerceAtLeast(0f)
             }
         }
     }
 
     val ovalGuideColor by animateColorAsState(
         targetValue = when {
-            isCalibrated -> EditorialPositive
+            isScanLocked -> EditorialPositive
             calibrationProgress > 0.5f -> EditorialPositive.copy(alpha = 0.85f)
             latestReading?.hasFace == true -> EditorialWarning
             else -> Color.White.copy(alpha = 0.60f)
@@ -151,10 +146,10 @@ fun LiveSkinScanScreen(
             ) {
                 Text("📷", fontSize = 48.sp)
                 Spacer(Modifier.height(16.dp))
-                Text("Camera Access Required", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = EditorialInk)
+                Text("Camera Permission Required", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = EditorialInk)
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "To calibrate your personal colortone, DrapeIt performs a live facial scan under daylight.",
+                    "To calibrate your personal colortone, please grant camera access.",
                     style = MaterialTheme.typography.bodyMedium,
                     textAlign = TextAlign.Center,
                     color = EditorialMuted,
@@ -165,7 +160,7 @@ fun LiveSkinScanScreen(
                     colors = ButtonDefaults.buttonColors(containerColor = EditorialSienna),
                     shape = RoundedCornerShape(14.dp),
                 ) {
-                    Text("Grant Camera Access", color = Color.White)
+                    Text("Enable Camera", color = Color.White)
                 }
             }
         }
@@ -173,32 +168,35 @@ fun LiveSkinScanScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        // 1. LIVE CAMERA FEED
+        // 1. LIVE CAMERA FEED (PAUSES FEEDBACK PROCESSING WHEN LOCKED)
         ControlledCameraPreview(
             modifier = Modifier.fillMaxSize(),
-            onFrame = { reading -> latestReading = reading },
+            onFrame = { reading ->
+                if (!isScanLocked) {
+                    latestReading = reading
+                }
+            },
             onControlsReady = {},
             onCameraError = {},
         )
 
-        // 2. KYC BIOMETRIC SCANNER RETICLE & PROGRESS RING
+        // 2. BIOMETRIC SCANNER RETICLE & PROGRESS RING
         Canvas(modifier = Modifier.fillMaxSize()) {
             val width = size.width
             val height = size.height
-            val center = Offset(width * 0.50f, height * 0.40f)
-            val ovalW = width * 0.62f
-            val ovalH = height * 0.38f
+            val center = Offset(width * 0.50f, height * 0.38f)
+            val ovalW = width * 0.60f
+            val ovalH = height * 0.36f
 
-            // Shaded vignette outside the oval
             drawOval(
                 color = ovalGuideColor,
                 topLeft = Offset(center.x - ovalW / 2, center.y - ovalH / 2),
                 size = Size(ovalW, ovalH),
-                style = Stroke(width = if (isCalibrated) 5.dp.toPx() else 3.dp.toPx()),
+                style = Stroke(width = if (isScanLocked) 4.5.dp.toPx() else 2.5.dp.toPx()),
             )
 
             // Dynamic progress arc around the oval
-            if (!isCalibrated && animatedProgress > 0f) {
+            if (!isScanLocked && animatedProgress > 0f) {
                 drawArc(
                     color = EditorialPositive,
                     startAngle = -90f,
@@ -222,11 +220,11 @@ fun LiveSkinScanScreen(
         ) {
             Box(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(16.dp))
+                    .clip(RoundedCornerShape(14.dp))
                     .background(Color.Black.copy(alpha = 0.65f))
                     .padding(horizontal = 12.dp, vertical = 6.dp),
             ) {
-                Text("Live Colortone KYC Scan", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Text("Live Facial Scan", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
             }
 
             Box(
@@ -242,51 +240,109 @@ fun LiveSkinScanScreen(
             }
         }
 
-        // 4. BOTTOM STATUS INSTRUCTION CARD
+        // 4. BOTTOM STATUS OR LOCKED CONFIRMATION CARD
         Box(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .navigationBarsPadding()
-                .padding(20.dp),
+                .padding(18.dp),
             contentAlignment = Alignment.Center,
         ) {
             Card(
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = if (isCalibrated) EditorialPositive else Color.Black.copy(alpha = 0.82f),
-                ),
-                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(22.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, EditorialStone.copy(alpha = 0.40f), RoundedCornerShape(22.dp)),
             ) {
                 Column(
-                    modifier = Modifier.padding(20.dp),
+                    modifier = Modifier.padding(18.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    if (isCalibrated) {
-                        Text("✓", fontSize = 36.sp, color = Color.White, fontWeight = FontWeight.Bold)
-                        Spacer(Modifier.height(6.dp))
-                        Text("Colortone Calibrated Successfully!", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color.White)
-                        Text("Sampled skin tone: ${detectedSkinHex ?: "#D8B498"}", style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.9f))
+                    if (isScanLocked) {
+                        val finalHex = detectedSkinHex ?: "#D8B498"
+                        val previewProfile = remember(finalHex) {
+                            SkinProfileRepository.deriveProfileFromSkinHex(finalHex, source = "live_facial_scan")
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(54.dp)
+                                    .clip(CircleShape)
+                                    .background(finalHex.asComposeColor())
+                                    .border(2.dp, EditorialStone, CircleShape),
+                            )
+                            Spacer(Modifier.width(14.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    previewProfile.season,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = EditorialInk,
+                                )
+                                Text(
+                                    "${finalHex.uppercase()} • ${previewProfile.undertone} Undertone",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = EditorialMuted,
+                                )
+                            }
+                        }
+
+                        Spacer(Modifier.height(16.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            OutlinedButton(
+                                onClick = {
+                                    isScanLocked = false
+                                    calibrationProgress = 0f
+                                },
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.weight(1f),
+                            ) {
+                                Text("Retake", color = EditorialInk, fontWeight = FontWeight.SemiBold)
+                            }
+
+                            Button(
+                                onClick = {
+                                    SkinProfileRepository.save(context, previewProfile)
+                                    onScanSuccess(finalHex)
+                                },
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = EditorialSienna),
+                                modifier = Modifier.weight(1f),
+                            ) {
+                                Text("Done", color = Color.White, fontWeight = FontWeight.Bold)
+                            }
+                        }
                     } else {
                         val statusText = when {
-                            latestReading?.hasFace != true -> "Align your face inside the oval"
+                            latestReading?.hasFace != true -> "Align face in the oval"
                             latestReading?.sharpEnough != true -> "Hold steady for camera focus"
-                            latestReading?.occlusionFree != true -> "Ensure forehead and cheeks are clearly visible"
-                            else -> "Scanning cheek & forehead tone... ${(animatedProgress * 100).toInt()}%"
+                            latestReading?.occlusionFree != true -> "Keep face unobstructed"
+                            else -> "Calibrating colortone... ${(animatedProgress * 100).toInt()}%"
                         }
 
                         Text(
                             statusText,
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Bold,
-                            color = Color.White,
+                            color = EditorialInk,
                             textAlign = TextAlign.Center,
                         )
-                        Spacer(Modifier.height(8.dp))
+                        Spacer(Modifier.height(4.dp))
                         Text(
-                            "Avoid harsh direct shadows or backlights for best CIELAB accuracy.",
+                            "Hold still under natural light.",
                             style = MaterialTheme.typography.bodySmall,
-                            color = Color.White.copy(alpha = 0.7f),
+                            color = EditorialMuted,
                             textAlign = TextAlign.Center,
                         )
                     }
@@ -294,4 +350,15 @@ fun LiveSkinScanScreen(
             }
         }
     }
+}
+
+private fun String.asComposeColor(): Color {
+    return runCatching {
+        val value = removePrefix("#").toLong(16)
+        Color(
+            red = ((value shr 16) and 0xFF).toInt(),
+            green = ((value shr 8) and 0xFF).toInt(),
+            blue = (value and 0xFF).toInt(),
+        )
+    }.getOrDefault(Color.Gray)
 }

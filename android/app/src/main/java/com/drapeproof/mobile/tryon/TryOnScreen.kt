@@ -621,6 +621,19 @@ fun TryOnScreen(
                                 horizontalArrangement = Arrangement.SpaceEvenly,
                             ) {
                                 Text(
+                                    "🔄",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White,
+                                    modifier = Modifier.clickable {
+                                        val rotated = com.drapeproof.mobile.util.ImageExportUtils.rotateBitmap(avatarBmp)
+                                        activeAvatarFile?.let { f ->
+                                            java.io.FileOutputStream(f).use { rotated.compress(Bitmap.CompressFormat.JPEG, 95, it) }
+                                            activeAvatar = activeAvatar?.copy(imagePath = f.absolutePath)
+                                        }
+                                    },
+                                )
+                                Text(
                                     "Replace",
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
@@ -628,7 +641,7 @@ fun TryOnScreen(
                                     modifier = Modifier.clickable { avatarPicker.launch("image/*") },
                                 )
                                 Text(
-                                    "Remove ✕",
+                                    "✕",
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color(0xFFF87171),
@@ -691,6 +704,18 @@ fun TryOnScreen(
                                             .padding(vertical = 6.dp),
                                         horizontalArrangement = Arrangement.SpaceEvenly,
                                     ) {
+                                        Text(
+                                            "🔄",
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White,
+                                            modifier = Modifier.clickable {
+                                                val rotated = com.drapeproof.mobile.util.ImageExportUtils.rotateBitmap(garmentBmp)
+                                                val tempFile = java.io.File(context.cacheDir, "garment_rot_${System.currentTimeMillis()}.jpg")
+                                                java.io.FileOutputStream(tempFile).use { rotated.compress(Bitmap.CompressFormat.JPEG, 95, it) }
+                                                customGarmentUri = Uri.fromFile(tempFile)
+                                            },
+                                        )
                                         Text(
                                             "✂️ Crop",
                                             fontSize = 11.sp,
@@ -1046,6 +1071,23 @@ fun TryOnScreen(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
+                            // DOWNLOAD / SAVE TO GALLERY BUTTON
+                            OutlinedButton(
+                                onClick = {
+                                    tryOnResultBitmap?.let { bmp ->
+                                        com.drapeproof.mobile.util.ImageExportUtils.saveImageToGallery(
+                                            context = context,
+                                            bitmap = bmp,
+                                            title = "DrapeIt_TryOn_${System.currentTimeMillis()}",
+                                        )
+                                    }
+                                },
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.weight(1f),
+                            ) {
+                                Text("💾 Save", color = EditorialInk, fontWeight = FontWeight.SemiBold)
+                            }
+
                             // RESET / TRY ANOTHER BUTTON
                             OutlinedButton(
                                 onClick = { resetState() },
@@ -1060,7 +1102,7 @@ fun TryOnScreen(
                                 onClick = onNavigateToLooks,
                                 shape = RoundedCornerShape(12.dp),
                                 colors = ButtonDefaults.buttonColors(containerColor = EditorialInk),
-                                modifier = Modifier.weight(1f),
+                                modifier = Modifier.weight(1.1f),
                             ) {
                                 Text("View Looks", color = Color.White, fontWeight = FontWeight.SemiBold)
                             }

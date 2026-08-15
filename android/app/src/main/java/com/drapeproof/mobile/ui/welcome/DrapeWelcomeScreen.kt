@@ -59,15 +59,15 @@ fun DrapeWelcomeScreen(
     )
 
     LaunchedEffect(Unit) {
-        // Fade in content & gentle zoom out
+        // Fade in content & gentle zoom out across 3.4 seconds
         contentAlpha.animateTo(1f, tween(600, easing = LinearEasing))
-        scaleAnim.animateTo(1.00f, tween(2200, easing = FastOutSlowInEasing))
+        scaleAnim.animateTo(1.00f, tween(3000, easing = FastOutSlowInEasing))
 
-        // Wait total ~2.4 seconds
-        delay(300)
+        // Wait to complete 3.4 seconds total
+        delay(400)
 
         // White out transition
-        whiteTransitionAlpha.animateTo(1f, tween(380, easing = FastOutSlowInEasing))
+        whiteTransitionAlpha.animateTo(1f, tween(400, easing = FastOutSlowInEasing))
         onWelcomeFinished()
     }
 

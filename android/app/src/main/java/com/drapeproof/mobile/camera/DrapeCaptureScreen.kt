@@ -29,6 +29,8 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.zIndex
 import com.drapeproof.mobile.ui.sound.SoundEffectManager
 import kotlin.math.PI
 import kotlin.math.sin
@@ -183,11 +185,12 @@ fun DrapeCaptureScreen(
         mutableStateOf(if (initialFabricId != null) FabricCatalog.findById(initialFabricId) else FabricCatalog.defaultFabric)
     }
     var isFabricListExpanded by remember { mutableStateOf(false) }
+    var isCustomPickerOpen by remember { mutableStateOf(false) }
     var selectedColor by remember {
         mutableStateOf(cameraColorPalette.find { it.hex.equals(initialColorHex, ignoreCase = true) } ?: cameraColorPalette[0])
     }
     var customHex by remember { mutableStateOf(initialColorHex) }
-    var isCustomPickerOpen by remember { mutableStateOf(false) }
+    val isFaceInFrame = photoBitmap != null || (latestReading != null && latestReading?.hasFace == true && latestReading?.skinSrgb != null && (latestReading?.faceLuminance ?: 0.0) >= 0.15)
 
     val activeColorHex = customHex ?: selectedColor.hex
     val storedProfile = remember { SkinProfileRepository.load(context) }
@@ -197,11 +200,27 @@ fun DrapeCaptureScreen(
         detectedSkinHex ?: storedProfile?.skinHex ?: "#D8B498"
     }
 
-    val harmonyResult = remember(effectiveSkinHex, activeColorHex) {
-        TrueColorHarmonyEngine.evaluate(effectiveSkinHex, activeColorHex)
+    val harmonyResult = remember(effectiveSkinHex, activeColorHex, isFaceInFrame) {
+        if (isFaceInFrame) {
+            TrueColorHarmonyEngine.evaluate(effectiveSkinHex, activeColorHex)
+        } else {
+            com.drapeproof.core.color.HarmonyAnalysisResult(
+                scorePercent = 0,
+                harmonyLabel = "Align Face",
+                summaryFeedback = "Position your face in the oval",
+                contrastScorePercent = 0,
+                hueScorePercent = 0,
+                chromaScorePercent = 0,
+                reasonsList = emptyList(),
+                deltaE00 = 0.0,
+                deltaLuminance = 0.0,
+                isFlattering = false,
+            )
+        }
     }
 
     val targetStatusColor = when {
+        !isFaceInFrame -> Color.White.copy(alpha = 0.50f)
         harmonyResult.scorePercent >= 86 -> EditorialPositive
         harmonyResult.scorePercent >= 70 -> EditorialWarning
         else -> EditorialNegative
@@ -394,56 +413,34 @@ fun DrapeCaptureScreen(
         // 3. CAPTURED FRAME CURTAIN-MELT ANIMATION LAYER (ISOLATED TO CAMERA/CANVAS VIEWPORT)
         if (isCurtainDropping && capturedFreezeBitmap != null) {
             val progress = curtainDropAnim.value
-            // 1. Subtle zoom-out: scale smoothly transitions from 1.0f down to 0.93f in the first 22% of progress
-            val zoomPhase = (progress / 0.22f).coerceIn(0f, 1f)
-            val scale = 1.0f - (zoomPhase * 0.07f) - (progress * 0.03f)
+            val density = LocalDensity.current
+            val screenHeightPx = totalScreenHeight.value * density.density
 
-            // 2. Curtain melting / falling downwards from above: accelerating gravity drop
-            val translateY = progress * totalScreenHeight.value * 2.6f
+            // 1. Subtle zoom-out in first 20%
+            val zoomScale = 1.0f - (progress.coerceAtMost(0.20f) / 0.20f) * 0.05f
 
-            // 3. Alpha stays full opacity through initial fall, then fades out smoothly at the bottom
-            val alpha = if (progress < 0.40f) 1.0f else (1.0f - (progress - 0.40f) / 0.60f).coerceIn(0f, 1f)
-            val cornerRadius = (progress * 22).dp
-            val swayRotation = -sin(progress * PI.toFloat()) * 2.2f
+            // 2. Curtain melting / falling downwards from above
+            val translateY = progress * screenHeightPx
+
+            // 3. Alpha fades smoothly out in final phase
+            val alpha = (1.0f - progress).coerceIn(0f, 1f)
 
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .graphicsLayer {
-                        this.scaleX = scale
-                        this.scaleY = scale
+                        this.scaleX = zoomScale
+                        this.scaleY = zoomScale
                         this.translationY = translateY
                         this.alpha = alpha
-                        this.rotationZ = swayRotation
                     }
-                    .clip(RoundedCornerShape(cornerRadius))
-                    .border(
-                        width = (2.dp * (1f - progress)),
-                        color = EditorialSienna.copy(alpha = (1f - progress) * 0.75f),
-                        shape = RoundedCornerShape(cornerRadius),
-                    ),
+                    .clip(RoundedCornerShape(20.dp)),
             ) {
                 Image(
                     bitmap = capturedFreezeBitmap!!.asImageBitmap(),
-                    contentDescription = "Frozen Curtain Drop Snapshot",
+                    contentDescription = "Frozen Curtain Snapshot",
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop,
-                )
-
-                // Luminous silk-sheen overlay on the melting curtain top
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(130.dp)
-                        .align(Alignment.TopCenter)
-                        .background(
-                            Brush.verticalGradient(
-                                colors = listOf(
-                                    Color.White.copy(alpha = 0.35f * (1f - progress)),
-                                    Color.Transparent,
-                                ),
-                            ),
-                        ),
                 )
             }
         }
@@ -473,7 +470,7 @@ fun DrapeCaptureScreen(
                         .clickable { photoBitmap = null }
                         .padding(horizontal = 12.dp, vertical = 6.dp),
                 ) {
-                    Text("✕ Switch to Live Camera", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    Text("✕ Live Camera", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                 }
             }
         }
@@ -493,98 +490,12 @@ fun DrapeCaptureScreen(
                 Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(animatedStatusColor))
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    "$animatedScore% • ${harmonyResult.harmonyLabel}",
+                    if (isFaceInFrame) "$animatedScore% • ${harmonyResult.harmonyLabel}" else "Align face in oval • —%",
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold,
                     color = Color.White,
                     fontSize = 12.sp,
                 )
-            }
-        }
-
-        // 5. FABRIC BOTTOM DRAWER (SHEET)
-        if (isFabricListExpanded) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.65f))
-                    .clickable { isFabricListExpanded = false },
-                contentAlignment = Alignment.BottomCenter,
-            ) {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(12.dp)
-                        .clickable(enabled = false) {},
-                    shape = RoundedCornerShape(24.dp),
-                    colors = CardDefaults.cardColors(containerColor = EditorialCream),
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(18.dp),
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text("Choose Fabric Texture", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = EditorialInk)
-                            Box(
-                                modifier = Modifier
-                                    .size(30.dp)
-                                    .clip(CircleShape)
-                                    .background(Color.LightGray.copy(alpha = 0.5f))
-                                    .clickable { isFabricListExpanded = false },
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Text("✕", fontSize = 12.sp, color = EditorialInk, fontWeight = FontWeight.Bold)
-                            }
-                        }
-                        Spacer(Modifier.height(14.dp))
-
-                        val chunked = FabricCatalog.allFabrics.chunked(3)
-                        chunked.forEach { rowFabrics ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            ) {
-                                rowFabrics.forEach { fab ->
-                                    val isSel = fab.id == selectedFabric.id
-                                    Box(
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .clip(RoundedCornerShape(14.dp))
-                                            .background(if (isSel) EditorialSienna else Color.White)
-                                            .border(1.dp, if (isSel) EditorialSienna else Color.LightGray.copy(alpha = 0.4f), RoundedCornerShape(14.dp))
-                                            .clickable {
-                                                selectedFabric = fab
-                                                isFabricListExpanded = false
-                                            }
-                                            .padding(vertical = 12.dp, horizontal = 6.dp),
-                                        contentAlignment = Alignment.Center,
-                                    ) {
-                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                            Text(fab.icon, fontSize = 22.sp)
-                                            Spacer(Modifier.height(4.dp))
-                                            Text(
-                                                fab.name,
-                                                style = MaterialTheme.typography.labelSmall,
-                                                fontWeight = FontWeight.Bold,
-                                                color = if (isSel) Color.White else EditorialInk,
-                                            )
-                                        }
-                                    }
-                                }
-                                if (rowFabrics.size < 3) {
-                                    repeat(3 - rowFabrics.size) {
-                                        Spacer(Modifier.weight(1f))
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
             }
         }
 
@@ -637,25 +548,29 @@ fun DrapeCaptureScreen(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         // LEFT: PHOTO UPLOAD BUTTON
+                        // LEFT: PHOTO UPLOAD BUTTON (MINIMAL GALLERY ICON)
                         Box(
                             modifier = Modifier
-                                .size(50.dp)
+                                .size(48.dp)
                                 .clip(CircleShape)
-                                .background(Color.Black.copy(alpha = 0.75f))
-                                .border(1.5.dp, Color.White.copy(alpha = 0.45f), CircleShape)
+                                .background(Color.Black.copy(alpha = 0.65f))
+                                .border(1.2.dp, Color.White.copy(alpha = 0.40f), CircleShape)
                                 .clickable { photoPickerLauncher.launch("image/*") },
                             contentAlignment = Alignment.Center,
                         ) {
-                            Text("🖼️", fontSize = 22.sp)
+                            Text("🖼️", fontSize = 20.sp)
                         }
 
-                        // CENTER: LARGE SHUTTER CAPTURE BUTTON (📸)
+                        // CENTER: COUTURE CONCENTRIC-RING SHUTTER BUTTON
                         Box(
                             modifier = Modifier
-                                .size(68.dp)
+                                .size(72.dp)
+                                .clip(CircleShape)
+                                .background(Color.Black.copy(alpha = 0.60f))
+                                .border(3.5.dp, EditorialSienna, CircleShape)
+                                .padding(6.dp)
                                 .clip(CircleShape)
                                 .background(Color.White)
-                                .border(4.dp, EditorialSienna, CircleShape)
                                 .clickable {
                                     val capturedSkinHex = detectedSkinHex ?: effectiveSkinHex
 
@@ -735,7 +650,7 @@ fun DrapeCaptureScreen(
                                         // Play camera shutter sound + haptic feedback
                                         SoundEffectManager.playShutter(currentView)
 
-                                        // Trigger Flash Burst & Curtain-Melt Drop Freeze Animation (Isolated to Camera Viewport)
+                                        // Trigger Flash Burst & Curtain-Melt Drop Freeze Animation
                                         capturedFreezeBitmap = comp
                                         isCurtainDropping = true
                                         scope.launch {
@@ -744,7 +659,7 @@ fun DrapeCaptureScreen(
                                             curtainDropAnim.snapTo(0f)
                                             curtainDropAnim.animateTo(
                                                 targetValue = 1f,
-                                                animationSpec = tween(850, easing = CubicBezierEasing(0.20f, 0.0f, 0.20f, 1.0f)),
+                                                animationSpec = tween(750, easing = CubicBezierEasing(0.20f, 0.0f, 0.20f, 1.0f)),
                                             )
                                             isCurtainDropping = false
                                             capturedFreezeBitmap = null
@@ -759,26 +674,28 @@ fun DrapeCaptureScreen(
                                 },
                             contentAlignment = Alignment.Center,
                         ) {
-                            Text("📸", fontSize = 28.sp)
+                            Box(
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .clip(CircleShape)
+                                    .background(EditorialSienna),
+                            )
                         }
 
                         // RIGHT: FABRIC MATERIAL BUTTON
                         Box(
                             modifier = Modifier
-                                .size(50.dp)
+                                .size(48.dp)
                                 .clip(CircleShape)
-                                .background(Color.Black.copy(alpha = 0.75f))
-                                .border(2.dp, EditorialSienna, CircleShape)
+                                .background(Color.Black.copy(alpha = 0.65f))
+                                .border(1.2.dp, EditorialSienna, CircleShape)
                                 .clickable {
                                     runCatching { currentView.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK) }
                                     isFabricListExpanded = true
                                 },
                             contentAlignment = Alignment.Center,
                         ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text("🧵", fontSize = 18.sp)
-                                Text("Fabric", fontSize = 8.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                            }
+                            Text(selectedFabric.icon, fontSize = 20.sp)
                         }
                     }
 
@@ -860,7 +777,94 @@ fun DrapeCaptureScreen(
             }
         }
 
-        // 8. COLOR PICKER DIALOG
+        // 8. FABRIC SELECTION MODAL SHEET (TOP-LEVEL Z-INDEX OVERLAY)
+        if (isFabricListExpanded) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .zIndex(50f)
+                    .background(Color.Black.copy(alpha = 0.65f))
+                    .clickable { isFabricListExpanded = false },
+                contentAlignment = Alignment.BottomCenter,
+            ) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp)
+                        .clickable(enabled = false) {},
+                    shape = RoundedCornerShape(24.dp),
+                    colors = CardDefaults.cardColors(containerColor = EditorialCream),
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(18.dp),
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text("Choose Fabric Texture", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = EditorialInk)
+                            Box(
+                                modifier = Modifier
+                                    .size(30.dp)
+                                    .clip(CircleShape)
+                                    .background(Color.LightGray.copy(alpha = 0.5f))
+                                    .clickable { isFabricListExpanded = false },
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text("✕", fontSize = 12.sp, color = EditorialInk, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                        Spacer(Modifier.height(14.dp))
+
+                        val chunked = FabricCatalog.allFabrics.chunked(3)
+                        chunked.forEach { rowFabrics ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                rowFabrics.forEach { fab ->
+                                    val isSel = fab.id == selectedFabric.id
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clip(RoundedCornerShape(14.dp))
+                                            .background(if (isSel) EditorialSienna else Color.White)
+                                            .border(1.dp, if (isSel) EditorialSienna else Color.LightGray.copy(alpha = 0.4f), RoundedCornerShape(14.dp))
+                                            .clickable {
+                                                selectedFabric = fab
+                                                isFabricListExpanded = false
+                                            }
+                                            .padding(vertical = 12.dp, horizontal = 6.dp),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                            Text(fab.icon, fontSize = 22.sp)
+                                            Spacer(Modifier.height(4.dp))
+                                            Text(
+                                                fab.name,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (isSel) Color.White else EditorialInk,
+                                            )
+                                        }
+                                    }
+                                }
+                                if (rowFabrics.size < 3) {
+                                    repeat(3 - rowFabrics.size) {
+                                        Spacer(Modifier.weight(1f))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 9. COLOR PICKER DIALOG
         if (isCustomPickerOpen) {
             UniversalColorPickerDialog(
                 initialColorHex = activeColorHex,
