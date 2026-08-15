@@ -51,11 +51,13 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import com.drapeproof.mobile.ui.sound.SoundEffectManager
 import com.drapeproof.mobile.camera.ControlledCameraPreview
 import com.drapeproof.mobile.camera.FrameReading
 import com.drapeproof.mobile.data.SkinProfileRepository
@@ -74,6 +76,7 @@ fun LiveSkinScanScreen(
     onScanSuccess: (skinHex: String) -> Unit,
 ) {
     val context = LocalContext.current
+    val currentView = LocalView.current
 
     var permissionGranted by remember {
         mutableStateOf(
@@ -112,6 +115,7 @@ fun LiveSkinScanScreen(
                 calibrationProgress = (calibrationProgress + 0.08f).coerceAtMost(1.0f)
             } else if (!isCalibrated) {
                 isCalibrated = true
+                SoundEffectManager.playSuccess(currentView)
                 val finalHex = detectedSkinHex ?: "#D8B498"
                 val profile = SkinProfileRepository.deriveProfileFromSkinHex(finalHex, source = "live_kyc_scan")
                 SkinProfileRepository.save(context, profile)

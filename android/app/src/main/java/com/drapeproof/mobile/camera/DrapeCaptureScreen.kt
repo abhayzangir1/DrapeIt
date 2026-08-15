@@ -19,6 +19,7 @@ import androidx.camera.view.PreviewView
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
@@ -27,6 +28,10 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.ui.platform.LocalView
+import com.drapeproof.mobile.ui.sound.SoundEffectManager
+import kotlin.math.PI
+import kotlin.math.sin
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -135,7 +140,12 @@ fun DrapeCaptureScreen(
     onNavigateToTryOn: ((fabricId: String, colorHex: String) -> Unit)? = null,
 ) {
     val context = LocalContext.current
+    val currentView = LocalView.current
     val scope = rememberCoroutineScope()
+
+    LaunchedEffect(Unit) {
+        SoundEffectManager.init()
+    }
 
     var permissionGranted by remember {
         mutableStateOf(
@@ -376,7 +386,73 @@ fun DrapeCaptureScreen(
             }
         }
 
-        // 3. TOP BAR: ONLY PHOTO RESET TOGGLE (WHEN PHOTO UPLOADED)
+        // 3. CAPTURED FRAME CURTAIN-MELT ANIMATION LAYER (ISOLATED TO CAMERA/CANVAS VIEWPORT)
+        if (isCurtainDropping && capturedFreezeBitmap != null) {
+            val progress = curtainDropAnim.value
+            // 1. Subtle zoom-out: scale smoothly transitions from 1.0f down to 0.93f in the first 22% of progress
+            val zoomPhase = (progress / 0.22f).coerceIn(0f, 1f)
+            val scale = 1.0f - (zoomPhase * 0.07f) - (progress * 0.03f)
+
+            // 2. Curtain melting / falling downwards from above: accelerating gravity drop
+            val translateY = progress * totalScreenHeight.value * 2.6f
+
+            // 3. Alpha stays full opacity through initial fall, then fades out smoothly at the bottom
+            val alpha = if (progress < 0.40f) 1.0f else (1.0f - (progress - 0.40f) / 0.60f).coerceIn(0f, 1f)
+            val cornerRadius = (progress * 22).dp
+            val swayRotation = -sin(progress * PI.toFloat()) * 2.2f
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        this.scaleX = scale
+                        this.scaleY = scale
+                        this.translationY = translateY
+                        this.alpha = alpha
+                        this.rotationZ = swayRotation
+                    }
+                    .clip(RoundedCornerShape(cornerRadius))
+                    .border(
+                        width = (2.dp * (1f - progress)),
+                        color = EditorialSienna.copy(alpha = (1f - progress) * 0.75f),
+                        shape = RoundedCornerShape(cornerRadius),
+                    ),
+            ) {
+                Image(
+                    bitmap = capturedFreezeBitmap!!.asImageBitmap(),
+                    contentDescription = "Frozen Curtain Drop Snapshot",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                )
+
+                // Luminous silk-sheen overlay on the melting curtain top
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(130.dp)
+                        .align(Alignment.TopCenter)
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(
+                                    Color.White.copy(alpha = 0.35f * (1f - progress)),
+                                    Color.Transparent,
+                                ),
+                            ),
+                        ),
+                )
+            }
+        }
+
+        // Subtle camera lens flash burst (isolated to viewport)
+        if (flashBurstAnim.value > 0.01f) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.White.copy(alpha = flashBurstAnim.value)),
+            )
+        }
+
+        // 4. TOP BAR: ONLY PHOTO RESET TOGGLE (WHEN PHOTO UPLOADED)
         if (photoBitmap != null) {
             Row(
                 modifier = Modifier
@@ -522,7 +598,10 @@ fun DrapeCaptureScreen(
                     .clip(CircleShape)
                     .background(Color.Black.copy(alpha = 0.65f))
                     .border(1.dp, Color.White.copy(alpha = 0.30f), CircleShape)
-                    .clickable { isControlsCollapsed = !isControlsCollapsed }
+                    .clickable {
+                        runCatching { currentView.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK) }
+                        isControlsCollapsed = !isControlsCollapsed
+                    }
                     .padding(horizontal = 14.dp, vertical = 4.dp),
                 contentAlignment = Alignment.Center,
             ) {
@@ -648,16 +727,19 @@ fun DrapeCaptureScreen(
                                             skinHex = capturedSkinHex,
                                         )
 
-                                        // Trigger Flash Burst & Curtain Drop Freeze Animation
+                                        // Play camera shutter sound + haptic feedback
+                                        SoundEffectManager.playShutter(currentView)
+
+                                        // Trigger Flash Burst & Curtain-Melt Drop Freeze Animation (Isolated to Camera Viewport)
                                         capturedFreezeBitmap = comp
                                         isCurtainDropping = true
                                         scope.launch {
-                                            flashBurstAnim.snapTo(0.80f)
-                                            launch { flashBurstAnim.animateTo(0f, tween(200)) }
+                                            flashBurstAnim.snapTo(0.40f)
+                                            launch { flashBurstAnim.animateTo(0f, tween(160)) }
                                             curtainDropAnim.snapTo(0f)
                                             curtainDropAnim.animateTo(
                                                 targetValue = 1f,
-                                                animationSpec = tween(750, easing = FastOutSlowInEasing),
+                                                animationSpec = tween(850, easing = CubicBezierEasing(0.20f, 0.0f, 0.20f, 1.0f)),
                                             )
                                             isCurtainDropping = false
                                             capturedFreezeBitmap = null
@@ -682,7 +764,10 @@ fun DrapeCaptureScreen(
                                 .clip(CircleShape)
                                 .background(Color.Black.copy(alpha = 0.75f))
                                 .border(2.dp, EditorialSienna, CircleShape)
-                                .clickable { isFabricListExpanded = true },
+                                .clickable {
+                                    runCatching { currentView.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK) }
+                                    isFabricListExpanded = true
+                                },
                             contentAlignment = Alignment.Center,
                         ) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -744,6 +829,7 @@ fun DrapeCaptureScreen(
                                             shape = CircleShape,
                                         )
                                         .clickable {
+                                            runCatching { currentView.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP) }
                                             selectedColor = item
                                             customHex = null
                                         },
@@ -769,61 +855,7 @@ fun DrapeCaptureScreen(
             }
         }
 
-        // 8. TOP-LEVEL FLASH BURST & CURTAIN DROP FREEZE EFFECT OVERLAY (AT THE HIGHEST Z-INDEX)
-        if (flashBurstAnim.value > 0.01f) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.White.copy(alpha = flashBurstAnim.value)),
-            )
-        }
-
-        if (isCurtainDropping && capturedFreezeBitmap != null) {
-            val progress = curtainDropAnim.value
-            val translateY = progress * 1400f
-            val scale = 1.0f - progress * 0.18f
-            val alpha = (1.0f - progress * 0.85f).coerceIn(0f, 1f)
-            val rotationZ = -progress * 3.0f
-
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer {
-                        this.translationY = translateY
-                        this.scaleX = scale
-                        this.scaleY = scale
-                        this.rotationZ = rotationZ
-                        this.alpha = alpha
-                    }
-                    .clip(RoundedCornerShape((progress * 24).dp))
-                    .border(
-                        width = (3 * (1f - progress)).dp,
-                        color = EditorialSienna.copy(alpha = (1f - progress)),
-                        shape = RoundedCornerShape((progress * 24).dp),
-                    ),
-            ) {
-                Image(
-                    bitmap = capturedFreezeBitmap!!.asImageBitmap(),
-                    contentDescription = "Frozen Curtain Drop Snapshot",
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop,
-                )
-
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(120.dp)
-                        .align(Alignment.BottomCenter)
-                        .background(
-                            Brush.verticalGradient(
-                                colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.60f * (1f - progress))),
-                            ),
-                        ),
-                )
-            }
-        }
-
-        // 9. COLOR PICKER DIALOG
+        // 8. COLOR PICKER DIALOG
         if (isCustomPickerOpen) {
             UniversalColorPickerDialog(
                 initialColorHex = activeColorHex,
