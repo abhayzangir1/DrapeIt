@@ -10,17 +10,18 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
 
-// Editorial Warm Luxury Tokens (from DrapeIt Design System)
-val EditorialInk = Color(0xFF181512)
-val EditorialWarmBlack = Color(0xFF26211C)
-val EditorialCream = Color(0xFFF7F2EA)
-val EditorialSand = Color(0xFFE8DED0)
-val EditorialStone = Color(0xFFC9BBAA)
-val EditorialMuted = Color(0xFF8B7E70)
-val EditorialSienna = Color(0xFF8F5945)
-val EditorialPositive = Color(0xFF3F765A)
-val EditorialWarning = Color(0xFFB07C31)
-val EditorialNegative = Color(0xFF9B554A)
+// Editorial Warm Luxury Tokens (from DrapeIt Couture Palette)
+val EditorialInk = Color(0xFF1E1719)
+val EditorialWarmBlack = Color(0xFF271F21)
+val EditorialCream = Color(0xFFFAF7F2)
+val EditorialSand = Color(0xFFF2ECE1)
+val EditorialStone = Color(0xFFE0D5C5)
+val EditorialMuted = Color(0xFF8C7D76)
+val EditorialSienna = Color(0xFF7A1C30) // Haute Couture Burgundy / Wine from Logo
+val EditorialGold = Color(0xFFC59F71)   // Liquid Champagne Rose Gold
+val EditorialPositive = Color(0xFF2C6B4B)
+val EditorialWarning = Color(0xFFB57D33)
+val EditorialNegative = Color(0xFFA63A3A)
 
 // Backward-compatibility aliases
 val LuxuryCanvas = EditorialCream
@@ -30,11 +31,11 @@ val LuxuryTextSecondary = EditorialMuted
 val LuxuryBorder = EditorialStone.copy(alpha = 0.50f)
 
 val DrapeCoral = EditorialSienna
-val GoldAccent = EditorialWarning
+val GoldAccent = EditorialGold
 val Moss = EditorialPositive
 val ClashingRed = EditorialNegative
-val Cobalt = Color(0xFF2563EB)
-val Plum = Color(0xFF7C3AED)
+val Cobalt = Color(0xFF1E3A8A)
+val Plum = Color(0xFF7A1C30)
 val Ink = EditorialInk
 val Canvas = EditorialCream
 val Paper = LuxurySurface

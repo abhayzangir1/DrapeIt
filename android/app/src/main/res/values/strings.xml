@@ -1,4 +1,4 @@
 <resources>
-    <string name="app_name">DrapeIt</string>
+    <string name="app_name">Drape It</string>
     <string name="camera_permission_rationale">DrapeIt needs the camera to compare a real fabric beside your face. Frames stay on this device unless you explicitly request a YouCam analysis or try-on.</string>
 </resources>
