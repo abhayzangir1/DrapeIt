@@ -128,19 +128,12 @@ fun LooksScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Column {
-                        Text(
-                            "Your Looks",
-                            style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = EditorialInk,
-                        )
-                        Text(
-                            "Select 2 to 4 pictures to compare side-by-side",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = EditorialMuted,
-                        )
-                    }
+                    Text(
+                        "Looks",
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = EditorialInk,
+                    )
 
                     if (selectedCompareIds.isNotEmpty()) {
                         Text(
@@ -165,7 +158,7 @@ fun LooksScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        "CAPTURED DRAPE LOOKS (${snaps.size})",
+                        "DRAPES (${snaps.size})",
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
                         color = EditorialSienna,
@@ -355,7 +348,7 @@ fun LooksScreen(
                 // SAVED VIRTUAL TRY-ON OUTFITS
                 if (savedOutfits.isNotEmpty()) {
                     Text(
-                        "SAVED TRY-ON LOOKS (${savedOutfits.size})",
+                        "TRY-ONS (${savedOutfits.size})",
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
                         color = EditorialSienna,

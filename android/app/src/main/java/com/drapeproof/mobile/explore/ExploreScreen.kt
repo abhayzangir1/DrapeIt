@@ -55,10 +55,10 @@ import com.drapeproof.mobile.ui.theme.EditorialSienna
 import com.drapeproof.mobile.ui.theme.EditorialStone
 
 private enum class OccasionCategory(val label: String, val icon: String) {
-    EVERYDAY("Everyday Basics", "🌿"),
-    WORK("Work & Tailoring", "💼"),
-    EVENING("Evening & Party", "✨"),
-    WEEKEND("Weekend Casual", "☕"),
+    EVERYDAY("Everyday", "🌿"),
+    WORK("Work", "💼"),
+    EVENING("Evening", "✨"),
+    WEEKEND("Casual", "☕"),
 }
 
 private data class SeasonalPaletteItem(
@@ -130,107 +130,90 @@ fun ExploreScreen(
             Spacer(Modifier.height(14.dp))
 
             Text(
-                "Explore Palettes",
+                "Explore",
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
                 color = EditorialInk,
             )
-            Text(
-                "Curated occasion colors & fabrics personalized to your profile",
-                style = MaterialTheme.typography.bodySmall,
-                color = EditorialMuted,
-            )
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(14.dp))
 
             val currentProfile = storedProfile
 
             if (currentProfile == null || !currentProfile.isCalibrated) {
-                // EMPTY STATE: PROMPT USER TO SETUP PROFILE
+                // MINIMAL EMPTY STATE
                 Card(
-                    shape = RoundedCornerShape(22.dp),
+                    shape = RoundedCornerShape(18.dp),
                     colors = CardDefaults.cardColors(containerColor = Color.White),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .border(1.dp, EditorialStone.copy(alpha = 0.35f), RoundedCornerShape(22.dp)),
+                        .border(1.dp, EditorialStone.copy(alpha = 0.40f), RoundedCornerShape(18.dp)),
                 ) {
                     Column(
-                        modifier = Modifier.padding(24.dp),
+                        modifier = Modifier.padding(20.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
-                        Text("✨", fontSize = 46.sp)
-                        Spacer(Modifier.height(12.dp))
-                        Text(
-                            "Setup Your Color Profile",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = EditorialInk,
-                            textAlign = TextAlign.Center,
-                        )
+                        Text("✨", fontSize = 36.sp)
                         Spacer(Modifier.height(8.dp))
                         Text(
-                            "Scan your face once or upload a photo to unlock your personal seasonal wardrobe, signature flattering shades, and custom fabric pairings.",
-                            style = MaterialTheme.typography.bodyMedium,
+                            "Setup Color Profile",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = EditorialInk,
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            "Scan or upload a photo to view personalized palettes.",
+                            style = MaterialTheme.typography.bodySmall,
                             color = EditorialMuted,
                             textAlign = TextAlign.Center,
-                            lineHeight = 20.sp,
                         )
-                        Spacer(Modifier.height(18.dp))
+                        Spacer(Modifier.height(14.dp))
                         Button(
                             onClick = onNavigateToProfile,
-                            shape = RoundedCornerShape(14.dp),
+                            shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = EditorialSienna),
                             modifier = Modifier.fillMaxWidth(),
                         ) {
-                            Text("📸 Scan Face to Setup Profile", color = Color.White, fontWeight = FontWeight.Bold)
+                            Text("Setup Profile", color = Color.White, fontWeight = FontWeight.SemiBold)
                         }
                     }
                 }
 
-                Spacer(Modifier.height(24.dp))
+                Spacer(Modifier.height(20.dp))
             } else {
-                // CALIBRATED STATE: SEASON PROFILE BANNER
+                // COMPACT SEASON PROFILE CHIP
                 Card(
-                    shape = RoundedCornerShape(18.dp),
+                    shape = RoundedCornerShape(14.dp),
                     colors = CardDefaults.cardColors(containerColor = Color.White),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .border(1.dp, EditorialStone.copy(alpha = 0.30f), RoundedCornerShape(18.dp)),
+                        .border(1.dp, EditorialStone.copy(alpha = 0.40f), RoundedCornerShape(14.dp)),
                 ) {
                     Row(
-                        modifier = Modifier.padding(16.dp),
+                        modifier = Modifier.padding(12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(44.dp)
+                                .size(34.dp)
                                 .clip(CircleShape)
                                 .background(currentProfile.skinHex.asComposeColor())
-                                .border(2.dp, EditorialSand, CircleShape),
+                                .border(1.dp, EditorialStone, CircleShape),
                         )
-                        Spacer(Modifier.width(12.dp))
+                        Spacer(Modifier.width(10.dp))
                         Column(modifier = Modifier.weight(1f)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    currentProfile.season,
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = EditorialInk,
-                                )
-                                Spacer(Modifier.width(6.dp))
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .background(EditorialPositive.copy(alpha = 0.15f))
-                                        .padding(horizontal = 6.dp, vertical = 2.dp),
-                                ) {
-                                    Text("YOUR SEASON", color = EditorialPositive, fontWeight = FontWeight.Bold, fontSize = 9.sp)
-                                }
-                            }
                             Text(
-                                "Undertone: ${currentProfile.undertone} • ${currentProfile.bestMetals}",
-                                style = MaterialTheme.typography.bodySmall,
+                                currentProfile.season,
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = EditorialInk,
+                            )
+                            Text(
+                                "${currentProfile.undertone} • ${currentProfile.bestMetals}",
+                                style = MaterialTheme.typography.labelSmall,
                                 color = EditorialMuted,
                             )
                         }
@@ -250,11 +233,11 @@ fun ExploreScreen(
                         val isSel = selectedCategory == cat
                         Box(
                             modifier = Modifier
-                                .clip(RoundedCornerShape(12.dp))
+                                .clip(RoundedCornerShape(10.dp))
                                 .background(if (isSel) EditorialSienna else Color.White)
-                                .border(1.dp, if (isSel) EditorialSienna else EditorialStone.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
+                                .border(1.dp, if (isSel) EditorialSienna else EditorialStone.copy(alpha = 0.40f), RoundedCornerShape(10.dp))
                                 .clickable { selectedCategory = cat }
-                                .padding(horizontal = 14.dp, vertical = 8.dp),
+                                .padding(horizontal = 14.dp, vertical = 7.dp),
                         ) {
                             Text(
                                 "${cat.icon} ${cat.label}",
@@ -266,92 +249,94 @@ fun ExploreScreen(
                     }
                 }
 
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(14.dp))
 
-                // Filter items by user season and selected occasion
                 val matchingItems = allCuratedPaletteItems.filter {
                     it.forSeason.equals(currentProfile.season, ignoreCase = true) && it.category == selectedCategory
                 }.ifEmpty {
-                    // Fallback to all items for the user's season if none match that specific occasion category
                     allCuratedPaletteItems.filter { it.forSeason.equals(currentProfile.season, ignoreCase = true) }
                 }.ifEmpty {
-                    // Or default palette items
                     allCuratedPaletteItems.take(4)
                 }
 
-                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     matchingItems.forEach { item ->
                         val fabric = FabricCatalog.findById(item.fabricId)
                         val eval = TrueColorHarmonyEngine.evaluate(currentProfile.skinHex, item.hex)
 
                         Card(
-                            shape = RoundedCornerShape(18.dp),
+                            shape = RoundedCornerShape(16.dp),
                             colors = CardDefaults.cardColors(containerColor = Color.White),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .border(1.dp, EditorialStone.copy(alpha = 0.35f), RoundedCornerShape(18.dp)),
+                                .border(1.dp, EditorialStone.copy(alpha = 0.35f), RoundedCornerShape(16.dp)),
                         ) {
-                            Column(modifier = Modifier.padding(16.dp)) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                            ) {
                                 Row(
-                                    modifier = Modifier.fillMaxWidth(),
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    modifier = Modifier.weight(1f),
                                 ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(46.dp)
-                                                .clip(CircleShape)
-                                                .background(item.hex.asComposeColor())
-                                                .border(2.dp, EditorialStone.copy(alpha = 0.4f), CircleShape),
-                                        )
-                                        Spacer(Modifier.width(12.dp))
-                                        Column {
-                                            Text(item.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = EditorialInk)
-                                            Text("${fabric.icon} ${fabric.name} • ${item.hex}", style = MaterialTheme.typography.bodySmall, color = EditorialMuted)
-                                        }
-                                    }
-
                                     Box(
                                         modifier = Modifier
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .background(EditorialPositive.copy(alpha = 0.12f))
-                                            .padding(horizontal = 8.dp, vertical = 4.dp),
-                                    ) {
-                                        Text("${eval.scorePercent}% Match", color = EditorialPositive, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                                            .size(40.dp)
+                                            .clip(CircleShape)
+                                            .background(item.hex.asComposeColor())
+                                            .border(1.5.dp, EditorialStone, CircleShape),
+                                    )
+                                    Spacer(Modifier.width(10.dp))
+                                    Column {
+                                        Text(
+                                            item.name,
+                                            style = MaterialTheme.typography.titleSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = EditorialInk,
+                                        )
+                                        Text(
+                                            "${fabric.icon} ${fabric.name}",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = EditorialMuted,
+                                            fontSize = 11.sp,
+                                        )
                                     }
                                 }
 
-                                Spacer(Modifier.height(10.dp))
-
-                                Text(
-                                    eval.summaryFeedback,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = EditorialInk.copy(alpha = 0.85f),
-                                )
-
-                                Spacer(Modifier.height(12.dp))
-
                                 Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
                                 ) {
-                                    Button(
-                                        onClick = { onNavigateToDrape(item.fabricId, item.hex) },
-                                        shape = RoundedCornerShape(12.dp),
-                                        colors = ButtonDefaults.buttonColors(containerColor = EditorialSienna),
-                                        modifier = Modifier.weight(1f),
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(EditorialPositive.copy(alpha = 0.10f))
+                                            .padding(horizontal = 6.dp, vertical = 4.dp),
                                     ) {
-                                        Text("🪞 Try in Drape", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                        Text("${eval.scorePercent}%", color = EditorialPositive, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                                     }
 
                                     OutlinedButton(
-                                        onClick = { onNavigateToTryOn(item.fabricId, item.hex) },
-                                        shape = RoundedCornerShape(12.dp),
-                                        modifier = Modifier.weight(1f),
+                                        onClick = { onNavigateToDrape(item.fabricId, item.hex) },
+                                        shape = RoundedCornerShape(10.dp),
+                                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                        modifier = Modifier.height(34.dp),
                                     ) {
-                                        Text("👗 AI Try-On", color = EditorialInk, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                        Text("Drape", color = EditorialInk, fontWeight = FontWeight.SemiBold, fontSize = 11.sp)
+                                    }
+
+                                    Button(
+                                        onClick = { onNavigateToTryOn(item.fabricId, item.hex) },
+                                        shape = RoundedCornerShape(10.dp),
+                                        colors = ButtonDefaults.buttonColors(containerColor = EditorialSienna),
+                                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                        modifier = Modifier.height(34.dp),
+                                    ) {
+                                        Text("Try-On", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 11.sp)
                                     }
                                 }
                             }
@@ -359,7 +344,7 @@ fun ExploreScreen(
                     }
                 }
 
-                Spacer(Modifier.height(24.dp))
+                Spacer(Modifier.height(20.dp))
             }
         }
     }

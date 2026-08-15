@@ -190,7 +190,12 @@ fun DrapeCaptureScreen(
     var isCustomPickerOpen by remember { mutableStateOf(false) }
 
     val activeColorHex = customHex ?: selectedColor.hex
-    val effectiveSkinHex = detectedSkinHex ?: SkinProfileRepository.load(context)?.skinHex ?: "#D8B498"
+    val storedProfile = remember { SkinProfileRepository.load(context) }
+    val effectiveSkinHex = if (storedProfile != null && storedProfile.isCalibrated) {
+        storedProfile.skinHex
+    } else {
+        detectedSkinHex ?: storedProfile?.skinHex ?: "#D8B498"
+    }
 
     val harmonyResult = remember(effectiveSkinHex, activeColorHex) {
         TrueColorHarmonyEngine.evaluate(effectiveSkinHex, activeColorHex)

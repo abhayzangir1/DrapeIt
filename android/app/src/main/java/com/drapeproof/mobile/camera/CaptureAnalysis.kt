@@ -397,13 +397,22 @@ private fun SrgbColor.relativeLuminance(): Double =
 private fun isPlausibleHumanSkin(srgb: SrgbColor?): Boolean {
     if (srgb == null) return false
     val total = (srgb.red + srgb.green + srgb.blue).toDouble()
-    if (total <= 15.0 || total >= 750.0) return false
+    if (total <= 35.0 || total >= 720.0) return false
 
-    val rNorm = srgb.red / total
-    val gNorm = srgb.green / total
-    val bNorm = srgb.blue / total
+    val r = srgb.red.toDouble()
+    val g = srgb.green.toDouble()
+    val b = srgb.blue.toDouble()
 
-    return rNorm in 0.30..0.72 && gNorm in 0.20..0.48 && bNorm in 0.08..0.42 && srgb.red >= srgb.blue
+    // Authentic human skin chromaticity: Red is dominant, Green is intermediate, Blue is lowest
+    if (r < g || g < b * 0.82) return false
+    if (r - b < 10.0) return false // Reject pure grays/neutrals
+
+    val rNorm = r / total
+    val gNorm = g / total
+    val bNorm = b / total
+
+    // Strict human melanin & hemoglobin chromaticity spectrum (Fitzpatrick I to VI)
+    return rNorm in 0.34..0.66 && gNorm in 0.25..0.42 && bNorm in 0.10..0.35
 }
 
 private fun medianColor(colors: List<SrgbColor>): SrgbColor? {

@@ -549,8 +549,7 @@ fun TryOnScreen(
         ) {
             Spacer(Modifier.height(14.dp))
 
-            Text("Virtual Try-On", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = EditorialInk)
-            Text("AI neural fitting & photorealistic drape on your portrait", style = MaterialTheme.typography.bodySmall, color = EditorialMuted)
+            Text("Try-On", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = EditorialInk)
 
             Spacer(Modifier.height(14.dp))
 
@@ -596,11 +595,11 @@ fun TryOnScreen(
                 Card(
                     shape = RoundedCornerShape(20.dp),
                     colors = CardDefaults.cardColors(containerColor = Color.White),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
                     modifier = Modifier
                         .weight(1f)
-                        .height(185.dp)
-                        .border(1.5.dp, EditorialStone.copy(alpha = 0.40f), RoundedCornerShape(20.dp)),
+                        .height(175.dp)
+                        .border(1.dp, EditorialStone.copy(alpha = 0.40f), RoundedCornerShape(20.dp)),
                 ) {
                     val activeAvatarFile = activeAvatar?.imagePath?.let { File(it) }
                     val avatarBmp = if (activeAvatarFile?.exists() == true) BitmapFactory.decodeFile(activeAvatarFile.absolutePath) else null
@@ -646,7 +645,7 @@ fun TryOnScreen(
                             contentAlignment = Alignment.Center,
                         ) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text("📤", fontSize = 32.sp)
+                                Text("📤", fontSize = 30.sp)
                                 Spacer(Modifier.height(6.dp))
                                 Text(
                                     "Upload Person",
@@ -655,7 +654,6 @@ fun TryOnScreen(
                                     fontWeight = FontWeight.Bold,
                                     color = EditorialInk,
                                 )
-                                Text("Tap to select photo", fontSize = 10.sp, color = EditorialMuted)
                             }
                         }
                     }
@@ -1000,7 +998,7 @@ fun TryOnScreen(
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                     Text("👔", fontSize = 42.sp)
                                     Spacer(Modifier.height(8.dp))
-                                    Text("Upload person image above to begin", style = MaterialTheme.typography.bodyMedium, color = EditorialInk, fontWeight = FontWeight.Medium)
+                                    Text("Upload photo to begin", style = MaterialTheme.typography.bodyMedium, color = EditorialInk, fontWeight = FontWeight.Medium)
                                 }
                             }
                         }
@@ -1012,12 +1010,12 @@ fun TryOnScreen(
                     val needsAvatar = activeAvatar == null
 
                     val ctaText = when {
-                        isGenerating -> "Generating Try-On…"
-                        inputSource == TryOnInputSource.SWAP -> "🪄 Instant Color Swap"
-                        needsAvatar -> "👤 Upload Person Above"
-                        needsGarment -> "👔 Upload Garment Above"
-                        inputSource == TryOnInputSource.STYLE -> "Try On ${selectedSilhouette.displayName} ✨"
-                        else -> "Try On Garment ✨"
+                        isGenerating -> "Generating…"
+                        needsAvatar -> "Upload Person"
+                        needsGarment -> "Upload Garment"
+                        inputSource == TryOnInputSource.SWAP -> "Swap Color"
+                        inputSource == TryOnInputSource.STYLE -> "Try On ${selectedSilhouette.displayName}"
+                        else -> "Generate Try-On"
                     }
 
                     Button(
@@ -1035,8 +1033,8 @@ fun TryOnScreen(
                         enabled = !isGenerating,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(52.dp),
-                        shape = RoundedCornerShape(14.dp),
+                            .height(48.dp),
+                        shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = EditorialSienna),
                     ) {
                         Text(ctaText, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color.White)
@@ -1054,17 +1052,17 @@ fun TryOnScreen(
                                 shape = RoundedCornerShape(12.dp),
                                 modifier = Modifier.weight(1f),
                             ) {
-                                Text("🔄 Try Another", color = EditorialInk, fontWeight = FontWeight.Bold)
+                                Text("Try Another", color = EditorialInk, fontWeight = FontWeight.SemiBold)
                             }
 
                             // VIEW IN LOOKS BUTTON
                             Button(
                                 onClick = onNavigateToLooks,
                                 shape = RoundedCornerShape(12.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = EditorialPositive),
+                                colors = ButtonDefaults.buttonColors(containerColor = EditorialInk),
                                 modifier = Modifier.weight(1f),
                             ) {
-                                Text("View in Looks 🪞", color = Color.White, fontWeight = FontWeight.Bold)
+                                Text("View Looks", color = Color.White, fontWeight = FontWeight.SemiBold)
                             }
                         }
                     }
