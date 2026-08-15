@@ -20,6 +20,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
@@ -71,10 +72,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -248,6 +251,12 @@ fun DrapeCaptureScreen(
 
     val colorScrollState = rememberScrollState()
 
+    // Curtain Drop Freeze Animation States
+    var capturedFreezeBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    var isCurtainDropping by remember { mutableStateOf(false) }
+    val curtainDropAnim = remember { Animatable(0f) }
+    val flashBurstAnim = remember { Animatable(0f) }
+
     // Handle Flash toggle
     LaunchedEffect(isFlashOn) {
         cameraControls?.setTorch(isFlashOn)
@@ -327,6 +336,61 @@ fun DrapeCaptureScreen(
                     .fillMaxSize()
                     .background(Color(0xFFFFFBEB).copy(alpha = 0.35f)),
             )
+        }
+
+        // 1.5. FLASH BURST & CURTAIN DROP FREEZE EFFECT
+        if (flashBurstAnim.value > 0.01f) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.White.copy(alpha = flashBurstAnim.value)),
+            )
+        }
+
+        if (isCurtainDropping && capturedFreezeBitmap != null) {
+            val progress = curtainDropAnim.value
+            val translateY = progress * 1400f
+            val scale = 1.0f - progress * 0.18f
+            val alpha = (1.0f - progress * 0.90f).coerceIn(0f, 1f)
+            val rotationZ = -progress * 3.0f
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        this.translationY = translateY
+                        this.scaleX = scale
+                        this.scaleY = scale
+                        this.rotationZ = rotationZ
+                        this.alpha = alpha
+                    }
+                    .clip(RoundedCornerShape((progress * 24).dp))
+                    .border(
+                        width = (3 * (1f - progress)).dp,
+                        color = EditorialSienna.copy(alpha = (1f - progress)),
+                        shape = RoundedCornerShape((progress * 24).dp),
+                    ),
+            ) {
+                Image(
+                    bitmap = capturedFreezeBitmap!!.asImageBitmap(),
+                    contentDescription = "Frozen Curtain Drop Snapshot",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                )
+
+                // Curtain fold wave gradient
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(100.dp)
+                        .align(Alignment.BottomCenter)
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.50f * (1f - progress))),
+                            ),
+                        ),
+                )
+            }
         }
 
         // 2. PHOTOREALISTIC FABRIC DRAPE CANVAS (PBR Shader + Shading)
@@ -703,6 +767,21 @@ fun DrapeCaptureScreen(
                                             matchScorePercent = harmonyResult.scorePercent,
                                             skinHex = capturedSkinHex,
                                         )
+
+                                        // Trigger Freeze & Curtain Drop Animation
+                                        capturedFreezeBitmap = comp
+                                        isCurtainDropping = true
+                                        scope.launch {
+                                            flashBurstAnim.snapTo(0.75f)
+                                            launch { flashBurstAnim.animateTo(0f, tween(200)) }
+                                            curtainDropAnim.snapTo(0f)
+                                            curtainDropAnim.animateTo(
+                                                targetValue = 1f,
+                                                animationSpec = tween(700, easing = FastOutSlowInEasing),
+                                            )
+                                            isCurtainDropping = false
+                                            capturedFreezeBitmap = null
+                                        }
 
                                         toastMessage = "📸 Look saved! Match: ${snap?.matchScorePercent ?: harmonyResult.scorePercent}%"
                                         scope.launch {
