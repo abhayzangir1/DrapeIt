@@ -10,18 +10,18 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
 
-// Editorial Warm Luxury Tokens (from DrapeIt Couture Palette)
-val EditorialInk = Color(0xFF1E1719)
-val EditorialWarmBlack = Color(0xFF271F21)
-val EditorialCream = Color(0xFFFAF7F2)
-val EditorialSand = Color(0xFFF2ECE1)
-val EditorialStone = Color(0xFFE0D5C5)
-val EditorialMuted = Color(0xFF8C7D76)
-val EditorialSienna = Color(0xFF7A1C30) // Haute Couture Burgundy / Wine from Logo
-val EditorialGold = Color(0xFFC59F71)   // Liquid Champagne Rose Gold
-val EditorialPositive = Color(0xFF2C6B4B)
-val EditorialWarning = Color(0xFFB57D33)
-val EditorialNegative = Color(0xFFA63A3A)
+// Minimal Luxury Tokens (Clean, Crisp, Airy)
+val EditorialInk = Color(0xFF111111)
+val EditorialWarmBlack = Color(0xFF1F1F1F)
+val EditorialCream = Color(0xFFFCFCFC) // Pure, airy, minimalist off-white canvas
+val EditorialSand = Color(0xFFF5F5F4)  // Neutral stone surface variant
+val EditorialStone = Color(0xFFE7E5E4) // Delicate hairline border
+val EditorialMuted = Color(0xFF78716C) // Neutral stone subtext
+val EditorialSienna = Color(0xFF7A1C30) // Subtle couture wine accent from Logo
+val EditorialGold = Color(0xFFB48B57)   // Subtle champagne gold
+val EditorialPositive = Color(0xFF15803D)
+val EditorialWarning = Color(0xFFB45309)
+val EditorialNegative = Color(0xFFBE123C)
 
 // Backward-compatibility aliases
 val LuxuryCanvas = EditorialCream
@@ -43,7 +43,7 @@ val QuietGray = EditorialMuted
 
 private val EditorialLuxuryColorScheme = lightColorScheme(
     primary = EditorialInk,
-    onPrimary = EditorialCream,
+    onPrimary = Color.White,
     secondary = EditorialSienna,
     onSecondary = Color.White,
     tertiary = EditorialPositive,
@@ -51,10 +51,10 @@ private val EditorialLuxuryColorScheme = lightColorScheme(
     onBackground = EditorialInk,
     surface = Color.White,
     onSurface = EditorialInk,
-    surfaceVariant = EditorialSand.copy(alpha = 0.55f),
+    surfaceVariant = EditorialSand,
     onSurfaceVariant = EditorialMuted,
-    outline = EditorialStone.copy(alpha = 0.60f),
-    outlineVariant = EditorialSand.copy(alpha = 0.40f),
+    outline = EditorialStone,
+    outlineVariant = EditorialStone.copy(alpha = 0.50f),
 )
 
 @Composable

@@ -9,6 +9,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -26,6 +27,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -42,6 +44,7 @@ import com.drapeproof.mobile.ui.theme.EditorialCream
 import com.drapeproof.mobile.ui.theme.EditorialMuted
 import com.drapeproof.mobile.ui.theme.EditorialSand
 import com.drapeproof.mobile.ui.theme.EditorialSienna
+import com.drapeproof.mobile.ui.theme.EditorialStone
 import com.drapeproof.mobile.ui.welcome.DrapeWelcomeScreen
 import com.drapeproof.mobile.youcam.YouCamLabScreen
 
@@ -127,13 +130,18 @@ fun DrapeProofApp(
             bottomBar = {
                 if (subFlow == SubFlow.NONE) {
                     NavigationBar(
-                        containerColor = EditorialSand.copy(alpha = 0.85f),
-                        tonalElevation = 6.dp,
+                        containerColor = Color.White,
+                        tonalElevation = 0.dp,
+                        modifier = Modifier.border(
+                            width = 0.75.dp,
+                            color = EditorialStone.copy(alpha = 0.60f),
+                            shape = androidx.compose.ui.graphics.RectangleShape,
+                        ),
                     ) {
                         AppTab.values().forEach { tab ->
                             val selected = currentTab == tab
                             val iconScale by animateFloatAsState(
-                                targetValue = if (selected) 1.25f else 1.0f,
+                                targetValue = if (selected) 1.22f else 1.0f,
                                 animationSpec = spring(
                                     dampingRatio = Spring.DampingRatioMediumBouncy,
                                     stiffness = Spring.StiffnessLow,
@@ -154,13 +162,13 @@ fun DrapeProofApp(
                                 label = {
                                     Text(
                                         tab.title,
-                                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
                                         color = if (selected) EditorialSienna else EditorialMuted,
                                         fontSize = 11.sp,
                                     )
                                 },
                                 colors = NavigationBarItemDefaults.colors(
-                                    indicatorColor = EditorialCream,
+                                    indicatorColor = EditorialSand,
                                     selectedIconColor = EditorialSienna,
                                     unselectedIconColor = EditorialMuted,
                                 ),
