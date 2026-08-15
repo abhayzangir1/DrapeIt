@@ -36,8 +36,8 @@ import com.drapeproof.mobile.ui.theme.EditorialSienna
 import com.drapeproof.mobile.youcam.YouCamLabScreen
 
 enum class AppTab(val title: String, val icon: String) {
-    DRAPE("Drape", "🪞"),
     EXPLORE("Explore", "🔍"),
+    DRAPE("Drape", "🪞"),
     LOOKS("Looks", "✨"),
     PROFILE("Profile", "👤"),
 }
@@ -56,8 +56,12 @@ fun DrapeProofApp(
 ) {
     val context = LocalContext.current
     var isOnboarded by remember { mutableStateOf(UserProfileStore.isOnboarded(context)) }
-    var currentTab by remember { mutableStateOf(AppTab.DRAPE) }
+    var currentTab by remember { mutableStateOf(AppTab.EXPLORE) }
     var subFlow by remember { mutableStateOf(SubFlow.NONE) }
+
+    // Inter-screen parameters for Drape
+    var drapeInitialFabricId by remember { mutableStateOf<String?>("silk") }
+    var drapeInitialColorHex by remember { mutableStateOf<String?>("#831843") }
 
     // Inter-screen styling parameters for Try-On
     var tryOnFabricId by remember { mutableStateOf("silk") }
@@ -68,6 +72,8 @@ fun DrapeProofApp(
         if (sharedImageUri != null) {
             tryOnGarmentUri = sharedImageUri
             currentTab = AppTab.LOOKS
+            subFlow = SubFlow.TRY_ON
+            onSharedImageConsumed()
         }
     }
 
@@ -76,11 +82,11 @@ fun DrapeProofApp(
         return
     }
 
-    BackHandler(enabled = subFlow != SubFlow.NONE || currentTab != AppTab.DRAPE) {
+    BackHandler(enabled = subFlow != SubFlow.NONE || currentTab != AppTab.EXPLORE) {
         if (subFlow != SubFlow.NONE) {
             subFlow = SubFlow.NONE
         } else {
-            currentTab = AppTab.DRAPE
+            currentTab = AppTab.EXPLORE
         }
     }
 
@@ -157,26 +163,31 @@ fun DrapeProofApp(
 
                 SubFlow.NONE -> {
                     when (currentTab) {
-                        AppTab.DRAPE -> {
-                            DrapeCaptureScreen(
-                                onBack = { currentTab = AppTab.EXPLORE },
-                                onNavigateToCompare = { subFlow = SubFlow.COMPARE },
+                        AppTab.EXPLORE -> {
+                            ExploreScreen(
+                                onNavigateToDrape = { fabricId, colorHex ->
+                                    drapeInitialFabricId = fabricId
+                                    drapeInitialColorHex = colorHex
+                                    currentTab = AppTab.DRAPE
+                                },
                                 onNavigateToTryOn = { fabricId, colorHex ->
                                     tryOnFabricId = fabricId
                                     tryOnColorHex = colorHex
                                     tryOnGarmentUri = null
                                     subFlow = SubFlow.TRY_ON
                                 },
+                                onNavigateToProfile = {
+                                    currentTab = AppTab.PROFILE
+                                },
                             )
                         }
 
-                        AppTab.EXPLORE -> {
-                            ExploreScreen(
-                                onNavigateToDrape = { fabricId, colorHex ->
-                                    tryOnFabricId = fabricId
-                                    tryOnColorHex = colorHex
-                                    currentTab = AppTab.DRAPE
-                                },
+                        AppTab.DRAPE -> {
+                            DrapeCaptureScreen(
+                                initialFabricId = drapeInitialFabricId,
+                                initialColorHex = drapeInitialColorHex,
+                                onBack = { currentTab = AppTab.EXPLORE },
+                                onNavigateToCompare = { subFlow = SubFlow.COMPARE },
                                 onNavigateToTryOn = { fabricId, colorHex ->
                                     tryOnFabricId = fabricId
                                     tryOnColorHex = colorHex
@@ -195,9 +206,12 @@ fun DrapeProofApp(
                                     subFlow = SubFlow.TRY_ON
                                 },
                                 onNavigateToDrape = { fabricId, colorHex ->
-                                    tryOnFabricId = fabricId
-                                    tryOnColorHex = colorHex
+                                    drapeInitialFabricId = fabricId
+                                    drapeInitialColorHex = colorHex
                                     currentTab = AppTab.DRAPE
+                                },
+                                onNavigateToCompare = {
+                                    subFlow = SubFlow.COMPARE
                                 },
                             )
                         }

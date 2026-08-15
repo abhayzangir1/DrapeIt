@@ -52,41 +52,63 @@ import com.drapeproof.mobile.ui.theme.EditorialPositive
 import com.drapeproof.mobile.ui.theme.EditorialSand
 import com.drapeproof.mobile.ui.theme.EditorialSienna
 import com.drapeproof.mobile.ui.theme.EditorialStone
-import com.drapeproof.mobile.ui.theme.EditorialWarning
 
-private enum class OccasionPreset(val label: String, val icon: String, val focusAdvice: String) {
-    EVERYDAY("Everyday", "🌿", "Comfortable, breathable neutrals with balanced contrast."),
-    OFFICE("Office & Work", "💼", "Structured tailoring in deep navy, charcoal, and crisp olive."),
-    EVENING("Evening Occasion", "✨", "Luminous jewel tones in mulberry silk and lustrous velvet."),
-    FORMAL("Formal / Gala", "🎩", "High-contrast blacks, royal burgundies, and crisp whites."),
+private enum class OccasionCategory(val label: String, val icon: String) {
+    EVERYDAY("Everyday Basics", "🌿"),
+    WORK("Work & Tailoring", "💼"),
+    EVENING("Evening & Party", "✨"),
+    WEEKEND("Weekend Casual", "☕"),
 }
 
-private data class CuratedColorItem(val name: String, val hex: String, val recommendedFabricId: String, val occasionTag: OccasionPreset)
+private data class SeasonalPaletteItem(
+    val name: String,
+    val hex: String,
+    val fabricId: String,
+    val category: OccasionCategory,
+    val forSeason: String,
+)
 
-private val curatedExplorePalette = listOf(
-    CuratedColorItem("Royal Burgundy", "#831843", "silk", OccasionPreset.EVENING),
-    CuratedColorItem("Cognac Saddle", "#78350F", "leather", OccasionPreset.EVERYDAY),
-    CuratedColorItem("Highland Tweed", "#4B5563", "tweed", OccasionPreset.OFFICE),
-    CuratedColorItem("Deep Olive", "#3F6212", "linen", OccasionPreset.EVERYDAY),
-    CuratedColorItem("Obsidian Noir", "#0F172A", "satin", OccasionPreset.FORMAL),
-    CuratedColorItem("Amber Ochre", "#D97706", "corduroy", OccasionPreset.EVERYDAY),
-    CuratedColorItem("Cobalt Navy", "#1D4ED8", "wool", OccasionPreset.OFFICE),
-    CuratedColorItem("Champagne Rose", "#E2B8B3", "chiffon", OccasionPreset.EVENING),
-    CuratedColorItem("Terracotta Clay", "#B45309", "cotton", OccasionPreset.EVERYDAY),
-    CuratedColorItem("Emerald Pine", "#047857", "velvet", OccasionPreset.EVENING),
-    CuratedColorItem("Midnight Charcoal", "#1F2937", "cashmere", OccasionPreset.FORMAL),
-    CuratedColorItem("Warm Ivory", "#F7EFE8", "silk", OccasionPreset.OFFICE),
-    CuratedColorItem("Dusty Rose", "#FDA4AF", "linen", OccasionPreset.EVERYDAY),
+private val allCuratedPaletteItems = listOf(
+    // Deep Autumn items
+    SeasonalPaletteItem("Royal Burgundy", "#831843", "silk", OccasionCategory.EVENING, "Deep Autumn"),
+    SeasonalPaletteItem("Cognac Saddle", "#78350F", "leather", OccasionCategory.EVERYDAY, "Deep Autumn"),
+    SeasonalPaletteItem("Deep Olive", "#3F6212", "linen", OccasionCategory.WEEKEND, "Deep Autumn"),
+    SeasonalPaletteItem("Amber Ochre", "#D97706", "cotton", OccasionCategory.WORK, "Deep Autumn"),
+    SeasonalPaletteItem("Obsidian Noir", "#0F172A", "satin", OccasionCategory.EVENING, "Deep Autumn"),
+    SeasonalPaletteItem("Terracotta Clay", "#B45309", "cotton", OccasionCategory.EVERYDAY, "Deep Autumn"),
+
+    // True Winter items
+    SeasonalPaletteItem("Cobalt Navy", "#1D4ED8", "wool", OccasionCategory.WORK, "True Winter"),
+    SeasonalPaletteItem("Emerald Pine", "#047857", "velvet", OccasionCategory.EVENING, "True Winter"),
+    SeasonalPaletteItem("Royal Velvet", "#4C1D95", "velvet", OccasionCategory.EVENING, "True Winter"),
+    SeasonalPaletteItem("Midnight Charcoal", "#1F2937", "cashmere", OccasionCategory.WORK, "True Winter"),
+    SeasonalPaletteItem("Pure Obsidian", "#0F172A", "satin", OccasionCategory.EVENING, "True Winter"),
+    SeasonalPaletteItem("Crisp Denim", "#2563EB", "denim", OccasionCategory.WEEKEND, "True Winter"),
+
+    // Warm Spring items
+    SeasonalPaletteItem("Sunlit Coral", "#EA580C", "silk", OccasionCategory.EVENING, "Warm Spring"),
+    SeasonalPaletteItem("Warm Camel", "#CA8A04", "wool", OccasionCategory.WORK, "Warm Spring"),
+    SeasonalPaletteItem("Moss Olive", "#65A30D", "linen", OccasionCategory.EVERYDAY, "Warm Spring"),
+    SeasonalPaletteItem("Warm Ivory", "#F7EFE8", "silk", OccasionCategory.WORK, "Warm Spring"),
+    SeasonalPaletteItem("Spiced Ochre", "#D97706", "cotton", OccasionCategory.WEEKEND, "Warm Spring"),
+
+    // Soft Summer items
+    SeasonalPaletteItem("Dusty Rose", "#BE185D", "silk", OccasionCategory.EVENING, "Soft Summer"),
+    SeasonalPaletteItem("Slate Navy", "#475569", "wool", OccasionCategory.WORK, "Soft Summer"),
+    SeasonalPaletteItem("French Blue", "#2563EB", "linen", OccasionCategory.WEEKEND, "Soft Summer"),
+    SeasonalPaletteItem("Soft Mauve", "#9333EA", "velvet", OccasionCategory.EVENING, "Soft Summer"),
+    SeasonalPaletteItem("Heather Gray", "#64748B", "cotton", OccasionCategory.EVERYDAY, "Soft Summer"),
 )
 
 @Composable
 fun ExploreScreen(
     onNavigateToDrape: (fabricId: String, colorHex: String) -> Unit,
     onNavigateToTryOn: (fabricId: String, colorHex: String) -> Unit,
+    onNavigateToProfile: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val storedProfile = remember { SkinProfileRepository.load(context) }
-    var selectedOccasion by remember { mutableStateOf(OccasionPreset.EVERYDAY) }
+    var selectedCategory by remember { mutableStateOf(OccasionCategory.EVERYDAY) }
 
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -108,189 +130,229 @@ fun ExploreScreen(
                 color = EditorialInk,
             )
             Text(
-                "Curated occasion colorways & fabric pairings",
+                "Curated occasion colors & fabrics personalized to your profile",
                 style = MaterialTheme.typography.bodySmall,
                 color = EditorialMuted,
             )
 
             Spacer(Modifier.height(16.dp))
 
-            if (storedProfile == null) {
-                // UNCALIBRATED STATE: PROMPT USER TO CAPTURE FIRST
+            if (storedProfile == null || !storedProfile.isCalibrated) {
+                // EMPTY STATE: PROMPT USER TO SETUP PROFILE
                 Card(
-                    shape = RoundedCornerShape(20.dp),
+                    shape = RoundedCornerShape(22.dp),
                     colors = CardDefaults.cardColors(containerColor = Color.White),
                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .border(1.dp, EditorialStone.copy(alpha = 0.35f), RoundedCornerShape(20.dp)),
+                        .border(1.dp, EditorialStone.copy(alpha = 0.35f), RoundedCornerShape(22.dp)),
                 ) {
                     Column(
-                        modifier = Modifier.padding(20.dp),
+                        modifier = Modifier.padding(24.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
-                        Text("🪞", fontSize = 40.sp)
-                        Spacer(Modifier.height(10.dp))
+                        Text("✨", fontSize = 46.sp)
+                        Spacer(Modifier.height(12.dp))
                         Text(
-                            "Calibrate in Drape Studio First",
-                            style = MaterialTheme.typography.titleMedium,
+                            "Setup Your Color Profile",
+                            style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
                             color = EditorialInk,
                             textAlign = TextAlign.Center,
                         )
-                        Spacer(Modifier.height(6.dp))
+                        Spacer(Modifier.height(8.dp))
                         Text(
-                            "Measure your skin undertone and snap a photo in the Drape studio to unlock personalized compatibility rankings tailored to your exact complexion.",
-                            style = MaterialTheme.typography.bodySmall,
+                            "Scan your face once or upload a photo to unlock your personal seasonal wardrobe, signature flattering shades, and custom fabric pairings.",
+                            style = MaterialTheme.typography.bodyMedium,
                             color = EditorialMuted,
                             textAlign = TextAlign.Center,
-                            lineHeight = 18.sp,
+                            lineHeight = 20.sp,
                         )
-                        Spacer(Modifier.height(16.dp))
+                        Spacer(Modifier.height(18.dp))
                         Button(
-                            onClick = { onNavigateToDrape("silk", "#831843") },
+                            onClick = onNavigateToProfile,
                             shape = RoundedCornerShape(14.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = EditorialSienna),
+                            modifier = Modifier.fillMaxWidth(),
                         ) {
-                            Text("🪞 Open Drape Studio", color = Color.White, fontWeight = FontWeight.Bold)
+                            Text("📸 Scan Face to Setup Profile", color = Color.White, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
 
-                Spacer(Modifier.height(20.dp))
-
-                Text(
-                    "Universal Seasonal Palettes Preview",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = EditorialInk,
-                )
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(24.dp))
             } else {
-                // CALIBRATED STATE: OCCASION PRESET TABS
-                Row(
+                // CALIBRATED STATE: SEASON PROFILE BANNER
+                Card(
+                    shape = RoundedCornerShape(18.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        .border(1.dp, EditorialStone.copy(alpha = 0.30f), RoundedCornerShape(18.dp)),
                 ) {
-                    OccasionPreset.values().forEach { preset ->
-                        val isSelected = selectedOccasion == preset
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
                         Box(
                             modifier = Modifier
-                                .clip(RoundedCornerShape(16.dp))
-                                .background(if (isSelected) EditorialSienna else Color.White)
-                                .border(1.dp, if (isSelected) EditorialSienna else EditorialStone.copy(alpha = 0.35f), RoundedCornerShape(16.dp))
-                                .clickable { selectedOccasion = preset }
-                                .padding(horizontal = 14.dp, vertical = 8.dp),
-                        ) {
+                                .size(44.dp)
+                                .clip(CircleShape)
+                                .background(storedProfile.skinHex.asComposeColor())
+                                .border(2.dp, EditorialSand, CircleShape),
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(preset.icon, fontSize = 14.sp)
-                                Spacer(Modifier.width(6.dp))
                                 Text(
-                                    preset.label,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                    color = if (isSelected) Color.White else EditorialInk,
+                                    storedProfile.season,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = EditorialInk,
                                 )
+                                Spacer(Modifier.width(6.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(EditorialPositive.copy(alpha = 0.15f))
+                                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                                ) {
+                                    Text("YOUR SEASON", color = EditorialPositive, fontWeight = FontWeight.Bold, fontSize = 9.sp)
+                                }
                             }
+                            Text(
+                                "Undertone: ${storedProfile.undertone} • ${storedProfile.bestMetals}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = EditorialMuted,
+                            )
                         }
                     }
                 }
 
                 Spacer(Modifier.height(14.dp))
 
-                // Occasion Guidance Pill
-                Card(
-                    shape = RoundedCornerShape(14.dp),
-                    colors = CardDefaults.cardColors(containerColor = EditorialSand.copy(alpha = 0.6f)),
-                    modifier = Modifier.fillMaxWidth(),
+                // OCCASION CATEGORY SELECTOR
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Text(
-                        selectedOccasion.focusAdvice,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = EditorialInk,
-                        modifier = Modifier.padding(12.dp),
-                    )
+                    OccasionCategory.values().forEach { cat ->
+                        val isSel = selectedCategory == cat
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(if (isSel) EditorialSienna else Color.White)
+                                .border(1.dp, if (isSel) EditorialSienna else EditorialStone.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
+                                .clickable { selectedCategory = cat }
+                                .padding(horizontal = 14.dp, vertical = 8.dp),
+                        ) {
+                            Text(
+                                "${cat.icon} ${cat.label}",
+                                fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
+                                color = if (isSel) Color.White else EditorialInk,
+                                fontSize = 12.sp,
+                            )
+                        }
+                    }
                 }
 
                 Spacer(Modifier.height(16.dp))
-            }
 
-            // COLORWAY CARDS LIST
-            val itemsToDisplay = if (storedProfile == null) curatedExplorePalette.take(4) else curatedExplorePalette.filter { it.occasionTag == selectedOccasion }
-
-            itemsToDisplay.forEach { item ->
-                val fabric = FabricCatalog.allFabrics.find { it.id == item.recommendedFabricId } ?: FabricCatalog.defaultFabric
-                val skinHex = storedProfile?.skinHex ?: "#D8B498"
-                val score = remember(skinHex, item.hex) {
-                    TrueColorHarmonyEngine.evaluate(skinHex, item.hex)
+                // Filter items by user season and selected occasion
+                val matchingItems = allCuratedPaletteItems.filter {
+                    it.forSeason.equals(storedProfile.season, ignoreCase = true) && it.category == selectedCategory
+                }.ifEmpty {
+                    // Fallback to all items for the user's season if none match that specific occasion category
+                    allCuratedPaletteItems.filter { it.forSeason.equals(storedProfile.season, ignoreCase = true) }
+                }.ifEmpty {
+                    // Or default palette items
+                    allCuratedPaletteItems.take(4)
                 }
 
-                Card(
-                    shape = RoundedCornerShape(18.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 12.dp)
-                        .border(1.dp, EditorialStone.copy(alpha = 0.35f), RoundedCornerShape(18.dp)),
-                ) {
-                    Row(
-                        modifier = Modifier.padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        // Swatch circle
-                        Box(
+                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    matchingItems.forEach { item ->
+                        val fabric = FabricCatalog.findById(item.fabricId)
+                        val eval = TrueColorHarmonyEngine.evaluate(storedProfile.skinHex, item.hex)
+
+                        Card(
+                            shape = RoundedCornerShape(18.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                             modifier = Modifier
-                                .size(50.dp)
-                                .clip(CircleShape)
-                                .background(item.hex.asComposeColor())
-                                .border(2.dp, EditorialStone, CircleShape),
-                        )
+                                .fillMaxWidth()
+                                .border(1.dp, EditorialStone.copy(alpha = 0.35f), RoundedCornerShape(18.dp)),
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(46.dp)
+                                                .clip(CircleShape)
+                                                .background(item.hex.asComposeColor())
+                                                .border(2.dp, EditorialStone.copy(alpha = 0.4f), CircleShape),
+                                        )
+                                        Spacer(Modifier.width(12.dp))
+                                        Column {
+                                            Text(item.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = EditorialInk)
+                                            Text("${fabric.icon} ${fabric.name} • ${item.hex}", style = MaterialTheme.typography.bodySmall, color = EditorialMuted)
+                                        }
+                                    }
 
-                        Spacer(Modifier.width(14.dp))
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(EditorialPositive.copy(alpha = 0.12f))
+                                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                                    ) {
+                                        Text("${eval.scorePercent}% Match", color = EditorialPositive, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                                    }
+                                }
 
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(item.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = EditorialInk)
-                            Text(
-                                "Best with ${fabric.icon} ${fabric.name}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = EditorialMuted,
-                            )
-                            if (storedProfile != null) {
-                                Spacer(Modifier.height(3.dp))
+                                Spacer(Modifier.height(10.dp))
+
                                 Text(
-                                    "Match: ${score.scorePercent}% • ${score.harmonyLabel}",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (score.scorePercent >= 86) EditorialPositive else EditorialWarning,
+                                    eval.summaryFeedback,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = EditorialInk.copy(alpha = 0.85f),
                                 )
-                            }
-                        }
 
-                        Column(horizontalAlignment = Alignment.End) {
-                            Button(
-                                onClick = { onNavigateToDrape(fabric.id, item.hex) },
-                                shape = RoundedCornerShape(10.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = EditorialSienna),
-                                modifier = Modifier.height(32.dp),
-                            ) {
-                                Text("Drape", color = Color.White, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
-                            }
-                            Spacer(Modifier.height(4.dp))
-                            OutlinedButton(
-                                onClick = { onNavigateToTryOn(fabric.id, item.hex) },
-                                shape = RoundedCornerShape(10.dp),
-                                modifier = Modifier.height(32.dp),
-                            ) {
-                                Text("Try-On", color = EditorialInk, style = MaterialTheme.typography.labelSmall)
+                                Spacer(Modifier.height(12.dp))
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    Button(
+                                        onClick = { onNavigateToDrape(item.fabricId, item.hex) },
+                                        shape = RoundedCornerShape(12.dp),
+                                        colors = ButtonDefaults.buttonColors(containerColor = EditorialSienna),
+                                        modifier = Modifier.weight(1f),
+                                    ) {
+                                        Text("🪞 Try in Drape", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                    }
+
+                                    OutlinedButton(
+                                        onClick = { onNavigateToTryOn(item.fabricId, item.hex) },
+                                        shape = RoundedCornerShape(12.dp),
+                                        modifier = Modifier.weight(1f),
+                                    ) {
+                                        Text("👗 AI Try-On", color = EditorialInk, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                    }
+                                }
                             }
                         }
                     }
                 }
-            }
 
-            Spacer(Modifier.height(24.dp))
+                Spacer(Modifier.height(24.dp))
+            }
         }
     }
 }

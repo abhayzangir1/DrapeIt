@@ -43,10 +43,18 @@ data class CameraControlStatus(
 
 @androidx.annotation.OptIn(markerClass = [ExperimentalCamera2Interop::class])
 class DrapeCameraControls internal constructor(
+    private val cameraControl: androidx.camera.core.CameraControl,
     private val camera2Control: Camera2CameraControl,
     private val aeLockAvailable: Boolean,
     private val awbLockAvailable: Boolean,
+    val hasFlashUnit: Boolean,
 ) {
+    fun setTorch(enabled: Boolean) {
+        if (hasFlashUnit) {
+            runCatching { cameraControl.enableTorch(enabled) }
+        }
+    }
+
     fun lock(onComplete: (CameraControlStatus) -> Unit) {
         val builder = CaptureRequestOptions.Builder()
         if (aeLockAvailable) builder.setCaptureRequestOption(CaptureRequest.CONTROL_AE_LOCK, true)
@@ -142,9 +150,11 @@ fun ControlledCameraPreview(
             val awbAvailable = info.getCameraCharacteristic(CameraCharacteristics.CONTROL_AWB_LOCK_AVAILABLE) == true
             currentOnControlsReady(
                 DrapeCameraControls(
+                    cameraControl = camera.cameraControl,
                     camera2Control = Camera2CameraControl.from(camera.cameraControl),
                     aeLockAvailable = aeAvailable,
                     awbLockAvailable = awbAvailable,
+                    hasFlashUnit = camera.cameraInfo.hasFlashUnit(),
                 ),
             )
         } catch (error: Throwable) {

@@ -26,10 +26,8 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.animateIntAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -56,12 +54,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -91,7 +85,6 @@ import androidx.core.content.ContextCompat
 import com.drapeproof.core.color.TrueColorHarmonyEngine
 import com.drapeproof.mobile.data.DrapeSnapRepository
 import com.drapeproof.mobile.data.SkinProfileRepository
-import com.drapeproof.mobile.data.StoredSkinProfile
 import com.drapeproof.mobile.fabric.FabricCatalog
 import com.drapeproof.mobile.fabric.FabricMaterial
 import com.drapeproof.mobile.fabric.FabricTextureShader
@@ -109,14 +102,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-enum class DrapeMode(val label: String) {
-    LIVE("🔴 LIVE"),
-    PHOTO("📸 PHOTO"),
-    COMPARE("⚖️ COMPARE"),
-}
-
-fun shouldOpenCameraSettings(requested: Boolean, granted: Boolean, showRationale: Boolean): Boolean {
-    return requested && !granted && !showRationale
+fun shouldOpenCameraSettings(hasRequestedPermission: Boolean, isGranted: Boolean, showRationale: Boolean): Boolean {
+    return hasRequestedPermission && !isGranted && !showRationale
 }
 
 private data class CameraColorItem(val name: String, val hex: String, val category: String)
@@ -136,15 +123,19 @@ private val cameraColorPalette = listOf(
     CameraColorItem("Sky Blue", "#93C5FD", "Pastels"),
 )
 
+// Repeated palette for seamless infinite scrolling loop
+private val infiniteColorPalette = cameraColorPalette + cameraColorPalette + cameraColorPalette + cameraColorPalette + cameraColorPalette
+
 @Composable
 fun DrapeCaptureScreen(
+    initialFabricId: String? = null,
+    initialColorHex: String? = null,
     onBack: () -> Unit,
-    onNavigateToCompare: () -> Unit,
+    onNavigateToCompare: () -> Unit = {},
     onNavigateToTryOn: ((fabricId: String, colorHex: String) -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var activeMode by remember { mutableStateOf(DrapeMode.LIVE) }
 
     var permissionGranted by remember {
         mutableStateOf(
@@ -161,48 +152,7 @@ fun DrapeCaptureScreen(
         }
     }
 
-    if (!permissionGranted && activeMode == DrapeMode.LIVE) {
-        Surface(modifier = Modifier.fillMaxSize(), color = EditorialCream) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(32.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
-            ) {
-                Text("📷", fontSize = 48.sp)
-                Spacer(Modifier.height(16.dp))
-                Text("Camera Access Required", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = EditorialInk)
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    "DrapeIt measures live skin colorimetry and projects virtual fabrics onto your chest.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    textAlign = TextAlign.Center,
-                    color = EditorialMuted,
-                )
-                Spacer(Modifier.height(20.dp))
-                Button(
-                    onClick = { permissionLauncher.launch(Manifest.permission.CAMERA) },
-                    colors = ButtonDefaults.buttonColors(containerColor = EditorialSienna),
-                    shape = RoundedCornerShape(14.dp),
-                ) {
-                    Text("Grant Camera Access", color = Color.White)
-                }
-                Spacer(Modifier.height(8.dp))
-                OutlinedButton(onClick = onBack, shape = RoundedCornerShape(14.dp)) {
-                    Text("Back to Studio", color = EditorialInk)
-                }
-            }
-        }
-        return
-    }
-
-    // Live Camera & Face Tracking State
-    var latestReading by remember { mutableStateOf<FrameReading?>(null) }
-    var detectedSkinHex by remember { mutableStateOf<String?>(null) }
-    var rawFrameBitmap by remember { mutableStateOf<Bitmap?>(null) }
-
-    // Photo Mode State
+    // Photo Mode State (if user chooses to drape on an uploaded photo)
     var photoBitmap by remember { mutableStateOf<Bitmap?>(null) }
     val photoPickerLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri?.let {
@@ -214,21 +164,30 @@ fun DrapeCaptureScreen(
         }
     }
 
-    // Fabric & Color Selection
-    var selectedFabric by remember { mutableStateOf(FabricCatalog.defaultFabric) }
-    var isFabricDropdownOpen by remember { mutableStateOf(false) }
-    var selectedColor by remember { mutableStateOf(cameraColorPalette[0]) }
-    var isCustomPickerOpen by remember { mutableStateOf(false) }
-    var customHue by remember { mutableStateOf(340f) }
-    var customHex by remember { mutableStateOf<String?>(null) }
+    // Camera & Flash / Torch State
+    var cameraControls by remember { mutableStateOf<DrapeCameraControls?>(null) }
+    var isFlashOn by remember { mutableStateOf(false) }
 
-    // Why Breakdown State
-    var isWhyExpanded by remember { mutableStateOf(false) }
+    // Live Camera & Face Tracking State
+    var latestReading by remember { mutableStateOf<FrameReading?>(null) }
+    var detectedSkinHex by remember { mutableStateOf<String?>(null) }
+    var activePreviewView by remember { mutableStateOf<PreviewView?>(null) }
+
+    // Fabric & Color Selection (with optional preselection from Explore)
+    var selectedFabric by remember {
+        mutableStateOf(if (initialFabricId != null) FabricCatalog.findById(initialFabricId) else FabricCatalog.defaultFabric)
+    }
+    var isFabricListExpanded by remember { mutableStateOf(false) }
+    var selectedColor by remember {
+        mutableStateOf(cameraColorPalette.find { it.hex.equals(initialColorHex, ignoreCase = true) } ?: cameraColorPalette[0])
+    }
+    var customHex by remember { mutableStateOf(initialColorHex) }
+    var isCustomPickerOpen by remember { mutableStateOf(false) }
 
     // Real Perceptual Color Compatibility Evaluation
     val activeColorHex = customHex ?: selectedColor.hex
     val hasFaceDetected = latestReading?.hasFace == true
-    val effectiveSkinHex = detectedSkinHex ?: "#D8B498"
+    val effectiveSkinHex = detectedSkinHex ?: SkinProfileRepository.load(context)?.skinHex ?: "#D8B498"
 
     val harmonyResult = remember(effectiveSkinHex, activeColorHex) {
         TrueColorHarmonyEngine.evaluate(effectiveSkinHex, activeColorHex)
@@ -265,7 +224,7 @@ fun DrapeCaptureScreen(
         }
     }
 
-    // Landmark Low-Pass Filter Smoothing (removes tracking jitter for stable, weighted drape)
+    // Landmark Low-Pass Filter Smoothing
     var smoothedChinX by remember { mutableStateOf(0.50f) }
     var smoothedChinY by remember { mutableStateOf(0.54f) }
     var smoothedYaw by remember { mutableStateOf(0.0f) }
@@ -287,11 +246,52 @@ fun DrapeCaptureScreen(
         FabricTextureShader.getOrLoadTile(context, selectedFabric.id)
     }
 
-    var activePreviewView by remember { mutableStateOf<PreviewView?>(null) }
+    val colorScrollState = rememberScrollState()
+
+    // Handle Flash toggle
+    LaunchedEffect(isFlashOn) {
+        cameraControls?.setTorch(isFlashOn)
+    }
+
+    if (!permissionGranted && photoBitmap == null) {
+        Surface(modifier = Modifier.fillMaxSize(), color = EditorialCream) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(32.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                Text("📷", fontSize = 48.sp)
+                Spacer(Modifier.height(16.dp))
+                Text("Camera Access Required", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = EditorialInk)
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "DrapeIt projects virtual fabrics and measures live facial colorimetry in real time.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Center,
+                    color = EditorialMuted,
+                )
+                Spacer(Modifier.height(20.dp))
+                Button(
+                    onClick = { permissionLauncher.launch(Manifest.permission.CAMERA) },
+                    colors = ButtonDefaults.buttonColors(containerColor = EditorialSienna),
+                    shape = RoundedCornerShape(14.dp),
+                ) {
+                    Text("Grant Camera Access", color = Color.White)
+                }
+                Spacer(Modifier.height(8.dp))
+                OutlinedButton(onClick = { photoPickerLauncher.launch("image/*") }, shape = RoundedCornerShape(14.dp)) {
+                    Text("Upload Photo Instead", color = EditorialInk)
+                }
+            }
+        }
+        return
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        // 1. LIVE CAMERA OR PHOTO MODE VIEWPORT
-        if (activeMode == DrapeMode.LIVE) {
+        // 1. LIVE CAMERA OR PHOTO VIEWPORT
+        if (photoBitmap == null) {
             ControlledCameraPreview(
                 modifier = Modifier.fillMaxSize(),
                 onFrame = { reading ->
@@ -300,7 +300,7 @@ fun DrapeCaptureScreen(
                         detectedSkinHex = srgb.toHex()
                     }
                 },
-                onControlsReady = {},
+                onControlsReady = { controls -> cameraControls = controls },
                 onCameraError = {},
                 onPreviewReady = { view -> activePreviewView = view },
             )
@@ -311,63 +311,36 @@ fun DrapeCaptureScreen(
                     .background(Color.Black),
                 contentAlignment = Alignment.Center,
             ) {
-                if (photoBitmap != null) {
-                    Image(
-                        bitmap = photoBitmap!!.asImageBitmap(),
-                        contentDescription = "Uploaded Selfie",
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop,
-                    )
-                } else {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center,
-                    ) {
-                        Text("🖼️", fontSize = 48.sp)
-                        Spacer(Modifier.height(12.dp))
-                        Text(
-                            "Upload a Selfie Photo",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White,
-                        )
-                        Spacer(Modifier.height(6.dp))
-                        Text(
-                            "Select a clear portrait to test luxury fabrics and colors directly on your photo.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color.White.copy(alpha = 0.7f),
-                            textAlign = TextAlign.Center,
-                        )
-                        Spacer(Modifier.height(18.dp))
-                        Button(
-                            onClick = { photoPickerLauncher.launch("image/*") },
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = EditorialSienna),
-                        ) {
-                            Text("Select Photo from Gallery", color = Color.White)
-                        }
-                    }
-                }
+                Image(
+                    bitmap = photoBitmap!!.asImageBitmap(),
+                    contentDescription = "Uploaded Photo",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                )
             }
         }
 
-        // 2. 100% OPAQUE REALISTIC FABRIC DRAPE CANVAS (PBR Textures + Luminance-Preserving Blend)
+        // Low-light front screen fill flash glow when flash is enabled
+        if (isFlashOn) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color(0xFFFFFBEB).copy(alpha = 0.35f)),
+            )
+        }
+
+        // 2. PHOTOREALISTIC FABRIC DRAPE CANVAS (PBR Shader + Shading)
         Canvas(modifier = Modifier.fillMaxSize()) {
             val width = size.width
             val height = size.height
 
             val hasFace = latestReading?.hasFace == true
-
-            val chinX = if (hasFace && activeMode == DrapeMode.LIVE) smoothedChinX * width else width * 0.50f
-            val chinY = if (hasFace && activeMode == DrapeMode.LIVE) smoothedChinY * height else height * 0.54f
+            val chinX = if (hasFace && photoBitmap == null) smoothedChinX * width else width * 0.50f
+            val chinY = if (hasFace && photoBitmap == null) smoothedChinY * height else height * 0.54f
 
             val clothNeckTopY = (chinY + height * 0.032f).coerceIn(height * 0.44f, height * 0.72f)
             val neckDipY = (clothNeckTopY + height * 0.065f).coerceIn(height * 0.50f, height * 0.80f)
 
-            // Tailored Anatomical Drape Polygon
             val drapePath = Path().apply {
                 moveTo(0f, clothNeckTopY)
                 cubicTo(
@@ -385,7 +358,6 @@ fun DrapeCaptureScreen(
                 close()
             }
 
-            // Render Photorealistic PBR Material Shaders
             FabricTextureShader.renderFabricDrape(
                 scope = this,
                 path = drapePath,
@@ -398,8 +370,8 @@ fun DrapeCaptureScreen(
                 motionYaw = smoothedYaw,
             )
 
-            // Center Face Reticle Oval
-            if (activeMode == DrapeMode.LIVE) {
+            // Reticle Oval for centering face
+            if (photoBitmap == null) {
                 val faceCenter = Offset(width * 0.50f, height * 0.32f)
                 val ovalW = width * 0.54f
                 val ovalH = height * 0.34f
@@ -408,351 +380,240 @@ fun DrapeCaptureScreen(
                     color = animatedStatusColor,
                     topLeft = Offset(faceCenter.x - ovalW / 2, faceCenter.y - ovalH / 2),
                     size = Size(ovalW, ovalH),
-                    style = Stroke(width = 3.5.dp.toPx()),
+                    style = Stroke(width = 3.dp.toPx()),
                 )
             }
         }
 
-        // 3. TOP BAR: MODE SELECTOR & CAPTURE QUALITY PILL
-        Column(
+        // 3. TOP BAR: TITLE + HARMONY SCORE PILL + FLASH TOGGLE (TOP RIGHT)
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .statusBarsPadding()
-                .padding(top = 8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 14.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                // Top Mode Toggle: LIVE vs PHOTO vs COMPARE
-                Row(
+            // Title & Photo status
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color.Black.copy(alpha = 0.65f))
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                ) {
+                    Text("🪞 Drape Studio", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = Color.White)
+                }
+
+                if (photoBitmap != null) {
+                    Spacer(Modifier.width(6.dp))
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(EditorialSienna)
+                            .clickable { photoBitmap = null }
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                    ) {
+                        Text("✕ Live", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                    }
+                }
+            }
+
+            // Right side: Match score badge + FLASH TOGGLE (TOP RIGHT)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // Match Score Pill
+                Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(18.dp))
                         .background(Color.Black.copy(alpha = 0.70f))
-                        .padding(3.dp),
-                ) {
-                    DrapeMode.values().forEach { mode ->
-                        val isSel = activeMode == mode
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(16.dp))
-                                .background(if (isSel) EditorialSienna else Color.Transparent)
-                                .clickable {
-                                    if (mode == DrapeMode.COMPARE) {
-                                        onNavigateToCompare()
-                                    } else {
-                                        activeMode = mode
-                                    }
-                                }
-                                .padding(horizontal = 10.dp, vertical = 5.dp),
-                        ) {
-                            Text(
-                                mode.label,
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
-                                color = Color.White,
-                                fontSize = 11.sp,
-                            )
-                        }
-                    }
-                }
-
-                // Close Button
-                Box(
-                    modifier = Modifier
-                        .size(34.dp)
-                        .clip(CircleShape)
-                        .background(Color.Black.copy(alpha = 0.70f))
-                        .clickable { onBack() },
+                        .border(1.5.dp, animatedStatusColor, RoundedCornerShape(18.dp))
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text("✕", color = Color.White, fontWeight = FontWeight.Bold)
-                }
-            }
-
-            Spacer(Modifier.height(8.dp))
-
-            // Guidance & Lighting Quality Pill
-            val qualityLabel = when {
-                !hasFaceDetected -> "Align Face in Oval & Hold Still"
-                latestReading?.lightingStatusLabel != null -> latestReading!!.lightingStatusLabel
-                else -> "Hold Still for Best Results"
-            }
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(Color.Black.copy(alpha = 0.65f))
-                    .padding(horizontal = 14.dp, vertical = 4.dp),
-            ) {
-                Text(
-                    qualityLabel,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Color.White.copy(alpha = 0.92f),
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Medium,
-                )
-            }
-
-            Spacer(Modifier.height(235.dp))
-
-            // SLIDE-UP "WHY IT WORKS" BREAKDOWN (EXPANDS ABOVE SCORE BADGE)
-            AnimatedVisibility(
-                visible = isWhyExpanded && hasFaceDetected,
-                enter = expandVertically() + fadeIn(),
-                exit = shrinkVertically() + fadeOut(),
-            ) {
-                Card(
-                    shape = RoundedCornerShape(18.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.Black.copy(alpha = 0.92f)),
-                    modifier = Modifier
-                        .fillMaxWidth(0.92f)
-                        .padding(bottom = 8.dp),
-                ) {
-                    Column(modifier = Modifier.padding(14.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(animatedStatusColor))
+                        Spacer(Modifier.width(6.dp))
                         Text(
-                            "Why This Works",
-                            style = MaterialTheme.typography.titleSmall,
+                            "$animatedScore% ${harmonyResult.harmonyLabel}",
+                            style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
                             color = Color.White,
                         )
-                        Spacer(Modifier.height(6.dp))
-                        harmonyResult.reasonsList.forEach { reason ->
-                            Text(
-                                "•  $reason",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Color.White.copy(alpha = 0.88f),
-                                fontSize = 12.sp,
-                            )
-                            Spacer(Modifier.height(3.dp))
-                        }
                     }
                 }
-            }
 
-            // PROMINENT MATCH BADGE (PLACED COMPLETELY BELOW THE OVAL RETICLE)
-            if (hasFaceDetected) {
+                // FLASH / TORCH TOGGLE BUTTON AT TOP RIGHT
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(18.dp))
-                        .background(Color.Black.copy(alpha = 0.85f))
-                        .border(1.5.dp, animatedStatusColor.copy(alpha = 0.85f), RoundedCornerShape(18.dp))
-                        .clickable { isWhyExpanded = !isWhyExpanded }
-                        .padding(horizontal = 16.dp, vertical = 7.dp),
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(if (isFlashOn) Color(0xFFFBBF24) else Color.Black.copy(alpha = 0.65f))
+                        .border(1.dp, if (isFlashOn) Color(0xFFF59E0B) else Color.White.copy(alpha = 0.3f), CircleShape)
+                        .clickable { isFlashOn = !isFlashOn },
+                    contentAlignment = Alignment.Center,
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            "$animatedScore%",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = animatedStatusColor,
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            "•  ${harmonyResult.harmonyLabel}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color.White,
-                            fontWeight = FontWeight.Medium,
-                        )
-                        Spacer(Modifier.width(6.dp))
-                        Text(if (isWhyExpanded) "▲" else "▼", color = Color.White.copy(alpha = 0.7f), fontSize = 10.sp)
-                    }
+                    Text(if (isFlashOn) "⚡" else "⚡", fontSize = 18.sp, color = if (isFlashOn) Color.Black else Color.White)
                 }
             }
         }
 
-        // 4. FLOATING TOAST FEEDBACK
-        toastMessage?.let { msg ->
+        // TOAST FEEDBACK
+        if (toastMessage != null) {
             Box(
                 modifier = Modifier
                     .align(Alignment.Center)
                     .clip(RoundedCornerShape(16.dp))
-                    .background(Color.Black.copy(alpha = 0.90f))
-                    .padding(horizontal = 20.dp, vertical = 10.dp),
+                    .background(Color.Black.copy(alpha = 0.85f))
+                    .border(1.dp, EditorialSienna, RoundedCornerShape(16.dp))
+                    .padding(horizontal = 18.dp, vertical = 12.dp),
             ) {
-                Text(msg, style = MaterialTheme.typography.labelLarge, color = EditorialWarning, fontWeight = FontWeight.Bold)
+                Text(toastMessage!!, color = Color.White, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
             }
         }
 
-        // 5. STREAMLINED CAMERA DIAL & SHUTTER CONTROLS
+        // 4. UPWARD EXPANDING FABRIC LIST MODAL / BOTTOM SHEET
+        if (isFabricListExpanded) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.50f))
+                    .clickable { isFabricListExpanded = false },
+                contentAlignment = Alignment.BottomCenter,
+            ) {
+                Card(
+                    shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(enabled = false) {}
+                        .padding(horizontal = 4.dp),
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .padding(20.dp)
+                            .navigationBarsPadding(),
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                "Select Fabric Material",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = EditorialInk,
+                            )
+                            Text(
+                                "Done ✕",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = EditorialSienna,
+                                modifier = Modifier.clickable { isFabricListExpanded = false },
+                            )
+                        }
+
+                        Spacer(Modifier.height(14.dp))
+
+                        // Grid of all fabric materials
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            FabricCatalog.allFabrics.chunked(3).forEach { rowFabrics ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    rowFabrics.forEach { fab ->
+                                        val isSel = selectedFabric.id == fab.id
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .clip(RoundedCornerShape(14.dp))
+                                                .background(if (isSel) EditorialSienna else EditorialSand.copy(alpha = 0.5f))
+                                                .border(1.5.dp, if (isSel) EditorialSienna else Color.Transparent, RoundedCornerShape(14.dp))
+                                                .clickable {
+                                                    selectedFabric = fab
+                                                    isFabricListExpanded = false
+                                                }
+                                                .padding(vertical = 12.dp, horizontal = 6.dp),
+                                            contentAlignment = Alignment.Center,
+                                        ) {
+                                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                                Text(fab.icon, fontSize = 22.sp)
+                                                Spacer(Modifier.height(4.dp))
+                                                Text(
+                                                    fab.name,
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = if (isSel) Color.White else EditorialInk,
+                                                )
+                                            }
+                                        }
+                                    }
+                                    // Filler if odd
+                                    if (rowFabrics.size < 3) {
+                                        repeat(3 - rowFabrics.size) {
+                                            Spacer(Modifier.weight(1f))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 5. BOTTOM CONTROL DECK: ACTION ROW (PHOTO UPLOAD | CAPTURE | FABRIC) + INFINITE COLORS
         Column(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .navigationBarsPadding()
-                .padding(horizontal = 14.dp, vertical = 8.dp),
+                .padding(bottom = 12.dp, start = 14.dp, end = 14.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            // FLOATING COMPACT FABRIC PILL
-            Box(contentAlignment = Alignment.Center) {
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(Color.Black.copy(alpha = 0.80f))
-                        .border(1.dp, Color.White.copy(alpha = 0.35f), RoundedCornerShape(20.dp))
-                        .clickable { isFabricDropdownOpen = !isFabricDropdownOpen }
-                        .padding(horizontal = 16.dp, vertical = 6.dp),
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(selectedFabric.icon, fontSize = 16.sp)
-                        Spacer(Modifier.width(6.dp))
-                        Text(
-                            "${selectedFabric.name} ▼",
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White,
-                        )
-                    }
-                }
-
-                DropdownMenu(
-                    expanded = isFabricDropdownOpen,
-                    onDismissRequest = { isFabricDropdownOpen = false },
-                ) {
-                    FabricCatalog.allFabrics.forEach { fab ->
-                        DropdownMenuItem(
-                            text = {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(fab.icon, fontSize = 18.sp)
-                                    Spacer(Modifier.width(8.dp))
-                                    Column {
-                                        Text(fab.name, fontWeight = FontWeight.Bold, color = EditorialInk)
-                                        Text(fab.weaveType, style = MaterialTheme.typography.labelSmall, color = EditorialMuted)
-                                    }
-                                }
-                            },
-                            onClick = {
-                                selectedFabric = fab
-                                isFabricDropdownOpen = false
-                            },
-                        )
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(10.dp))
-
-            // UNIVERSAL COLOR PICKER DIALOG
-            if (isCustomPickerOpen) {
-                UniversalColorPickerDialog(
-                    initialColorHex = activeColorHex,
-                    onDismiss = { isCustomPickerOpen = false },
-                    onColorSelected = { hex, name ->
-                        customHex = hex
-                        selectedColor = CameraColorItem(name, hex, "Custom")
-                        isCustomPickerOpen = false
-                    },
-                )
-            }
-
-            // HORIZONTAL COLOR SWATCH ROW WITH FIXED COLOR PICKER ON RIGHT
+            // ACTION ROW: [ 🖼️ Photo Upload ] (Left) + [ 📸 CAPTURE ] (Center) + [ 🧵 Fabric ] (Right)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(24.dp))
-                    .background(Color.Black.copy(alpha = 0.82f))
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                // Color swatches (Horizontal scrollable)
-                Row(
-                    modifier = Modifier
-                        .weight(1f)
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    cameraColorPalette.forEach { item ->
-                        val isSelected = activeColorHex.equals(item.hex, ignoreCase = true)
-                        val scale by animateFloatAsState(if (isSelected) 1.2f else 1.0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
-
-                        Box(
-                            modifier = Modifier
-                                .size(34.dp)
-                                .scale(scale)
-                                .clip(CircleShape)
-                                .background(item.hex.asComposeColor())
-                                .border(
-                                    if (isSelected) 2.5.dp else 1.dp,
-                                    if (isSelected) EditorialSienna else Color.White.copy(alpha = 0.4f),
-                                    CircleShape,
-                                )
-                                .clickable {
-                                    selectedColor = item
-                                    customHex = null
-                                },
-                        )
-                    }
-                }
-
-                Spacer(Modifier.width(8.dp))
-
-                // FIXED COLOR PICKER BUTTON (ALWAYS VISIBLE ON FAR RIGHT)
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(EditorialSand.copy(alpha = 0.25f))
-                        .border(1.5.dp, EditorialSienna, CircleShape)
-                        .clickable { isCustomPickerOpen = !isCustomPickerOpen },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text("🎨", fontSize = 16.sp)
-                }
-            }
-
-            Spacer(Modifier.height(12.dp))
-
-            // BOTTOM ACTION BAR: [ ⚖️ Compare ] + [ 📸 SHUTTER CAPTURE ] + [ 👗 AI Try-On ]
-            Row(
-                modifier = Modifier.fillMaxWidth(),
+                    .padding(horizontal = 18.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                // Compare Button
-                OutlinedButton(
-                    onClick = onNavigateToCompare,
-                    shape = RoundedCornerShape(14.dp),
-                    modifier = Modifier.width(100.dp),
-                ) {
-                    Text("⚖️ Compare", style = MaterialTheme.typography.labelSmall, color = Color.White, fontWeight = FontWeight.Bold)
-                }
-
-                // CENTRAL SHUTTER CAPTURE BUTTON (📸)
+                // LEFT: PHOTO UPLOAD ICON BUTTON
                 Box(
                     modifier = Modifier
-                        .size(62.dp)
+                        .size(50.dp)
+                        .clip(CircleShape)
+                        .background(Color.Black.copy(alpha = 0.75f))
+                        .border(1.5.dp, Color.White.copy(alpha = 0.40f), CircleShape)
+                        .clickable { photoPickerLauncher.launch("image/*") },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("🖼️", fontSize = 22.sp)
+                }
+
+                // CENTER: LARGE SHUTTER CAPTURE BUTTON (📸)
+                Box(
+                    modifier = Modifier
+                        .size(68.dp)
                         .clip(CircleShape)
                         .background(Color.White)
                         .border(4.dp, EditorialSienna, CircleShape)
                         .clickable {
-                            // Explicit user capture action
-                            val capturedSkinHex = detectedSkinHex ?: "#D8B498"
-                            SkinProfileRepository.save(
-                                context,
-                                StoredSkinProfile(
-                                    skinHex = capturedSkinHex,
-                                    evidenceTier = com.drapeproof.core.domain.EvidenceTier.CONTROLLED_PAIR,
-                                    source = "live_camera_capture",
-                                    capturedAtEpochMillis = System.currentTimeMillis(),
-                                ),
-                            )
+                            val capturedSkinHex = detectedSkinHex ?: effectiveSkinHex
 
-                            val rawUserBitmap = if (activeMode == DrapeMode.LIVE) {
+                            val rawUserBitmap = if (photoBitmap == null) {
                                 activePreviewView?.bitmap
                             } else {
                                 photoBitmap
                             }
 
                             if (rawUserBitmap != null) {
-                                // Save original user face as an avatar for Try-On studio
                                 PhotoAvatarStore.saveAvatarFromBitmap(
                                     context = context,
                                     bitmap = rawUserBitmap,
-                                    name = "My Photo",
+                                    name = "My Portrait",
                                     lighting = AvatarLighting.DAYLIGHT,
                                     skinHex = capturedSkinHex,
                                 )
@@ -810,50 +671,101 @@ fun DrapeCaptureScreen(
                                     matchScorePercent = harmonyResult.scorePercent,
                                     skinHex = capturedSkinHex,
                                 )
-                            } else {
-                                val fallback = Bitmap.createBitmap(400, 500, Bitmap.Config.ARGB_8888)
-                                val c = Canvas(fallback)
-                                c.drawColor(android.graphics.Color.parseColor(activeColorHex))
-                                DrapeSnapRepository.saveSnap(
-                                    context = context,
-                                    bitmap = fallback,
-                                    colorHex = activeColorHex,
-                                    colorName = selectedColor.name,
-                                    fabricId = selectedFabric.id,
-                                    fabricName = selectedFabric.name,
-                                    matchScorePercent = harmonyResult.scorePercent,
-                                    skinHex = capturedSkinHex,
-                                )
                             }
 
-                            toastMessage = "📸 Captured! Saved to Compare & Lookbook."
+                            toastMessage = "📸 Look saved to Looks & Compare!"
                         },
                     contentAlignment = Alignment.Center,
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(48.dp)
+                            .size(52.dp)
                             .clip(CircleShape)
                             .background(EditorialSienna),
                     )
                 }
 
-                // AI Try-On Button
-                Button(
-                    onClick = {
-                        if (onNavigateToTryOn != null) {
-                            onNavigateToTryOn(selectedFabric.id, activeColorHex)
-                        } else {
-                            onBack()
-                        }
-                    },
-                    shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = EditorialSienna),
-                    modifier = Modifier.width(100.dp),
+                // RIGHT: FABRIC ICON EXPAND BUTTON (UPWARD EXPANSION)
+                Box(
+                    modifier = Modifier
+                        .size(50.dp)
+                        .clip(CircleShape)
+                        .background(Color.Black.copy(alpha = 0.75f))
+                        .border(1.5.dp, EditorialSienna, CircleShape)
+                        .clickable { isFabricListExpanded = !isFabricListExpanded },
+                    contentAlignment = Alignment.Center,
                 ) {
-                    Text("📸 Try-On", style = MaterialTheme.typography.labelSmall, color = Color.White, fontWeight = FontWeight.Bold)
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(selectedFabric.icon, fontSize = 20.sp)
+                    }
                 }
             }
+
+            Spacer(Modifier.height(14.dp))
+
+            // BOTTOM-MOST: BORDERLESS INFINITE LOOPING COLOR SWATCHES + PERMANENT COLOR PICKER
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(26.dp))
+                    .background(Color.Black.copy(alpha = 0.85f))
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                // PERMANENT COLOR PICKER BUTTON (FIXED ON LEFT)
+                Box(
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(CircleShape)
+                        .background(EditorialSand.copy(alpha = 0.30f))
+                        .border(1.5.dp, EditorialSienna, CircleShape)
+                        .clickable { isCustomPickerOpen = true },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("🎨", fontSize = 18.sp)
+                }
+
+                Spacer(Modifier.width(10.dp))
+
+                // BORDERLESS INFINITE COLOR SWATCHES
+                Row(
+                    modifier = Modifier
+                        .weight(1f)
+                        .horizontalScroll(colorScrollState),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    infiniteColorPalette.forEach { item ->
+                        val isSelected = activeColorHex.equals(item.hex, ignoreCase = true)
+                        val scale by animateFloatAsState(if (isSelected) 1.25f else 1.0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+
+                        Box(
+                            modifier = Modifier
+                                .size(34.dp)
+                                .scale(scale)
+                                .clip(CircleShape)
+                                .background(item.hex.asComposeColor())
+                                .clickable {
+                                    selectedColor = item
+                                    customHex = null
+                                },
+                        )
+                    }
+                }
+            }
+        }
+
+        // UNIVERSAL COLOR PICKER MODAL
+        if (isCustomPickerOpen) {
+            UniversalColorPickerDialog(
+                initialColorHex = activeColorHex,
+                onDismiss = { isCustomPickerOpen = false },
+                onColorSelected = { hex, name ->
+                    customHex = hex
+                    selectedColor = CameraColorItem(name, hex, "Custom")
+                    isCustomPickerOpen = false
+                },
+            )
         }
     }
 }

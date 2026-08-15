@@ -8,12 +8,20 @@ import org.json.JSONObject
 import java.io.File
 import java.util.UUID
 
-/** The latest measured skin sample. Raw face images are never stored here. */
+/** The calibrated user skin & seasonal color profile. Raw face images are never stored. */
 data class StoredSkinProfile(
     val skinHex: String,
     val evidenceTier: EvidenceTier,
     val source: String,
     val capturedAtEpochMillis: Long,
+    val isCalibrated: Boolean = true,
+    val undertone: String = "Warm Golden",
+    val season: String = "Deep Autumn",
+    val seasonDescription: String = "Rich, deep earth tones and warm burnished jewel shades.",
+    val itaScore: Float = 35.0f,
+    val bestMetals: String = "Yellow Gold, Brass & Warm Bronze",
+    val bestColors: List<String> = listOf("#831843", "#78350F", "#3F6212", "#0F172A", "#D97706", "#B45309"),
+    val worstColors: List<String> = listOf("#93C5FD", "#F472B6", "#A7F3D0"),
 )
 
 object SkinProfileRepository {
@@ -26,6 +34,14 @@ object SkinProfileRepository {
             .putString("evidence_tier", profile.evidenceTier.name)
             .putString("source", profile.source)
             .putLong("captured_at", profile.capturedAtEpochMillis)
+            .putBoolean("is_calibrated", profile.isCalibrated)
+            .putString("undertone", profile.undertone)
+            .putString("season", profile.season)
+            .putString("season_desc", profile.seasonDescription)
+            .putFloat("ita_score", profile.itaScore)
+            .putString("best_metals", profile.bestMetals)
+            .putString("best_colors", profile.bestColors.joinToString(","))
+            .putString("worst_colors", profile.worstColors.joinToString(","))
             .apply()
     }
 
@@ -34,19 +50,119 @@ object SkinProfileRepository {
         val skinHex = preferences.getString("skin_hex", null) ?: return null
         val tier = runCatching {
             EvidenceTier.valueOf(preferences.getString("evidence_tier", null).orEmpty())
-        }.getOrNull() ?: return null
+        }.getOrNull() ?: EvidenceTier.CONTROLLED_PAIR
+
+        val isCalibrated = preferences.getBoolean("is_calibrated", false)
+        val undertone = preferences.getString("undertone", null)
+        val season = preferences.getString("season", null)
+
+        val bestColors = preferences.getString("best_colors", null)?.split(",")?.filter { it.isNotBlank() }
+            ?: listOf("#831843", "#78350F", "#3F6212", "#0F172A", "#D97706", "#B45309")
+        val worstColors = preferences.getString("worst_colors", null)?.split(",")?.filter { it.isNotBlank() }
+            ?: listOf("#93C5FD", "#F472B6", "#A7F3D0")
+
         return StoredSkinProfile(
             skinHex = skinHex,
             evidenceTier = tier,
-            source = preferences.getString("source", "unknown input") ?: "unknown input",
+            source = preferences.getString("source", "face_scan") ?: "face_scan",
             capturedAtEpochMillis = preferences.getLong("captured_at", 0L),
+            isCalibrated = isCalibrated,
+            undertone = undertone ?: "Warm Golden",
+            season = season ?: "Deep Autumn",
+            seasonDescription = preferences.getString("season_desc", "Rich, deep earth tones and warm burnished jewel shades.") ?: "Rich, deep earth tones and warm burnished jewel shades.",
+            itaScore = preferences.getFloat("ita_score", 35.0f),
+            bestMetals = preferences.getString("best_metals", "Yellow Gold, Brass & Warm Bronze") ?: "Yellow Gold, Brass & Warm Bronze",
+            bestColors = bestColors,
+            worstColors = worstColors,
         )
+    }
+
+    fun isCalibrated(context: Context): Boolean {
+        val profile = load(context)
+        return profile != null && profile.isCalibrated
     }
 
     fun clear(context: Context) {
         context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE).edit().clear().apply()
     }
+
+    fun deriveProfileFromSkinHex(skinHex: String, source: String = "face_scan"): StoredSkinProfile {
+        val lab = com.drapeproof.core.color.ColorConversions.hexToLab(skinHex)
+        val isWarm = lab.b > 11.0
+        val isCool = lab.b < 7.0
+        val isNeutral = !isWarm && !isCool
+        val isDark = lab.l < 55.0
+
+        val undertone = when {
+            isWarm -> "Warm Golden"
+            isCool -> "Cool Rose"
+            else -> "Balanced Neutral"
+        }
+
+        val (season, seasonDesc, bestMetals, bestColors, worstColors) = when {
+            isWarm && isDark -> Quintuple(
+                "Deep Autumn",
+                "Warm, deep, and earthy. You look radiant in rich burgundies, warm terracotta, deep olive, and burnished gold.",
+                "Yellow Gold, Antique Brass & Copper",
+                listOf("#831843", "#78350F", "#3F6212", "#0F172A", "#D97706", "#B45309", "#451A03"),
+                listOf("#93C5FD", "#F472B6", "#E0E7FF", "#C7D2FE"),
+            )
+            isWarm && !isDark -> Quintuple(
+                "Warm Spring",
+                "Clear, warm, and sunlit. Glowing in coral, camel, peach, warm ivory, and vibrant moss green.",
+                "Polished Yellow Gold & Rose Gold",
+                listOf("#EA580C", "#CA8A04", "#65A30D", "#0D9488", "#E11D48", "#D97706", "#F59E0B"),
+                listOf("#475569", "#64748B", "#334155", "#94A3B8"),
+            )
+            isCool && isDark -> Quintuple(
+                "True Winter",
+                "Crisp, vivid, and high-contrast. Striking in cobalt navy, obsidian noir, emerald jewel, and pure snow white.",
+                "Silver, Platinum & White Gold",
+                listOf("#1D4ED8", "#0F172A", "#047857", "#4C1D95", "#BE123C", "#1E293B", "#374151"),
+                listOf("#FDE047", "#F59E0B", "#B45309", "#78350F"),
+            )
+            isCool && !isDark -> Quintuple(
+                "Soft Summer",
+                "Delicate, cool, and soft. Elegant in dusty rose, slate blue, heather mauve, and French navy.",
+                "Brushed Silver, White Gold & Rose Gold",
+                listOf("#475569", "#64748B", "#9333EA", "#2563EB", "#BE185D", "#0284C7", "#6D28D9"),
+                listOf("#EA580C", "#F97316", "#D97706", "#CA8A04"),
+            )
+            else -> Quintuple(
+                "Neutral Classic",
+                "Balanced tone with natural adaptability across warm and cool palettes.",
+                "Rose Gold, Gold & Silver (All Metals)",
+                listOf("#831843", "#1D4ED8", "#3F6212", "#78350F", "#0F172A", "#D97706", "#4B5563"),
+                listOf("#84CC16", "#E11D48"),
+            )
+        }
+
+        val ita = (kotlin.math.atan2(lab.l - 50.0, lab.b) * 180.0 / Math.PI).toFloat()
+
+        return StoredSkinProfile(
+            skinHex = skinHex,
+            evidenceTier = EvidenceTier.CONTROLLED_PAIR,
+            source = source,
+            capturedAtEpochMillis = System.currentTimeMillis(),
+            isCalibrated = true,
+            undertone = undertone,
+            season = season,
+            seasonDescription = seasonDesc,
+            itaScore = ita.toFloat(),
+            bestMetals = bestMetals,
+            bestColors = bestColors,
+            worstColors = worstColors,
+        )
+    }
 }
+
+private data class Quintuple<A, B, C, D, E>(
+    val first: A,
+    val second: B,
+    val third: C,
+    val fourth: D,
+    val fifth: E,
+)
 
 /** A compact, locally persisted evidence trail. It contains measurements, never image bytes. */
 data class LocalDrapeRecord(
