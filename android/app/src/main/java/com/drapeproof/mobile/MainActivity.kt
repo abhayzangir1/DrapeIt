@@ -9,21 +9,29 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.drapeproof.mobile.data.AppSettingsRepository
+import com.drapeproof.mobile.data.AppThemeMode
 import com.drapeproof.mobile.ui.DrapeProofApp
 import com.drapeproof.mobile.ui.theme.DrapeProofTheme
 
 class MainActivity : ComponentActivity() {
     private var sharedImageUri by mutableStateOf<Uri?>(null)
+    private var currentThemeMode by mutableStateOf(AppThemeMode.SYSTEM)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        currentThemeMode = AppSettingsRepository.getThemeMode(this)
         sharedImageUri = intent.sharedImage()
         setContent {
-            DrapeProofTheme {
+            DrapeProofTheme(themeMode = currentThemeMode) {
                 DrapeProofApp(
                     sharedImageUri = sharedImageUri,
                     onSharedImageConsumed = { sharedImageUri = null },
+                    onThemeChanged = { newMode ->
+                        currentThemeMode = newMode
+                        AppSettingsRepository.setThemeMode(this, newMode)
+                    },
                 )
             }
         }

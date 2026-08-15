@@ -25,7 +25,6 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -40,7 +39,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.drapeproof.core.color.TrueColorHarmonyEngine
@@ -56,7 +54,7 @@ import com.drapeproof.mobile.ui.theme.EditorialSienna
 import com.drapeproof.mobile.ui.theme.EditorialStone
 
 enum class OccasionCategory(val label: String, val icon: String) {
-    EVERYDAY("Everyday", "☕"),
+    EVERYDAY("Everyday", "☀️"),
     WORK("Work", "💼"),
     EVENING("Evening", "🥂"),
     CASUAL("Casual", "🌿"),
@@ -124,7 +122,7 @@ fun ExploreScreen(
                 .padding(horizontal = 18.dp)
                 .verticalScroll(rememberScrollState()),
         ) {
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(16.dp))
 
             Text(
                 "Explore",
@@ -139,7 +137,7 @@ fun ExploreScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(20.dp))
 
             val currentProfile = storedProfile
 
@@ -184,29 +182,29 @@ fun ExploreScreen(
                     }
                 }
 
-                Spacer(Modifier.height(20.dp))
+                Spacer(Modifier.height(24.dp))
             } else {
                 // COMPACT SEASON PROFILE CHIP
                 Card(
-                    shape = RoundedCornerShape(14.dp),
+                    shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.40f), RoundedCornerShape(14.dp)),
+                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.40f), RoundedCornerShape(16.dp)),
                 ) {
                     Row(
-                        modifier = Modifier.padding(12.dp),
+                        modifier = Modifier.padding(14.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(34.dp)
+                                .size(38.dp)
                                 .clip(CircleShape)
                                 .background(currentProfile.skinHex.asComposeColor())
-                                .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape),
+                                .border(1.5.dp, EditorialGold, CircleShape),
                         )
-                        Spacer(Modifier.width(10.dp))
+                        Spacer(Modifier.width(12.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 currentProfile.season,
@@ -214,6 +212,7 @@ fun ExploreScreen(
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface,
                             )
+                            Spacer(Modifier.height(2.dp))
                             Text(
                                 "${currentProfile.undertone} • ${currentProfile.bestMetals}",
                                 style = MaterialTheme.typography.labelSmall,
@@ -223,7 +222,7 @@ fun ExploreScreen(
                     }
                 }
 
-                Spacer(Modifier.height(14.dp))
+                Spacer(Modifier.height(24.dp))
 
                 // OCCASION CATEGORY SELECTOR
                 Row(
@@ -256,7 +255,7 @@ fun ExploreScreen(
                     }
                 }
 
-                Spacer(Modifier.height(18.dp))
+                Spacer(Modifier.height(26.dp))
 
                 Text(
                     "CURATED LOOKBOOK GRID",
@@ -266,7 +265,7 @@ fun ExploreScreen(
                     letterSpacing = 1.2.sp,
                 )
 
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(14.dp))
 
                 val matchingItems = allCuratedPaletteItems.filter {
                     it.forSeason.equals(currentProfile.season, ignoreCase = true) && it.category == selectedCategory
@@ -278,11 +277,11 @@ fun ExploreScreen(
 
                 // 2-COLUMN AESTHETIC LOOKBOOK GRID
                 val chunkedPairs = matchingItems.chunked(2)
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     chunkedPairs.forEach { pair ->
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            horizontalArrangement = Arrangement.spacedBy(14.dp),
                         ) {
                             pair.forEach { item ->
                                 val fabric = FabricCatalog.findById(item.fabricId)
@@ -319,37 +318,37 @@ fun ExploreScreen(
                                                 modifier = Modifier
                                                     .align(Alignment.TopEnd)
                                                     .clip(RoundedCornerShape(6.dp))
-                                                    .background(Color.Black.copy(alpha = 0.65f))
+                                                    .background(Color.Black.copy(alpha = 0.70f))
                                                     .padding(horizontal = 6.dp, vertical = 2.dp),
                                             ) {
                                                 Text(
-                                                    "${eval.scorePercent}%",
+                                                    "${eval.scorePercent}% Match",
                                                     color = Color.White,
-                                                    fontWeight = FontWeight.Bold,
                                                     fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Bold,
                                                 )
                                             }
 
-                                            // TAP TO REVEAL HEX TOAST/PILL
+                                            // REVEALED HEX PILL
                                             if (isHexRevealed) {
                                                 Box(
                                                     modifier = Modifier
                                                         .align(Alignment.BottomStart)
                                                         .clip(RoundedCornerShape(6.dp))
-                                                        .background(Color.White.copy(alpha = 0.90f))
+                                                        .background(Color.Black.copy(alpha = 0.75f))
                                                         .padding(horizontal = 6.dp, vertical = 2.dp),
                                                 ) {
                                                     Text(
                                                         item.hex.uppercase(),
-                                                        color = EditorialInk,
+                                                        color = Color.White,
+                                                        fontSize = 10.sp,
                                                         fontWeight = FontWeight.Bold,
-                                                        fontSize = 9.sp,
                                                     )
                                                 }
                                             }
                                         }
 
-                                        Spacer(Modifier.height(10.dp))
+                                        Spacer(Modifier.height(8.dp))
 
                                         Text(
                                             item.name,
@@ -357,41 +356,43 @@ fun ExploreScreen(
                                             fontWeight = FontWeight.Bold,
                                             color = MaterialTheme.colorScheme.onSurface,
                                             maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
                                         )
-                                        Spacer(Modifier.height(2.dp))
                                         Text(
-                                            "${fabric.icon} ${fabric.name}",
+                                            "${fabric?.name ?: "Silk"} • ${item.category.label}",
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                                             fontSize = 11.sp,
-                                            maxLines = 1,
                                         )
 
                                         Spacer(Modifier.height(10.dp))
 
-                                        // ACTION BUTTONS
+                                        // ACTION BUTTONS (DRAPE & TRY-ON)
                                         Row(
                                             modifier = Modifier.fillMaxWidth(),
                                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                                         ) {
-                                            OutlinedButton(
-                                                onClick = { onNavigateToDrape(item.fabricId, item.hex) },
-                                                shape = RoundedCornerShape(10.dp),
-                                                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp, vertical = 2.dp),
-                                                modifier = Modifier.weight(1f).height(32.dp),
+                                            Box(
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .clip(RoundedCornerShape(8.dp))
+                                                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                                                    .clickable { onNavigateToDrape(item.fabricId, item.hex) }
+                                                    .padding(vertical = 5.dp),
+                                                contentAlignment = Alignment.Center,
                                             ) {
-                                                Text("Drape", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold, fontSize = 10.sp)
+                                                Text("🪞 Drape", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface, fontSize = 10.sp)
                                             }
 
-                                            Button(
-                                                onClick = { onNavigateToTryOn(item.fabricId, item.hex) },
-                                                shape = RoundedCornerShape(10.dp),
-                                                colors = ButtonDefaults.buttonColors(containerColor = EditorialSienna),
-                                                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp, vertical = 2.dp),
-                                                modifier = Modifier.weight(1f).height(32.dp),
+                                            Box(
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .clip(RoundedCornerShape(8.dp))
+                                                    .background(EditorialSienna.copy(alpha = 0.12f))
+                                                    .clickable { onNavigateToTryOn(item.fabricId, item.hex) }
+                                                    .padding(vertical = 5.dp),
+                                                contentAlignment = Alignment.Center,
                                             ) {
-                                                Text("Try-On", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 10.sp)
+                                                Text("✨ Try-On", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = EditorialSienna, fontSize = 10.sp)
                                             }
                                         }
                                     }
@@ -404,7 +405,7 @@ fun ExploreScreen(
                     }
                 }
 
-                Spacer(Modifier.height(24.dp))
+                Spacer(Modifier.height(28.dp))
             }
         }
     }

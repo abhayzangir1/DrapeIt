@@ -10,8 +10,6 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -28,60 +26,55 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.drapeproof.mobile.R
-import com.drapeproof.mobile.ui.theme.EditorialCream
 import com.drapeproof.mobile.ui.theme.EditorialInk
-import com.drapeproof.mobile.ui.theme.EditorialMuted
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @Composable
 fun DrapeWelcomeScreen(
     onWelcomeFinished: () -> Unit,
 ) {
-    val scaleAnim = remember { Animatable(1.05f) }
+    val scaleAnim = remember { Animatable(1.06f) }
     val contentAlpha = remember { Animatable(0f) }
     val whiteTransitionAlpha = remember { Animatable(0f) }
 
     val infiniteTransition = rememberInfiniteTransition(label = "shimmerTransition")
     val pulseGlow by infiniteTransition.animateFloat(
-        initialValue = 0.85f,
+        initialValue = 0.82f,
         targetValue = 1.0f,
         animationSpec = infiniteRepeatable(
-            animation = tween(1400, easing = FastOutSlowInEasing),
+            animation = tween(1200, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse,
         ),
         label = "pulseAlpha",
     )
 
     LaunchedEffect(Unit) {
-        // Fade in content & gentle zoom out across 3.4 seconds
-        contentAlpha.animateTo(1f, tween(600, easing = LinearEasing))
-        scaleAnim.animateTo(1.00f, tween(3000, easing = FastOutSlowInEasing))
+        // Guaranteed 3.2s luxury brand presentation (non-skippable on touch)
+        launch {
+            contentAlpha.animateTo(1f, tween(500, easing = LinearEasing))
+        }
+        launch {
+            scaleAnim.animateTo(1.00f, tween(3200, easing = FastOutSlowInEasing))
+        }
 
-        // Wait to complete 3.4 seconds total
-        delay(400)
+        // Wait a guaranteed 3.2 seconds
+        delay(3200)
 
-        // White out transition
-        whiteTransitionAlpha.animateTo(1f, tween(400, easing = FastOutSlowInEasing))
+        // Smooth white dissolve transition
+        whiteTransitionAlpha.animateTo(1f, tween(450, easing = FastOutSlowInEasing))
         onWelcomeFinished()
     }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.White)
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-            ) {
-                // Allow instant tap to transition
-                onWelcomeFinished()
-            },
+            .background(Color.White),
         contentAlignment = Alignment.Center,
     ) {
         // FULL-SCREEN WELCOME SPLASH IMAGE

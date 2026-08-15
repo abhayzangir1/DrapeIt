@@ -22,9 +22,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -47,23 +45,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.drapeproof.mobile.camera.DrapeCaptureScreen
 import com.drapeproof.mobile.compare.CompareScreen
-import com.drapeproof.mobile.data.AppSettingsRepository
 import com.drapeproof.mobile.data.AppThemeMode
-import com.drapeproof.mobile.data.TutorialRepository
 import com.drapeproof.mobile.explore.ExploreScreen
 import com.drapeproof.mobile.looks.LooksScreen
 import com.drapeproof.mobile.onboarding.OnboardingLoginScreen
 import com.drapeproof.mobile.profile.ProfileScreen
 import com.drapeproof.mobile.silhouette.UserProfileStore
 import com.drapeproof.mobile.tryon.TryOnScreen
-import com.drapeproof.mobile.ui.theme.DrapeProofTheme
-import com.drapeproof.mobile.ui.theme.EditorialCream
 import com.drapeproof.mobile.ui.theme.EditorialGold
-import com.drapeproof.mobile.ui.theme.EditorialMuted
-import com.drapeproof.mobile.ui.theme.EditorialSand
-import com.drapeproof.mobile.ui.theme.EditorialSienna
-import com.drapeproof.mobile.ui.theme.EditorialStone
-import com.drapeproof.mobile.ui.tutorial.DrapeInteractiveGuide
 import com.drapeproof.mobile.ui.welcome.DrapeWelcomeScreen
 import com.drapeproof.mobile.youcam.YouCamLabScreen
 
@@ -85,33 +74,16 @@ private enum class SubFlow {
 fun DrapeProofApp(
     sharedImageUri: Uri?,
     onSharedImageConsumed: () -> Unit,
-) {
-    val context = LocalContext.current
-    var themeMode by remember { mutableStateOf(AppSettingsRepository.getThemeMode(context)) }
-
-    DrapeProofTheme {
-        DrapeProofAppContent(
-            sharedImageUri = sharedImageUri,
-            onSharedImageConsumed = onSharedImageConsumed,
-            onThemeChanged = { themeMode = it },
-        )
-    }
-}
-
-@Composable
-private fun DrapeProofAppContent(
-    sharedImageUri: Uri?,
-    onSharedImageConsumed: () -> Unit,
-    onThemeChanged: (AppThemeMode) -> Unit,
+    onThemeChanged: (AppThemeMode) -> Unit = {},
 ) {
     val context = LocalContext.current
     var showWelcome by remember { mutableStateOf(true) }
     val mainEntranceWhiteAlpha = remember { Animatable(1f) }
 
     var isOnboarded by remember { mutableStateOf(UserProfileStore.isOnboarded(context)) }
-    var currentTab by remember { mutableStateOf(AppTab.EXPLORE) }
+    // User requested to start directly with Try-On tab
+    var currentTab by remember { mutableStateOf(AppTab.TRY_ON) }
     var subFlow by remember { mutableStateOf(SubFlow.NONE) }
-    var showInteractiveGuide by remember { mutableStateOf(!AppSettingsRepository.isInteractiveTourDone(context)) }
 
     // Inter-screen parameters for Drape
     var drapeInitialFabricId by remember { mutableStateOf<String?>("silk") }
@@ -154,21 +126,33 @@ private fun DrapeProofAppContent(
         return
     }
 
-    BackHandler(enabled = subFlow != SubFlow.NONE || currentTab != AppTab.EXPLORE) {
+    BackHandler(enabled = subFlow != SubFlow.NONE || currentTab != AppTab.TRY_ON) {
         if (subFlow != SubFlow.NONE) {
             subFlow = SubFlow.NONE
             compareSelectedIds = emptyList()
         } else {
-            currentTab = AppTab.EXPLORE
+            currentTab = AppTab.TRY_ON
         }
     }
 
-    val circularMaroonBrush = remember {
+    // Ultra-Glossy Radiant Crimson & Gold Glass Gradient Brush
+    val ultraGlossyMaroonBrush = remember {
         Brush.verticalGradient(
             colors = listOf(
-                Color(0xFFD44D6C), // Lighter radiant silky rose-crimson
-                Color(0xFFC23B5A), // Radiant couture crimson
-                Color(0xFF8F1E38), // Rich luxury velvet crimson base
+                Color(0xFFFF527B), // Glassy specular luminous top edge
+                Color(0xFFD4385C), // Vibrant couture crimson core
+                Color(0xFFA61B3B), // Deep rich velvety crimson base
+                Color(0xFF751025), // Ultra-deep jewel shadow
+            )
+        )
+    }
+
+    val glassSpecularShineBrush = remember {
+        Brush.verticalGradient(
+            colors = listOf(
+                Color.White.copy(alpha = 0.40f),
+                Color.White.copy(alpha = 0.05f),
+                Color.Transparent,
             )
         )
     }
@@ -190,7 +174,7 @@ private fun DrapeProofAppContent(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 8.dp, vertical = 6.dp)
+                                .padding(horizontal = 6.dp, vertical = 6.dp)
                                 .navigationBarsPadding(),
                             horizontalArrangement = Arrangement.SpaceAround,
                             verticalAlignment = Alignment.CenterVertically,
@@ -198,7 +182,7 @@ private fun DrapeProofAppContent(
                             AppTab.values().forEach { tab ->
                                 val selected = currentTab == tab
                                 val tabScale by animateFloatAsState(
-                                    targetValue = if (selected) 1.15f else 1.0f,
+                                    targetValue = if (selected) 1.14f else 1.0f,
                                     animationSpec = spring(
                                         dampingRatio = Spring.DampingRatioMediumBouncy,
                                         stiffness = Spring.StiffnessLow,
@@ -212,33 +196,43 @@ private fun DrapeProofAppContent(
                                         .then(
                                             if (selected) {
                                                 Modifier
-                                                    .size(48.dp)
+                                                    .size(56.dp)
                                                     .clip(CircleShape)
-                                                    .background(circularMaroonBrush)
-                                                    .border(1.5.dp, EditorialGold.copy(alpha = 0.85f), CircleShape)
+                                                    .background(ultraGlossyMaroonBrush)
+                                                    .border(2.dp, EditorialGold.copy(alpha = 0.95f), CircleShape)
                                             } else {
                                                 Modifier
-                                                    .size(48.dp)
+                                                    .size(56.dp)
                                                     .clip(CircleShape)
                                                     .clickable { currentTab = tab }
                                             }
                                         ),
                                     contentAlignment = Alignment.Center,
                                 ) {
+                                    // Specular glass shine layer
+                                    if (selected) {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .clip(CircleShape)
+                                                .background(glassSpecularShineBrush),
+                                        )
+                                    }
+
                                     Column(
                                         horizontalAlignment = Alignment.CenterHorizontally,
                                         verticalArrangement = Arrangement.Center,
                                     ) {
                                         Text(
                                             tab.icon,
-                                            fontSize = if (selected) 18.sp else 19.sp,
+                                            fontSize = if (selected) 20.sp else 21.sp,
                                         )
                                         if (selected) {
                                             Text(
                                                 tab.title,
                                                 fontWeight = FontWeight.Bold,
                                                 color = Color.White,
-                                                fontSize = 8.sp,
+                                                fontSize = 9.sp,
                                                 maxLines = 1,
                                             )
                                         }
@@ -351,8 +345,6 @@ private fun DrapeProofAppContent(
                             AppTab.PROFILE -> {
                                 ProfileScreen(
                                     onOpenYouCamLab = { subFlow = SubFlow.YOUCAM_LAB },
-                                    onOpenTutorial = { showInteractiveGuide = true },
-                                    onRestartInteractiveGuide = { showInteractiveGuide = true },
                                     onThemeChanged = onThemeChanged,
                                 )
                             }
@@ -368,25 +360,6 @@ private fun DrapeProofAppContent(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(Color.White.copy(alpha = mainEntranceWhiteAlpha.value)),
-            )
-        }
-
-        // IN-APP INTERACTIVE GUIDED ONBOARDING WALKTHROUGH
-        if (showInteractiveGuide) {
-            DrapeInteractiveGuide(
-                currentTab = currentTab.name.lowercase(),
-                onNavigateToTab = { tabName ->
-                    when (tabName.lowercase()) {
-                        "drape" -> currentTab = AppTab.DRAPE
-                        "tryon", "try_on" -> currentTab = AppTab.TRY_ON
-                        "looks" -> currentTab = AppTab.LOOKS
-                        "profile" -> currentTab = AppTab.PROFILE
-                        else -> currentTab = AppTab.EXPLORE
-                    }
-                },
-                onCompleteGuide = {
-                    showInteractiveGuide = false
-                },
             )
         }
     }

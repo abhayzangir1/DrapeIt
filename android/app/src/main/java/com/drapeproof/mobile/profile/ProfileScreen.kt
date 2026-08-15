@@ -30,7 +30,6 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -44,26 +43,20 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.drapeproof.mobile.data.AppSettingsRepository
 import com.drapeproof.mobile.data.AppThemeMode
 import com.drapeproof.mobile.data.SkinProfileRepository
-import com.drapeproof.mobile.ui.theme.EditorialCream
+import com.drapeproof.mobile.data.StoredSkinProfile
 import com.drapeproof.mobile.ui.theme.EditorialGold
-import com.drapeproof.mobile.ui.theme.EditorialInk
-import com.drapeproof.mobile.ui.theme.EditorialMuted
 import com.drapeproof.mobile.ui.theme.EditorialPositive
-import com.drapeproof.mobile.ui.theme.EditorialSand
 import com.drapeproof.mobile.ui.theme.EditorialSienna
-import com.drapeproof.mobile.ui.theme.EditorialStone
 import com.drapeproof.mobile.ui.theme.EditorialWarning
 
 @Composable
 fun ProfileScreen(
     onOpenYouCamLab: () -> Unit,
-    onOpenTutorial: () -> Unit,
+    onOpenTutorial: () -> Unit = {},
     onRestartInteractiveGuide: () -> Unit = {},
     onThemeChanged: (AppThemeMode) -> Unit = {},
 ) {
@@ -89,7 +82,7 @@ fun ProfileScreen(
         }
     }
 
-    val effectiveProfile = profile ?: com.drapeproof.mobile.data.StoredSkinProfile(
+    val effectiveProfile = profile ?: StoredSkinProfile(
         skinHex = "#D8B498",
         evidenceTier = com.drapeproof.core.domain.EvidenceTier.CONTROLLED_PAIR,
         source = "Default",
@@ -159,47 +152,114 @@ fun ProfileScreen(
                 }
             }
 
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(16.dp))
 
-            // 1. HERO COLOR PROFILE CARD WITH HALO RING
+            // 1. INSTAGRAM BIO-STYLE HERO COLOR PROFILE CARD
             Card(
-                shape = RoundedCornerShape(24.dp),
+                shape = RoundedCornerShape(22.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.40f), RoundedCornerShape(24.dp)),
+                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.40f), RoundedCornerShape(22.dp)),
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(20.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
+                        .padding(18.dp),
                 ) {
-                    // CONCENTRIC GOLD/CRIMSON HALO RING
-                    Box(
-                        modifier = Modifier
-                            .size(92.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.surfaceVariant)
-                            .border(3.dp, EditorialGold.copy(alpha = 0.70f), CircleShape)
-                            .padding(4.dp),
-                        contentAlignment = Alignment.Center,
+                    // TOP ROW: COLORTONE CIRCLE (LEFT) + CONSISTENT MATCHING ACTIONS (RIGHT)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
                     ) {
+                        // TOP-LEFT: COLORTONE HALO CIRCLE
                         Box(
                             modifier = Modifier
-                                .fillMaxSize()
+                                .size(76.dp)
                                 .clip(CircleShape)
-                                .background(effectiveProfile.skinHex.asComposeColor())
-                                .border(2.dp, Color.White, CircleShape),
-                        )
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                                .border(2.5.dp, EditorialGold.copy(alpha = 0.85f), CircleShape)
+                                .padding(4.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .clip(CircleShape)
+                                    .background(effectiveProfile.skinHex.asComposeColor())
+                                    .border(1.5.dp, Color.White, CircleShape),
+                            )
+                        }
+
+                        Spacer(Modifier.width(14.dp))
+
+                        // TOP-RIGHT: CONSISTENT ACTION BUTTONS (IDENTICAL LUXURY STYLING)
+                        Row(
+                            modifier = Modifier.weight(1f),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            // PHOTO PICK BUTTON
+                            Card(
+                                shape = RoundedCornerShape(12.dp),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .border(1.dp, EditorialSienna.copy(alpha = 0.50f), RoundedCornerShape(12.dp))
+                                    .clickable { photoPickerLauncher.launch("image/*") },
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 10.dp, horizontal = 6.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                ) {
+                                    Text("🖼️", fontSize = 16.sp)
+                                    Spacer(Modifier.height(4.dp))
+                                    Text(
+                                        "Photo Pick",
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        fontSize = 11.sp,
+                                    )
+                                }
+                            }
+
+                            // LIVE SCAN BUTTON (CONSISTENT WITH PHOTO PICK)
+                            Card(
+                                shape = RoundedCornerShape(12.dp),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .border(1.dp, EditorialSienna.copy(alpha = 0.50f), RoundedCornerShape(12.dp))
+                                    .clickable { isLiveScannerOpen = true },
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 10.dp, horizontal = 6.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                ) {
+                                    Text("📸", fontSize = 16.sp)
+                                    Spacer(Modifier.height(4.dp))
+                                    Text(
+                                        "Live Scan",
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        fontSize = 11.sp,
+                                    )
+                                }
+                            }
+                        }
                     }
 
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(14.dp))
 
+                    // DETAILS BELOW LIKE AN INSTAGRAM BIO
                     Text(
                         effectiveProfile.season,
-                        style = MaterialTheme.typography.titleLarge,
+                        style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface,
                     )
@@ -207,63 +267,39 @@ fun ProfileScreen(
                     Spacer(Modifier.height(2.dp))
 
                     Text(
-                        "${effectiveProfile.skinHex.uppercase()} • ${effectiveProfile.undertone} Undertone",
+                        "${effectiveProfile.undertone} Undertone • ${effectiveProfile.skinHex.uppercase()}",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontWeight = FontWeight.SemiBold,
+                        color = EditorialSienna,
                     )
 
-                    Spacer(Modifier.height(18.dp))
+                    Spacer(Modifier.height(4.dp))
 
-                    // ACTION TILES (LIVE SCAN & PHOTO PICK)
+                    Text(
+                        effectiveProfile.seasonDescription,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 12.sp,
+                    )
+
+                    Spacer(Modifier.height(8.dp))
+
+                    // ACCENT METALS BIO BADGE
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
                     ) {
-                        Card(
-                            shape = RoundedCornerShape(14.dp),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                            modifier = Modifier
-                                .weight(1f)
-                                .clickable { photoPickerLauncher.launch("image/*") },
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.Center,
-                            ) {
-                                Text("🖼️", fontSize = 18.sp)
-                                Spacer(Modifier.width(8.dp))
-                                Text(
-                                    "Photo Pick",
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    fontSize = 12.sp,
-                                )
-                            }
-                        }
-
-                        Card(
-                            shape = RoundedCornerShape(14.dp),
-                            colors = CardDefaults.cardColors(containerColor = EditorialSienna),
-                            modifier = Modifier
-                                .weight(1f)
-                                .clickable { isLiveScannerOpen = true },
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.Center,
-                            ) {
-                                Text("📸", fontSize = 18.sp)
-                                Spacer(Modifier.width(8.dp))
-                                Text(
-                                    "Live Scan",
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White,
-                                    fontSize = 12.sp,
-                                )
-                            }
-                        }
+                        Text("✨", fontSize = 12.sp)
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            "Best Metals: ${effectiveProfile.bestMetals}",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
                     }
 
                     if (updateSuccessMessage != null) {
@@ -278,47 +314,9 @@ fun ProfileScreen(
                 }
             }
 
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(18.dp))
 
-            // 2. METALS ROW
-            Card(
-                shape = RoundedCornerShape(18.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f), RoundedCornerShape(18.dp)),
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text("💍", fontSize = 22.sp)
-                    Spacer(Modifier.width(12.dp))
-                    Column {
-                        Text(
-                            "ACCENT METALS",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = EditorialSienna,
-                            letterSpacing = 1.2.sp,
-                        )
-                        Spacer(Modifier.height(2.dp))
-                        Text(
-                            effectiveProfile.bestMetals,
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(14.dp))
-
-            // 3. BEST COLORS (TAP TO REVEAL HEX)
+            // 2. COMPATIBLE PALETTE (TAP TO REVEAL HEX)
             Card(
                 shape = RoundedCornerShape(18.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -387,9 +385,9 @@ fun ProfileScreen(
                 }
             }
 
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(16.dp))
 
-            // 4. COLORS TO AVOID (CONTRAST CAUTION)
+            // 3. COLORS TO AVOID (CONTRAST CAUTION)
             Card(
                 shape = RoundedCornerShape(18.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -436,9 +434,9 @@ fun ProfileScreen(
                 }
             }
 
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(16.dp))
 
-            // 5. YOUCAM API DIAGNOSTICS CARD
+            // 4. YOUCAM API DIAGNOSTICS CARD
             Card(
                 shape = RoundedCornerShape(18.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -484,7 +482,7 @@ fun ProfileScreen(
                 }
             }
 
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(28.dp))
         }
 
         // SETTINGS MODAL

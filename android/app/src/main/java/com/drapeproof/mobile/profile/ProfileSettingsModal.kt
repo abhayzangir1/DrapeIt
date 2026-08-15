@@ -19,6 +19,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -32,7 +33,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -41,19 +41,15 @@ import androidx.compose.ui.window.DialogProperties
 import com.drapeproof.mobile.data.AppSettingsRepository
 import com.drapeproof.mobile.data.AppThemeMode
 import com.drapeproof.mobile.ui.theme.EditorialGold
-import com.drapeproof.mobile.ui.theme.EditorialInk
-import com.drapeproof.mobile.ui.theme.EditorialMuted
 import com.drapeproof.mobile.ui.theme.EditorialSienna
-import com.drapeproof.mobile.ui.theme.EditorialStone
 
 @Composable
 fun ProfileSettingsModal(
     onDismiss: () -> Unit,
-    onRestartInteractiveGuide: () -> Unit,
-    onThemeChanged: (AppThemeMode) -> Unit,
+    onRestartInteractiveGuide: () -> Unit = {},
+    onThemeChanged: (AppThemeMode) -> Unit = {},
 ) {
     val context = LocalContext.current
-    val currentView = LocalView.current
 
     var selectedTheme by remember { mutableStateOf(AppSettingsRepository.getThemeMode(context)) }
     var soundEnabled by remember { mutableStateOf(AppSettingsRepository.isSoundEnabled(context)) }
@@ -66,7 +62,7 @@ fun ProfileSettingsModal(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(20.dp),
+                .padding(horizontal = 20.dp),
             contentAlignment = Alignment.Center,
         ) {
             Card(
@@ -75,7 +71,7 @@ fun ProfileSettingsModal(
                 elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), RoundedCornerShape(26.dp)),
+                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.50f), RoundedCornerShape(26.dp)),
             ) {
                 Column(
                     modifier = Modifier.padding(22.dp),
@@ -136,7 +132,7 @@ fun ProfileSettingsModal(
                                     .weight(1f)
                                     .clip(RoundedCornerShape(12.dp))
                                     .background(if (isSel) EditorialSienna else MaterialTheme.colorScheme.surfaceVariant)
-                                    .border(1.dp, if (isSel) EditorialSienna else Color.Transparent, RoundedCornerShape(12.dp))
+                                    .border(1.dp, if (isSel) EditorialGold.copy(alpha = 0.8f) else Color.Transparent, RoundedCornerShape(12.dp))
                                     .clickable {
                                         selectedTheme = mode
                                         AppSettingsRepository.setThemeMode(context, mode)
@@ -181,7 +177,7 @@ fun ProfileSettingsModal(
                     ) {
                         Column {
                             Text("Shutter & Sound Effects", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
-                            Text("Play luxury camera sounds", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("Play soft luxury camera sounds", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         Switch(
                             checked = soundEnabled,
@@ -219,53 +215,15 @@ fun ProfileSettingsModal(
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     Spacer(Modifier.height(16.dp))
 
-                    // 3. INTERACTIVE GUIDE RESTART
-                    Text(
-                        "GUIDE & ONBOARDING",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = EditorialSienna,
-                        letterSpacing = 1.2.sp,
-                    )
-                    Spacer(Modifier.height(10.dp))
-
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant)
-                            .clickable {
-                                onDismiss()
-                                onRestartInteractiveGuide()
-                            }
-                            .padding(14.dp),
+                    // 3. APP INFO
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("🧭", fontSize = 20.sp)
-                                Spacer(Modifier.width(10.dp))
-                                Column {
-                                    Text("Replay In-App Interactive Guide", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-                                    Text("Step-by-step interactive walkthrough", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                }
-                            }
-                            Text("→", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = EditorialSienna)
-                        }
+                        Text("DrapeIt App Version", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("v2.2.0-luxe", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = EditorialGold)
                     }
-
-                    Spacer(Modifier.height(18.dp))
-
-                    // FOOTER
-                    Text(
-                        "Drape It • Couture Neural Fashion Studio v2.4",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                        modifier = Modifier.align(Alignment.CenterHorizontally),
-                    )
                 }
             }
         }

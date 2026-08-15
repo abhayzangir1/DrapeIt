@@ -603,38 +603,40 @@ fun DrapeCaptureScreen(
                                         val w = rawUserBitmap.width.toFloat()
                                         val h = rawUserBitmap.height.toFloat()
                                         val chinX = smoothedChinX * w
-                                        val chinY = smoothedChinY * h
+                                        val chinY = (smoothedChinY * h).coerceIn(h * 0.35f, h * 0.65f)
 
                                         val drapePath = AndroidPath().apply {
-                                            moveTo(0f, chinY + h * 0.12f)
+                                            moveTo(0f, chinY + h * 0.04f)
                                             cubicTo(
-                                                w * 0.20f, chinY + h * 0.06f,
-                                                chinX - w * 0.12f, chinY + h * 0.02f,
-                                                chinX, chinY + h * 0.03f,
+                                                w * 0.20f, chinY + h * 0.02f,
+                                                chinX - w * 0.14f, chinY + h * 0.01f,
+                                                chinX, chinY + h * 0.02f,
                                             )
                                             cubicTo(
-                                                chinX + w * 0.12f, chinY + h * 0.02f,
-                                                w * 0.80f, chinY + h * 0.06f,
-                                                w, chinY + h * 0.12f,
+                                                chinX + w * 0.14f, chinY + h * 0.01f,
+                                                w * 0.80f, chinY + h * 0.02f,
+                                                w, chinY + h * 0.04f,
                                             )
                                             lineTo(w, h)
                                             lineTo(0f, h)
                                             close()
                                         }
 
+                                        // 1. Draw vibrant saturated drape base color
                                         val basePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                                             color = android.graphics.Color.parseColor(activeColorHex)
                                             style = Paint.Style.FILL
                                         }
                                         compCanvas.drawPath(drapePath, basePaint)
 
+                                        // 2. Blend subtle fabric weave texture with MULTIPLY so color remains rich
                                         val rawTile = FabricTextureShader.getOrLoadRawBitmap(context, selectedFabric.id)
                                         rawTile?.let { tile ->
                                             val tileShader = BitmapShader(tile, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
                                             val tilePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                                                 shader = tileShader
-                                                alpha = (selectedFabric.textureAlpha * 255).toInt().coerceIn(0, 255)
-                                                xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_ATOP)
+                                                alpha = (selectedFabric.textureAlpha * 0.30f * 255).toInt().coerceIn(25, 90)
+                                                xfermode = PorterDuffXfermode(PorterDuff.Mode.MULTIPLY)
                                             }
                                             compCanvas.drawPath(drapePath, tilePaint)
                                         }
@@ -657,12 +659,14 @@ fun DrapeCaptureScreen(
                                         capturedFreezeBitmap = comp
                                         isCurtainDropping = true
                                         scope.launch {
-                                            flashBurstAnim.snapTo(0.40f)
-                                            launch { flashBurstAnim.animateTo(0f, tween(160)) }
+                                            flashBurstAnim.snapTo(0.85f)
                                             curtainDropAnim.snapTo(0f)
+                                            launch {
+                                                flashBurstAnim.animateTo(0f, tween(240))
+                                            }
                                             curtainDropAnim.animateTo(
                                                 targetValue = 1f,
-                                                animationSpec = tween(750, easing = CubicBezierEasing(0.20f, 0.0f, 0.20f, 1.0f)),
+                                                animationSpec = tween(900, easing = FastOutSlowInEasing),
                                             )
                                             isCurtainDropping = false
                                             capturedFreezeBitmap = null

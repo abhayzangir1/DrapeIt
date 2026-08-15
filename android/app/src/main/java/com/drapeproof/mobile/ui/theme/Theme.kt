@@ -24,18 +24,20 @@ val EditorialSand = Color(0xFFF4F4F5)  // Neutral stone surface variant
 val EditorialStone = Color(0xFFE4E4E7) // Delicate hairline border
 val EditorialMuted = Color(0xFF71717A) // Neutral stone subtext
 val EditorialSienna = Color(0xFFC23B5A) // Lighter radiant couture crimson
-val EditorialGold = Color(0xFFD4AF37)   // Luxury warm metallic gold
+val EditorialGold = Color(0xFFE2C475)   // Luxury warm metallic gold
 val EditorialPositive = Color(0xFF16A34A)
 val EditorialWarning = Color(0xFFD97706)
 val EditorialNegative = Color(0xFFE11D48)
 
-// Dark Luxury Theme Palette (Obsidian Black, Warm Gold & Radiant Crimson)
-val DarkCanvas = Color(0xFF0D0D11)
-val DarkSurface = Color(0xFF16161E)
-val DarkSurfaceVariant = Color(0xFF20202C)
-val DarkBorder = Color(0xFF2E2E3E)
-val DarkTextPrimary = Color(0xFFF4F4F5)
-val DarkTextSecondary = Color(0xFFA1A1AA)
+// Dark Luxury Theme Palette — Aligned with Haute Couture Reference Design
+val DarkCanvas = Color(0xFF09080C)          // Deep obsidian noir
+val DarkSurface = Color(0xFF14131A)         // Velvety dark graphite card surface
+val DarkSurfaceVariant = Color(0xFF1D1B24)  // Subdued secondary dark container
+val DarkBorder = Color(0xFF2E2A38)          // Fine hairline charcoal border
+val DarkTextPrimary = Color(0xFFF5F5F7)     // High-contrast clean ivory
+val DarkTextSecondary = Color(0xFF9A96A2)   // Warm muted pewter subtext
+val DarkGoldAccent = Color(0xFFE2C475)      // Champagne radiant gold badge
+val DarkCrimsonGlow = Color(0xFFC23B5A)     // Glowing luxury crimson
 
 // Backward-compatibility aliases
 val LuxuryCanvas = EditorialCream
@@ -72,11 +74,11 @@ private val EditorialLuxuryColorScheme = lightColorScheme(
 )
 
 private val EditorialDarkLuxuryColorScheme = darkColorScheme(
-    primary = EditorialGold,
+    primary = DarkGoldAccent,
     onPrimary = Color.Black,
-    secondary = EditorialSienna,
+    secondary = DarkCrimsonGlow,
     onSecondary = Color.White,
-    tertiary = EditorialGold,
+    tertiary = DarkGoldAccent,
     background = DarkCanvas,
     onBackground = DarkTextPrimary,
     surface = DarkSurface,
@@ -84,17 +86,18 @@ private val EditorialDarkLuxuryColorScheme = darkColorScheme(
     surfaceVariant = DarkSurfaceVariant,
     onSurfaceVariant = DarkTextSecondary,
     outline = DarkBorder,
-    outlineVariant = DarkBorder.copy(alpha = 0.60f),
+    outlineVariant = DarkBorder.copy(alpha = 0.70f),
 )
 
 @Composable
 fun DrapeProofTheme(
+    themeMode: AppThemeMode? = null,
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit,
 ) {
     val context = LocalContext.current
-    val userMode = AppSettingsRepository.getThemeMode(context)
-    val isDark = when (userMode) {
+    val effectiveMode = themeMode ?: AppSettingsRepository.getThemeMode(context)
+    val isDark = when (effectiveMode) {
         AppThemeMode.SYSTEM -> darkTheme
         AppThemeMode.LIGHT -> false
         AppThemeMode.DARK -> true
