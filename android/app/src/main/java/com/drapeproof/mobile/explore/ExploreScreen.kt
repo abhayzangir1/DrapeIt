@@ -29,6 +29,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -107,7 +108,12 @@ fun ExploreScreen(
     onNavigateToProfile: () -> Unit = {},
 ) {
     val context = LocalContext.current
-    val storedProfile = remember { SkinProfileRepository.load(context) }
+    var storedProfile by remember { mutableStateOf(SkinProfileRepository.load(context)) }
+
+    LaunchedEffect(Unit) {
+        storedProfile = SkinProfileRepository.load(context)
+    }
+
     var selectedCategory by remember { mutableStateOf(OccasionCategory.EVERYDAY) }
 
     Surface(
@@ -137,7 +143,9 @@ fun ExploreScreen(
 
             Spacer(Modifier.height(16.dp))
 
-            if (storedProfile == null || !storedProfile.isCalibrated) {
+            val currentProfile = storedProfile
+
+            if (currentProfile == null || !currentProfile.isCalibrated) {
                 // EMPTY STATE: PROMPT USER TO SETUP PROFILE
                 Card(
                     shape = RoundedCornerShape(22.dp),
@@ -198,14 +206,14 @@ fun ExploreScreen(
                             modifier = Modifier
                                 .size(44.dp)
                                 .clip(CircleShape)
-                                .background(storedProfile.skinHex.asComposeColor())
+                                .background(currentProfile.skinHex.asComposeColor())
                                 .border(2.dp, EditorialSand, CircleShape),
                         )
                         Spacer(Modifier.width(12.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    storedProfile.season,
+                                    currentProfile.season,
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
                                     color = EditorialInk,
@@ -221,7 +229,7 @@ fun ExploreScreen(
                                 }
                             }
                             Text(
-                                "Undertone: ${storedProfile.undertone} • ${storedProfile.bestMetals}",
+                                "Undertone: ${currentProfile.undertone} • ${currentProfile.bestMetals}",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = EditorialMuted,
                             )
@@ -262,10 +270,10 @@ fun ExploreScreen(
 
                 // Filter items by user season and selected occasion
                 val matchingItems = allCuratedPaletteItems.filter {
-                    it.forSeason.equals(storedProfile.season, ignoreCase = true) && it.category == selectedCategory
+                    it.forSeason.equals(currentProfile.season, ignoreCase = true) && it.category == selectedCategory
                 }.ifEmpty {
                     // Fallback to all items for the user's season if none match that specific occasion category
-                    allCuratedPaletteItems.filter { it.forSeason.equals(storedProfile.season, ignoreCase = true) }
+                    allCuratedPaletteItems.filter { it.forSeason.equals(currentProfile.season, ignoreCase = true) }
                 }.ifEmpty {
                     // Or default palette items
                     allCuratedPaletteItems.take(4)
@@ -274,7 +282,7 @@ fun ExploreScreen(
                 Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     matchingItems.forEach { item ->
                         val fabric = FabricCatalog.findById(item.fabricId)
-                        val eval = TrueColorHarmonyEngine.evaluate(storedProfile.skinHex, item.hex)
+                        val eval = TrueColorHarmonyEngine.evaluate(currentProfile.skinHex, item.hex)
 
                         Card(
                             shape = RoundedCornerShape(18.dp),

@@ -26,12 +26,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -87,7 +86,10 @@ fun LooksScreen(
         savedOutfits = WardrobeRepository.listOutfits(context)
         selectedCompareIds.clear()
     }
+
     var alertMessage by remember { mutableStateOf<String?>(null) }
+    var snapToDeleteId by remember { mutableStateOf<String?>(null) }
+    var outfitToDeleteId by remember { mutableStateOf<String?>(null) }
 
     fun toggleSelection(id: String) {
         if (id in selectedCompareIds) {
@@ -237,7 +239,7 @@ fun LooksScreen(
                             Card(
                                 shape = RoundedCornerShape(18.dp),
                                 colors = CardDefaults.cardColors(
-                                    containerColor = if (isSelected) EditorialSienna.copy(alpha = 0.05f) else Color.White,
+                                    containerColor = if (isSelected) EditorialSienna.copy(alpha = 0.06f) else Color.White,
                                 ),
                                 elevation = CardDefaults.cardElevation(defaultElevation = if (isSelected) 3.dp else 1.dp),
                                 modifier = Modifier
@@ -253,33 +255,21 @@ fun LooksScreen(
                                     modifier = Modifier.padding(12.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                 ) {
-                                    // Selection Checkbox
-                                    Checkbox(
-                                        checked = isSelected,
-                                        onCheckedChange = { toggleSelection(snap.id) },
-                                        colors = CheckboxDefaults.colors(
-                                            checkedColor = EditorialSienna,
-                                            uncheckedColor = EditorialStone,
-                                        ),
-                                    )
-
-                                    Spacer(Modifier.width(6.dp))
-
                                     // Thumbnail
                                     if (bmp != null) {
                                         Image(
                                             bitmap = bmp.asImageBitmap(),
                                             contentDescription = snap.fabricName,
                                             modifier = Modifier
-                                                .size(68.dp)
-                                                .clip(RoundedCornerShape(12.dp)),
+                                                .size(72.dp)
+                                                .clip(RoundedCornerShape(14.dp)),
                                             contentScale = ContentScale.Crop,
                                         )
                                     } else {
                                         Box(
                                             modifier = Modifier
-                                                .size(68.dp)
-                                                .clip(RoundedCornerShape(12.dp))
+                                                .size(72.dp)
+                                                .clip(RoundedCornerShape(14.dp))
                                                 .background(snap.colorHex.asComposeColor()),
                                         )
                                     }
@@ -300,46 +290,59 @@ fun LooksScreen(
                                             color = EditorialPositive,
                                             fontWeight = FontWeight.SemiBold,
                                         )
-                                        Spacer(Modifier.height(6.dp))
-                                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                            Text(
-                                                if (isSelected) "✓ Added to Compare" else "+ Add to Compare",
-                                                style = MaterialTheme.typography.labelSmall,
-                                                fontWeight = FontWeight.Bold,
-                                                color = if (isSelected) EditorialSienna else EditorialInk,
-                                                modifier = Modifier.clickable { toggleSelection(snap.id) },
-                                            )
-                                            Text(
-                                                "•",
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = EditorialMuted,
-                                            )
-                                            Text(
-                                                "Try-On →",
-                                                style = MaterialTheme.typography.labelSmall,
-                                                fontWeight = FontWeight.Bold,
-                                                color = EditorialSienna,
-                                                modifier = Modifier.clickable {
-                                                    onNavigateToTryOn(snap.fabricId, snap.colorHex, null)
-                                                },
-                                            )
-                                            Text(
-                                                "•",
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = EditorialMuted,
-                                            )
-                                            Text(
-                                                "Delete",
-                                                style = MaterialTheme.typography.labelSmall,
-                                                fontWeight = FontWeight.Bold,
-                                                color = EditorialMuted,
-                                                modifier = Modifier.clickable {
-                                                    selectedCompareIds.remove(snap.id)
-                                                    DrapeSnapRepository.delete(context, snap.id)
-                                                    snaps = DrapeSnapRepository.list(context)
-                                                },
-                                            )
+                                        Spacer(Modifier.height(8.dp))
+                                        Row(
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                        ) {
+                                            // ADD / REMOVE COMPARE PILL
+                                            Box(
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(8.dp))
+                                                    .background(if (isSelected) EditorialSienna else EditorialSand)
+                                                    .clickable { toggleSelection(snap.id) }
+                                                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                                            ) {
+                                                Text(
+                                                    if (isSelected) "✓ In Compare" else "+ Compare",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = if (isSelected) Color.White else EditorialInk,
+                                                    fontSize = 11.sp,
+                                                )
+                                            }
+
+                                            // TRY-ON EXACT COLOR CTA
+                                            Box(
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(8.dp))
+                                                    .background(EditorialSand.copy(alpha = 0.5f))
+                                                    .clickable {
+                                                        onNavigateToTryOn(snap.fabricId, snap.colorHex, null)
+                                                    }
+                                                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                                            ) {
+                                                Text(
+                                                    "Try-On Color ✨",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = EditorialSienna,
+                                                    fontSize = 11.sp,
+                                                )
+                                            }
                                         }
+                                    }
+
+                                    // VERTICALLY CENTERED TRASH DELETE BUTTON
+                                    Box(
+                                        modifier = Modifier
+                                            .size(38.dp)
+                                            .clip(CircleShape)
+                                            .background(EditorialSand.copy(alpha = 0.40f))
+                                            .clickable { snapToDeleteId = snap.id },
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        Text("🗑️", fontSize = 16.sp)
                                     }
                                 }
                             }
@@ -376,12 +379,12 @@ fun LooksScreen(
                                 ) {
                                     Box(
                                         modifier = Modifier
-                                            .size(60.dp)
+                                            .size(64.dp)
                                             .clip(RoundedCornerShape(12.dp))
                                             .background(outfit.colorHex.asComposeColor()),
                                         contentAlignment = Alignment.Center,
                                     ) {
-                                        Text("👗", fontSize = 24.sp)
+                                        Text("👔", fontSize = 24.sp)
                                     }
 
                                     Spacer(Modifier.width(14.dp))
@@ -398,28 +401,36 @@ fun LooksScreen(
                                             style = MaterialTheme.typography.bodySmall,
                                             color = EditorialMuted,
                                         )
-                                        Spacer(Modifier.height(4.dp))
-                                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Spacer(Modifier.height(6.dp))
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(EditorialSand.copy(alpha = 0.5f))
+                                                .clickable {
+                                                    onNavigateToTryOn("silk", outfit.colorHex, null)
+                                                }
+                                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                                        ) {
                                             Text(
                                                 "Try-On Again →",
                                                 style = MaterialTheme.typography.labelSmall,
                                                 fontWeight = FontWeight.Bold,
                                                 color = EditorialSienna,
-                                                modifier = Modifier.clickable {
-                                                    onNavigateToTryOn("silk", outfit.colorHex, null)
-                                                },
-                                            )
-                                            Text(
-                                                "Remove",
-                                                style = MaterialTheme.typography.labelSmall,
-                                                fontWeight = FontWeight.Bold,
-                                                color = EditorialMuted,
-                                                modifier = Modifier.clickable {
-                                                    WardrobeRepository.removeOutfit(context, outfit.id)
-                                                    savedOutfits = WardrobeRepository.listOutfits(context)
-                                                },
+                                                fontSize = 11.sp,
                                             )
                                         }
+                                    }
+
+                                    // VERTICALLY CENTERED TRASH DELETE BUTTON
+                                    Box(
+                                        modifier = Modifier
+                                            .size(38.dp)
+                                            .clip(CircleShape)
+                                            .background(EditorialSand.copy(alpha = 0.40f))
+                                            .clickable { outfitToDeleteId = outfit.id },
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        Text("🗑️", fontSize = 16.sp)
                                     }
                                 }
                             }
@@ -451,51 +462,102 @@ fun LooksScreen(
                 }
             }
 
-            // DOCKED BOTTOM COMPARE BUTTON
+            // BOTTOM PINNED COMPARE BUTTON BAR
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
-                    .background(EditorialCream.copy(alpha = 0.95f))
-                    .padding(horizontal = 18.dp, vertical = 10.dp)
-                    .navigationBarsPadding(),
+                    .navigationBarsPadding()
+                    .padding(horizontal = 18.dp, vertical = 12.dp),
             ) {
-                val count = selectedCompareIds.size
-                val buttonText = when {
-                    count == 0 -> "📸 Compare Looks (Select at least 2)"
-                    count == 1 -> "📸 1 Look Selected (Select 1 More)"
-                    else -> "📸 Compare ($count) Looks Side-by-Side →"
-                }
-
                 Button(
                     onClick = {
-                        if (count < 2) {
-                            alertMessage = "Please select at least 2 pictures using checkboxes to compare side-by-side."
+                        if (selectedCompareIds.size < 2) {
+                            alertMessage = "Select at least 2 pictures using '+ Compare' to compare side-by-side."
                             scope.launch {
                                 delay(2500)
                                 alertMessage = null
                             }
                         } else {
-                            val idsToPass = selectedCompareIds.toList()
-                            selectedCompareIds.clear() // Reset selection on navigate as requested
-                            onNavigateToCompare(idsToPass)
+                            val itemsToCompare = selectedCompareIds.toList()
+                            selectedCompareIds.clear()
+                            onNavigateToCompare(itemsToCompare)
                         }
                     },
                     shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = if (count >= 2) EditorialSienna else EditorialSand.copy(alpha = 0.8f),
+                        containerColor = if (selectedCompareIds.size >= 2) EditorialSienna else EditorialInk.copy(alpha = 0.75f),
                     ),
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(52.dp),
                 ) {
                     Text(
-                        buttonText,
-                        color = if (count >= 2) Color.White else EditorialInk,
+                        if (selectedCompareIds.size >= 2) {
+                            "⚡ Compare ${selectedCompareIds.size} Looks Side-by-Side"
+                        } else {
+                            "⚡ Compare Looks (Select at least 2)"
+                        },
+                        color = Color.White,
                         fontWeight = FontWeight.Bold,
-                        style = MaterialTheme.typography.titleSmall,
+                        fontSize = 15.sp,
                     )
                 }
+            }
+
+            // DELETE CONFIRMATION DIALOG FOR DRAPE SNAPS
+            if (snapToDeleteId != null) {
+                AlertDialog(
+                    onDismissRequest = { snapToDeleteId = null },
+                    title = { Text("Delete Look?", fontWeight = FontWeight.Bold, color = EditorialInk) },
+                    text = { Text("Are you sure you want to delete this look? This cannot be undone.", color = EditorialMuted) },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                val id = snapToDeleteId!!
+                                selectedCompareIds.remove(id)
+                                DrapeSnapRepository.delete(context, id)
+                                snaps = DrapeSnapRepository.list(context)
+                                snapToDeleteId = null
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = EditorialWarning),
+                        ) {
+                            Text("Delete", color = Color.White, fontWeight = FontWeight.Bold)
+                        }
+                    },
+                    dismissButton = {
+                        OutlinedButton(onClick = { snapToDeleteId = null }) {
+                            Text("Cancel", color = EditorialInk)
+                        }
+                    },
+                )
+            }
+
+            // DELETE CONFIRMATION DIALOG FOR OUTFITS
+            if (outfitToDeleteId != null) {
+                AlertDialog(
+                    onDismissRequest = { outfitToDeleteId = null },
+                    title = { Text("Remove Outfit?", fontWeight = FontWeight.Bold, color = EditorialInk) },
+                    text = { Text("Are you sure you want to remove this saved outfit?", color = EditorialMuted) },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                val id = outfitToDeleteId!!
+                                WardrobeRepository.removeOutfit(context, id)
+                                savedOutfits = WardrobeRepository.listOutfits(context)
+                                outfitToDeleteId = null
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = EditorialWarning),
+                        ) {
+                            Text("Remove", color = Color.White, fontWeight = FontWeight.Bold)
+                        }
+                    },
+                    dismissButton = {
+                        OutlinedButton(onClick = { outfitToDeleteId = null }) {
+                            Text("Cancel", color = EditorialInk)
+                        }
+                    },
+                )
             }
         }
     }

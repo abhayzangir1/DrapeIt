@@ -217,8 +217,10 @@ fun DrapeProofApp(
                             TryOnScreen(
                                 initialFabricId = tryOnFabricId,
                                 initialColorHex = tryOnColorHex,
-                                initialCutName = "Relaxed Tailored",
                                 initialGarmentUri = tryOnGarmentUri,
+                                onNavigateToLooks = {
+                                    currentTab = AppTab.LOOKS
+                                },
                                 onNavigateToShop = { _, _, _, _ ->
                                     currentTab = AppTab.LOOKS
                                 },

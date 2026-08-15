@@ -32,9 +32,9 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -46,7 +46,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
@@ -124,8 +125,6 @@ private val cameraColorPalette = listOf(
     CameraColorItem("Sky Blue", "#93C5FD", "Pastels"),
 )
 
-private val infiniteColorPalette = cameraColorPalette + cameraColorPalette + cameraColorPalette + cameraColorPalette
-
 @Composable
 fun DrapeCaptureScreen(
     initialFabricId: String? = null,
@@ -153,7 +152,7 @@ fun DrapeCaptureScreen(
         }
     }
 
-    // Photo Mode State (if user chooses to drape on an uploaded photo)
+    // Photo Mode State
     var photoBitmap by remember { mutableStateOf<Bitmap?>(null) }
     val photoPickerLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri?.let {
@@ -240,7 +239,9 @@ fun DrapeCaptureScreen(
         FabricTextureShader.getOrLoadTile(context, selectedFabric.id)
     }
 
-    val colorScrollState = rememberScrollState()
+    // Infinite Looping LazyRow State
+    val infiniteItemCount = 10000 * cameraColorPalette.size
+    val colorListState = rememberLazyListState(initialFirstVisibleItemIndex = 5000 * cameraColorPalette.size)
 
     // Curtain Drop Freeze Animation States
     var capturedFreezeBitmap by remember { mutableStateOf<Bitmap?>(null) }
@@ -286,7 +287,9 @@ fun DrapeCaptureScreen(
         return
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val totalScreenHeight = maxHeight
+
         // 1. LIVE CAMERA OR PHOTO VIEWPORT
         if (photoBitmap == null) {
             ControlledCameraPreview(
@@ -394,14 +397,13 @@ fun DrapeCaptureScreen(
             }
         }
 
-        // 4. COMPATIBILITY PERCENTAGE BADGE PLACED DIRECTLY BELOW THE OVAL WITH CLEAR SPACING
+        // 4. COMPATIBILITY PERCENTAGE BADGE ANCHORED PRECISELY BELOW THE RETICLE OVAL
         Box(
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .statusBarsPadding()
-                .padding(top = 285.dp)
+                .padding(top = totalScreenHeight * 0.475f)
                 .clip(RoundedCornerShape(20.dp))
-                .background(Color.Black.copy(alpha = 0.75f))
+                .background(Color.Black.copy(alpha = 0.78f))
                 .border(1.5.dp, animatedStatusColor, RoundedCornerShape(20.dp))
                 .padding(horizontal = 14.dp, vertical = 6.dp),
             contentAlignment = Alignment.Center,
@@ -505,13 +507,13 @@ fun DrapeCaptureScreen(
             }
         }
 
-        // 6. BOTTOM CONTROL DECK: ACTION ROW + BORDERLESS COLORS (COLLAPSIBLE)
+        // 6. BOTTOM CONTROL DECK: MOVED SLIGHTLY DOWN WITH SNUG BOTTOM PADDING
         Column(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .navigationBarsPadding()
-                .padding(bottom = 8.dp, start = 14.dp, end = 14.dp),
+                .padding(bottom = 2.dp, start = 12.dp, end = 12.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             // COLLAPSE / EXPAND ARROW-ONLY TOGGLE
@@ -539,7 +541,7 @@ fun DrapeCaptureScreen(
                 exit = fadeOut() + androidx.compose.animation.shrinkVertically(),
             ) {
                 Column(
-                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     // ACTION ROW: [ 🖼️ Photo Upload ] + [ 📸 CAPTURE ] + [ 🧵 Fabric ]
@@ -673,7 +675,7 @@ fun DrapeCaptureScreen(
                             Text("📸", fontSize = 28.sp)
                         }
 
-                        // RIGHT: FABRIC MATERIAL BUTTON (CLEARLY RECOGNIZABLE)
+                        // RIGHT: FABRIC MATERIAL BUTTON
                         Box(
                             modifier = Modifier
                                 .size(50.dp)
@@ -690,13 +692,13 @@ fun DrapeCaptureScreen(
                         }
                     }
 
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(8.dp))
 
-                    // BOTTOM-MOST: BORDERLESS INFINITE COLOR SWATCHES (NO BACKGROUND HIGHLIGHT)
+                    // BOTTOM-MOST: INFINITE CONTINUOUS LOOPING COLOR SWATCHES
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 4.dp),
+                            .padding(vertical = 2.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         // PERMANENT COLOR PICKER BUTTON (FIXED ON LEFT)
@@ -714,15 +716,15 @@ fun DrapeCaptureScreen(
 
                         Spacer(Modifier.width(8.dp))
 
-                        // INFINITE HORIZONTAL SWATCHES (NO BACKGROUND BOX OR SHADOW)
-                        Row(
-                            modifier = Modifier
-                                .weight(1f)
-                                .horizontalScroll(colorScrollState),
+                        // ENDLESS INFINITE HORIZONTAL SWATCHES
+                        LazyRow(
+                            state = colorListState,
+                            modifier = Modifier.weight(1f),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            infiniteColorPalette.forEach { item ->
+                            items(infiniteItemCount) { index ->
+                                val item = cameraColorPalette[index % cameraColorPalette.size]
                                 val isSelected = activeColorHex.equals(item.hex, ignoreCase = true)
                                 val animScale by animateFloatAsState(
                                     targetValue = if (isSelected) 1.22f else 1.0f,
@@ -807,7 +809,6 @@ fun DrapeCaptureScreen(
                     contentScale = ContentScale.Crop,
                 )
 
-                // Curtain fold shadow gradient
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()

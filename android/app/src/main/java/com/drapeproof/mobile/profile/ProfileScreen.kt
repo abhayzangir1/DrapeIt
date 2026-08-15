@@ -1,5 +1,6 @@
 package com.drapeproof.mobile.profile
 
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -34,6 +35,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -60,16 +62,24 @@ import com.drapeproof.mobile.ui.theme.EditorialWarning
 
 @Composable
 fun ProfileScreen(
-    onRecalibrate: () -> Unit,
+    onRecalibrate: () -> Unit = {},
     onOpenYouCamLab: () -> Unit,
 ) {
     val context = LocalContext.current
     var profile by remember { mutableStateOf(SkinProfileRepository.load(context)) }
+
+    LaunchedEffect(Unit) {
+        profile = SkinProfileRepository.load(context)
+    }
+
     val effectiveProfile = profile ?: SkinProfileRepository.deriveProfileFromSkinHex("#D8B498", "default_preset")
 
     var showUpdateModal by remember { mutableStateOf(false) }
     var showLabInfoDialog by remember { mutableStateOf(false) }
     var updateSuccessMessage by remember { mutableStateOf<String?>(null) }
+
+    var selectedPickerBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    var isLiveScannerOpen by remember { mutableStateOf(false) }
 
     val photoPickerLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         if (uri != null) {
@@ -77,18 +87,8 @@ fun ProfileScreen(
                 context.contentResolver.openInputStream(uri)?.use { stream ->
                     val bmp = BitmapFactory.decodeStream(stream)
                     if (bmp != null) {
-                        val cx = (bmp.width * 0.5f).toInt().coerceIn(0, bmp.width - 1)
-                        val cy = (bmp.height * 0.5f).toInt().coerceIn(0, bmp.height - 1)
-                        val pixel = bmp.getPixel(cx, cy)
-                        val r = (pixel shr 16) and 0xFF
-                        val g = (pixel shr 8) and 0xFF
-                        val b = pixel and 0xFF
-                        val hex = String.format("#%02X%02X%02X", r, g, b)
-                        val newProfile = SkinProfileRepository.deriveProfileFromSkinHex(hex, "photo_upload")
-                        SkinProfileRepository.save(context, newProfile)
-                        profile = newProfile
+                        selectedPickerBitmap = bmp
                         showUpdateModal = false
-                        updateSuccessMessage = "Colortone updated to $hex successfully!"
                     }
                 }
             }
@@ -247,7 +247,7 @@ fun ProfileScreen(
 
             Spacer(Modifier.height(14.dp))
 
-            // 3. BEST COLORS FOR YOU
+            // 3. BEST COLOR SUGGESTIONS (HIGH VISUAL CONSISTENCY)
             Card(
                 shape = RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -264,7 +264,7 @@ fun ProfileScreen(
                         color = EditorialInk,
                     )
                     Text(
-                        "These shades highlight your natural facial contrast and undertone.",
+                        "These shades highlight your natural facial contrast and ${effectiveProfile.undertone.lowercase()} undertone.",
                         style = MaterialTheme.typography.bodySmall,
                         color = EditorialMuted,
                     )
@@ -280,21 +280,21 @@ fun ProfileScreen(
                         effectiveProfile.bestColors.forEach { hex ->
                             Column(
                                 horizontalAlignment = Alignment.CenterHorizontally,
-                                modifier = Modifier.width(52.dp),
+                                modifier = Modifier.width(56.dp),
                             ) {
                                 Box(
                                     modifier = Modifier
                                         .size(46.dp)
                                         .clip(CircleShape)
                                         .background(hex.asComposeColor())
-                                        .border(1.dp, Color.LightGray.copy(alpha = 0.5f), CircleShape),
+                                        .border(1.5.dp, EditorialSand, CircleShape),
                                 )
                                 Spacer(Modifier.height(4.dp))
                                 Text(
                                     hex,
                                     fontSize = 10.sp,
-                                    color = EditorialMuted,
-                                    fontWeight = FontWeight.Medium,
+                                    color = EditorialInk,
+                                    fontWeight = FontWeight.Bold,
                                 )
                             }
                         }
@@ -304,7 +304,7 @@ fun ProfileScreen(
 
             Spacer(Modifier.height(14.dp))
 
-            // 4. COLORS TO AVOID
+            // 4. COLORS TO AVOID (DESIGNED IDENTICALLY TO BEST COLORS FOR VISUAL HARMONY)
             Card(
                 shape = RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -321,7 +321,7 @@ fun ProfileScreen(
                         color = EditorialInk,
                     )
                     Text(
-                        "These tones clash with your undertone and can wash out your features.",
+                        "These tones clash with your undertone and can wash out or overpower your natural complexion.",
                         style = MaterialTheme.typography.bodySmall,
                         color = EditorialMuted,
                     )
@@ -329,26 +329,30 @@ fun ProfileScreen(
                     Spacer(Modifier.height(12.dp))
 
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
                         effectiveProfile.worstColors.forEach { hex ->
-                            Row(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(EditorialSand.copy(alpha = 0.40f))
-                                    .padding(horizontal = 10.dp, vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically,
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.width(56.dp),
                             ) {
                                 Box(
                                     modifier = Modifier
-                                        .size(24.dp)
+                                        .size(46.dp)
                                         .clip(CircleShape)
                                         .background(hex.asComposeColor())
-                                        .border(1.dp, Color.LightGray, CircleShape),
+                                        .border(1.5.dp, EditorialWarning.copy(alpha = 0.5f), CircleShape),
                                 )
-                                Spacer(Modifier.width(6.dp))
-                                Text(hex, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = EditorialInk)
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    hex,
+                                    fontSize = 10.sp,
+                                    color = EditorialInk,
+                                    fontWeight = FontWeight.Bold,
+                                )
                             }
                         }
                     }
@@ -427,7 +431,7 @@ fun ProfileScreen(
                 text = {
                     Column(modifier = Modifier.fillMaxWidth()) {
                         Text(
-                            "Choose your preferred method to calibrate your skin undertone and seasonal profile:",
+                            "Choose how you want to calibrate your personal colortone:",
                             style = MaterialTheme.typography.bodySmall,
                             color = EditorialMuted,
                         )
@@ -450,12 +454,12 @@ fun ProfileScreen(
                                 Spacer(Modifier.width(12.dp))
                                 Column {
                                     Text("Choose Image & Pick Colortone", fontWeight = FontWeight.Bold, color = EditorialInk, fontSize = 13.sp)
-                                    Text("Select a clear portrait from your photo gallery", style = MaterialTheme.typography.labelSmall, color = EditorialMuted)
+                                    Text("Point on forehead & cheeks to sample", style = MaterialTheme.typography.bodySmall, color = EditorialMuted, fontSize = 11.sp)
                                 }
                             }
                         }
 
-                        Spacer(Modifier.height(8.dp))
+                        Spacer(Modifier.height(10.dp))
 
                         // OPTION 2: LIVE CAMERA SCAN
                         Card(
@@ -465,7 +469,7 @@ fun ProfileScreen(
                                 .fillMaxWidth()
                                 .clickable {
                                     showUpdateModal = false
-                                    onRecalibrate()
+                                    isLiveScannerOpen = true
                                 }
                                 .padding(vertical = 4.dp),
                         ) {
@@ -476,8 +480,8 @@ fun ProfileScreen(
                                 Text("📷", fontSize = 24.sp)
                                 Spacer(Modifier.width(12.dp))
                                 Column {
-                                    Text("Live Camera Scan", fontWeight = FontWeight.Bold, color = EditorialInk, fontSize = 13.sp)
-                                    Text("Point front camera to capture live facial colortone", style = MaterialTheme.typography.labelSmall, color = EditorialMuted)
+                                    Text("Live Camera Scan (KYC Mode)", fontWeight = FontWeight.Bold, color = EditorialInk, fontSize = 13.sp)
+                                    Text("Biometric facial scan with auto-calibration", style = MaterialTheme.typography.bodySmall, color = EditorialMuted, fontSize = 11.sp)
                                 }
                             }
                         }
@@ -485,32 +489,60 @@ fun ProfileScreen(
                 },
                 confirmButton = {},
                 dismissButton = {
-                    OutlinedButton(onClick = { showUpdateModal = false }, shape = RoundedCornerShape(10.dp)) {
-                        Text("Cancel", color = EditorialInk)
+                    Button(
+                        onClick = { showUpdateModal = false },
+                        colors = ButtonDefaults.buttonColors(containerColor = EditorialSand),
+                    ) {
+                        Text("Cancel", color = EditorialInk, fontWeight = FontWeight.Bold)
                     }
                 },
             )
         }
 
-        // LAB INFO DIALOG (EXPLAINS WHY API LAB IS PRESENT)
+        // INTERACTIVE 3-POINT SKIN TONE PICKER MODAL
+        if (selectedPickerBitmap != null) {
+            SkinTonePickerModal(
+                bitmap = selectedPickerBitmap!!,
+                onDismiss = { selectedPickerBitmap = null },
+                onSaved = { hex ->
+                    profile = SkinProfileRepository.load(context)
+                    selectedPickerBitmap = null
+                    updateSuccessMessage = "Colortone updated to $hex successfully!"
+                },
+            )
+        }
+
+        // DEDICATED LIVE KYC-STYLE CAMERA COLORIMETRY SCANNER
+        if (isLiveScannerOpen) {
+            LiveSkinScanScreen(
+                onDismiss = { isLiveScannerOpen = false },
+                onScanSuccess = { hex ->
+                    profile = SkinProfileRepository.load(context)
+                    isLiveScannerOpen = false
+                    updateSuccessMessage = "Live colortone scan calibrated to $hex!"
+                },
+            )
+        }
+
+        // LAB INFO DIALOG
         if (showLabInfoDialog) {
             AlertDialog(
                 onDismissRequest = { showLabInfoDialog = false },
                 containerColor = Color.White,
-                shape = RoundedCornerShape(24.dp),
+                shape = RoundedCornerShape(22.dp),
                 title = {
-                    Text("Why YouCam API Lab is Included", fontWeight = FontWeight.Bold, color = EditorialInk, style = MaterialTheme.typography.titleMedium)
+                    Text("Why is the API Lab Bench included?", fontWeight = FontWeight.Bold, color = EditorialInk)
                 },
                 text = {
                     Text(
-                        "The YouCam API Lab & Diagnostics bench is built specifically for hackathon judges and technical evaluators to:\n\n" +
-                            "• Verify real Perfect Corp API connectivity via our serverless Cloudflare Worker proxy.\n" +
-                            "• Inspect remaining API credit balance (718 units available) and credit consumption.\n" +
-                            "• View raw JSON telemetry and neural rendering latency from Clothes V3.\n\n" +
-                            "Shoppers enjoy all features seamlessly in Drape and Try-On without ever needing the lab.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = EditorialInk,
-                        lineHeight = 18.sp,
+                        "The YouCam API Lab Bench provides live developer diagnostics for hackathon evaluators.\n\n" +
+                            "• Live verification of Cloudflare Worker proxy security & auth\n" +
+                            "• Real-time YouCam Cloud credit quota monitoring\n" +
+                            "• Raw JSON payload inspection and task polling diagnostics\n" +
+                            "• Direct end-to-end neural rendering latency benchmarks",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = EditorialInk.copy(alpha = 0.85f),
+                        lineHeight = 20.sp,
                     )
                 },
                 confirmButton = {
@@ -519,7 +551,7 @@ fun ProfileScreen(
                         colors = ButtonDefaults.buttonColors(containerColor = EditorialSienna),
                         shape = RoundedCornerShape(12.dp),
                     ) {
-                        Text("Understood", color = Color.White, fontWeight = FontWeight.Bold)
+                        Text("Got it", color = Color.White, fontWeight = FontWeight.Bold)
                     }
                 },
             )
