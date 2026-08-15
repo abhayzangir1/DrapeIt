@@ -68,17 +68,19 @@ import java.io.File
 
 @Composable
 fun CompareScreen(
+    initialSelectedIds: List<String> = emptyList(),
     onBack: () -> Unit,
     onSelectLookForTryOn: (fabricId: String, colorHex: String) -> Unit,
 ) {
     val context = LocalContext.current
     var snaps by remember { mutableStateOf(DrapeSnapRepository.list(context)) }
-    val selectedSnapIds = remember { mutableStateListOf<String>() }
-
-    // Auto-select first 2-4 snaps on initial load if available
-    remember(snaps) {
-        if (selectedSnapIds.isEmpty() && snaps.isNotEmpty()) {
-            snaps.take(4).forEach { selectedSnapIds.add(it.id) }
+    val selectedSnapIds = remember {
+        mutableStateListOf<String>().apply {
+            if (initialSelectedIds.isNotEmpty()) {
+                addAll(initialSelectedIds)
+            } else if (snaps.isNotEmpty()) {
+                addAll(snaps.take(4).map { it.id })
+            }
         }
     }
 

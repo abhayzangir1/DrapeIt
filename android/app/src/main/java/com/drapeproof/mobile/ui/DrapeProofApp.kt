@@ -2,6 +2,9 @@ package com.drapeproof.mobile.ui
 
 import android.net.Uri
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -17,6 +20,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -38,14 +42,14 @@ import com.drapeproof.mobile.youcam.YouCamLabScreen
 enum class AppTab(val title: String, val icon: String) {
     EXPLORE("Explore", "🔍"),
     DRAPE("Drape", "🪞"),
-    LOOKS("Looks", "✨"),
+    TRY_ON("Try-On", "👗"),
+    LOOKS("Looks", "🖼️"),
     PROFILE("Profile", "👤"),
 }
 
 private enum class SubFlow {
     NONE,
     COMPARE,
-    TRY_ON,
     YOUCAM_LAB,
 }
 
@@ -68,11 +72,13 @@ fun DrapeProofApp(
     var tryOnColorHex by remember { mutableStateOf("#831843") }
     var tryOnGarmentUri by remember { mutableStateOf<Uri?>(null) }
 
+    // Inter-screen parameters for Compare
+    var compareSelectedIds by remember { mutableStateOf<List<String>>(emptyList()) }
+
     LaunchedEffect(sharedImageUri) {
         if (sharedImageUri != null) {
             tryOnGarmentUri = sharedImageUri
-            currentTab = AppTab.LOOKS
-            subFlow = SubFlow.TRY_ON
+            currentTab = AppTab.TRY_ON
             onSharedImageConsumed()
         }
     }
@@ -85,6 +91,7 @@ fun DrapeProofApp(
     BackHandler(enabled = subFlow != SubFlow.NONE || currentTab != AppTab.EXPLORE) {
         if (subFlow != SubFlow.NONE) {
             subFlow = SubFlow.NONE
+            compareSelectedIds = emptyList()
         } else {
             currentTab = AppTab.EXPLORE
         }
@@ -99,11 +106,24 @@ fun DrapeProofApp(
                 ) {
                     AppTab.values().forEach { tab ->
                         val selected = currentTab == tab
+                        val iconScale by animateFloatAsState(
+                            targetValue = if (selected) 1.25f else 1.0f,
+                            animationSpec = spring(
+                                dampingRatio = Spring.DampingRatioMediumBouncy,
+                                stiffness = Spring.StiffnessLow,
+                            ),
+                            label = "TabZoom_${tab.name}",
+                        )
+
                         NavigationBarItem(
                             selected = selected,
                             onClick = { currentTab = tab },
                             icon = {
-                                Text(tab.icon, fontSize = 20.sp)
+                                Text(
+                                    tab.icon,
+                                    fontSize = 20.sp,
+                                    modifier = Modifier.scale(iconScale),
+                                )
                             },
                             label = {
                                 Text(
@@ -132,25 +152,18 @@ fun DrapeProofApp(
             when (subFlow) {
                 SubFlow.COMPARE -> {
                     CompareScreen(
-                        onBack = { subFlow = SubFlow.NONE },
+                        initialSelectedIds = compareSelectedIds,
+                        onBack = {
+                            subFlow = SubFlow.NONE
+                            compareSelectedIds = emptyList()
+                        },
                         onSelectLookForTryOn = { fabricId, colorHex ->
                             tryOnFabricId = fabricId
                             tryOnColorHex = colorHex
                             tryOnGarmentUri = null
-                            subFlow = SubFlow.TRY_ON
-                        },
-                    )
-                }
-
-                SubFlow.TRY_ON -> {
-                    TryOnScreen(
-                        initialFabricId = tryOnFabricId,
-                        initialColorHex = tryOnColorHex,
-                        initialCutName = "Relaxed Tailored",
-                        initialGarmentUri = tryOnGarmentUri,
-                        onNavigateToShop = { _, _, _, _ ->
                             subFlow = SubFlow.NONE
-                            currentTab = AppTab.LOOKS
+                            currentTab = AppTab.TRY_ON
+                            compareSelectedIds = emptyList()
                         },
                     )
                 }
@@ -174,7 +187,7 @@ fun DrapeProofApp(
                                     tryOnFabricId = fabricId
                                     tryOnColorHex = colorHex
                                     tryOnGarmentUri = null
-                                    subFlow = SubFlow.TRY_ON
+                                    currentTab = AppTab.TRY_ON
                                 },
                                 onNavigateToProfile = {
                                     currentTab = AppTab.PROFILE
@@ -187,12 +200,27 @@ fun DrapeProofApp(
                                 initialFabricId = drapeInitialFabricId,
                                 initialColorHex = drapeInitialColorHex,
                                 onBack = { currentTab = AppTab.EXPLORE },
-                                onNavigateToCompare = { subFlow = SubFlow.COMPARE },
+                                onNavigateToCompare = {
+                                    compareSelectedIds = emptyList()
+                                    subFlow = SubFlow.COMPARE
+                                },
                                 onNavigateToTryOn = { fabricId, colorHex ->
                                     tryOnFabricId = fabricId
                                     tryOnColorHex = colorHex
                                     tryOnGarmentUri = null
-                                    subFlow = SubFlow.TRY_ON
+                                    currentTab = AppTab.TRY_ON
+                                },
+                            )
+                        }
+
+                        AppTab.TRY_ON -> {
+                            TryOnScreen(
+                                initialFabricId = tryOnFabricId,
+                                initialColorHex = tryOnColorHex,
+                                initialCutName = "Relaxed Tailored",
+                                initialGarmentUri = tryOnGarmentUri,
+                                onNavigateToShop = { _, _, _, _ ->
+                                    currentTab = AppTab.LOOKS
                                 },
                             )
                         }
@@ -203,14 +231,15 @@ fun DrapeProofApp(
                                     tryOnFabricId = fabricId
                                     tryOnColorHex = colorHex
                                     tryOnGarmentUri = garmentUri
-                                    subFlow = SubFlow.TRY_ON
+                                    currentTab = AppTab.TRY_ON
                                 },
                                 onNavigateToDrape = { fabricId, colorHex ->
                                     drapeInitialFabricId = fabricId
                                     drapeInitialColorHex = colorHex
                                     currentTab = AppTab.DRAPE
                                 },
-                                onNavigateToCompare = {
+                                onNavigateToCompare = { selectedIds ->
+                                    compareSelectedIds = selectedIds
                                     subFlow = SubFlow.COMPARE
                                 },
                             )

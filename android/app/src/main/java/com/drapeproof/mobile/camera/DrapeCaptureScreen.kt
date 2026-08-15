@@ -563,193 +563,224 @@ fun DrapeCaptureScreen(
             }
         }
 
-        // 5. BOTTOM CONTROL DECK: ACTION ROW (PHOTO UPLOAD | CAPTURE | FABRIC) + INFINITE COLORS
+        // 5. BOTTOM CONTROL DECK: ACTION ROW (PHOTO UPLOAD | CAPTURE | FABRIC) + INFINITE COLORS (COLLAPSIBLE)
+        var isControlsCollapsed by remember { mutableStateOf(false) }
+
         Column(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .navigationBarsPadding()
-                .padding(bottom = 12.dp, start = 14.dp, end = 14.dp),
+                .padding(bottom = 8.dp, start = 14.dp, end = 14.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            // ACTION ROW: [ 🖼️ Photo Upload ] (Left) + [ 📸 CAPTURE ] (Center) + [ 🧵 Fabric ] (Right)
-            Row(
+            // COLLAPSE / EXPAND TOGGLE PILL
+            Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 18.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(Color.Black.copy(alpha = 0.65f))
+                    .border(1.dp, Color.White.copy(alpha = 0.25f), RoundedCornerShape(14.dp))
+                    .clickable { isControlsCollapsed = !isControlsCollapsed }
+                    .padding(horizontal = 14.dp, vertical = 5.dp),
+                contentAlignment = Alignment.Center,
             ) {
-                // LEFT: PHOTO UPLOAD ICON BUTTON
-                Box(
-                    modifier = Modifier
-                        .size(50.dp)
-                        .clip(CircleShape)
-                        .background(Color.Black.copy(alpha = 0.75f))
-                        .border(1.5.dp, Color.White.copy(alpha = 0.40f), CircleShape)
-                        .clickable { photoPickerLauncher.launch("image/*") },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text("🖼️", fontSize = 22.sp)
-                }
-
-                // CENTER: LARGE SHUTTER CAPTURE BUTTON (📸)
-                Box(
-                    modifier = Modifier
-                        .size(68.dp)
-                        .clip(CircleShape)
-                        .background(Color.White)
-                        .border(4.dp, EditorialSienna, CircleShape)
-                        .clickable {
-                            val capturedSkinHex = detectedSkinHex ?: effectiveSkinHex
-
-                            val rawUserBitmap = if (photoBitmap == null) {
-                                activePreviewView?.bitmap
-                            } else {
-                                photoBitmap
-                            }
-
-                            if (rawUserBitmap != null) {
-                                PhotoAvatarStore.saveAvatarFromBitmap(
-                                    context = context,
-                                    bitmap = rawUserBitmap,
-                                    name = "My Portrait",
-                                    lighting = AvatarLighting.DAYLIGHT,
-                                    skinHex = capturedSkinHex,
-                                )
-
-                                val comp = Bitmap.createBitmap(rawUserBitmap.width, rawUserBitmap.height, Bitmap.Config.ARGB_8888)
-                                val compCanvas = Canvas(comp)
-                                compCanvas.drawBitmap(rawUserBitmap, 0f, 0f, null)
-
-                                val w = rawUserBitmap.width.toFloat()
-                                val h = rawUserBitmap.height.toFloat()
-                                val chinX = smoothedChinX * w
-                                val chinY = smoothedChinY * h
-
-                                val drapePath = AndroidPath().apply {
-                                    moveTo(0f, chinY + h * 0.12f)
-                                    cubicTo(
-                                        w * 0.20f, chinY + h * 0.06f,
-                                        chinX - w * 0.12f, chinY + h * 0.02f,
-                                        chinX, chinY + h * 0.03f,
-                                    )
-                                    cubicTo(
-                                        chinX + w * 0.12f, chinY + h * 0.02f,
-                                        w * 0.80f, chinY + h * 0.06f,
-                                        w, chinY + h * 0.12f,
-                                    )
-                                    lineTo(w, h)
-                                    lineTo(0f, h)
-                                    close()
-                                }
-
-                                val basePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                                    color = android.graphics.Color.parseColor(activeColorHex)
-                                    style = Paint.Style.FILL
-                                }
-                                compCanvas.drawPath(drapePath, basePaint)
-
-                                val rawTile = FabricTextureShader.getOrLoadRawBitmap(context, selectedFabric.id)
-                                rawTile?.let { tile ->
-                                    val tileShader = BitmapShader(tile, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
-                                    val tilePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                                        shader = tileShader
-                                        alpha = (selectedFabric.textureAlpha * 255).toInt().coerceIn(0, 255)
-                                        xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_ATOP)
-                                    }
-                                    compCanvas.drawPath(drapePath, tilePaint)
-                                }
-
-                                DrapeSnapRepository.saveSnap(
-                                    context = context,
-                                    bitmap = comp,
-                                    colorHex = activeColorHex,
-                                    colorName = selectedColor.name,
-                                    fabricId = selectedFabric.id,
-                                    fabricName = selectedFabric.name,
-                                    matchScorePercent = harmonyResult.scorePercent,
-                                    skinHex = capturedSkinHex,
-                                )
-                            }
-
-                            toastMessage = "📸 Look saved to Looks & Compare!"
-                        },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(52.dp)
-                            .clip(CircleShape)
-                            .background(EditorialSienna),
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        if (isControlsCollapsed) "🪞 Show Controls ⌃" else "Hide Controls ⌄",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        fontSize = 11.sp,
                     )
-                }
-
-                // RIGHT: FABRIC ICON EXPAND BUTTON (UPWARD EXPANSION)
-                Box(
-                    modifier = Modifier
-                        .size(50.dp)
-                        .clip(CircleShape)
-                        .background(Color.Black.copy(alpha = 0.75f))
-                        .border(1.5.dp, EditorialSienna, CircleShape)
-                        .clickable { isFabricListExpanded = !isFabricListExpanded },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(selectedFabric.icon, fontSize = 20.sp)
-                    }
                 }
             }
 
-            Spacer(Modifier.height(14.dp))
-
-            // BOTTOM-MOST: BORDERLESS INFINITE LOOPING COLOR SWATCHES + PERMANENT COLOR PICKER
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(26.dp))
-                    .background(Color.Black.copy(alpha = 0.85f))
-                    .padding(horizontal = 10.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
+            AnimatedVisibility(
+                visible = !isControlsCollapsed,
+                enter = fadeIn() + androidx.compose.animation.expandVertically(),
+                exit = fadeOut() + androidx.compose.animation.shrinkVertically(),
             ) {
-                // PERMANENT COLOR PICKER BUTTON (FIXED ON LEFT)
-                Box(
-                    modifier = Modifier
-                        .size(38.dp)
-                        .clip(CircleShape)
-                        .background(EditorialSand.copy(alpha = 0.30f))
-                        .border(1.5.dp, EditorialSienna, CircleShape)
-                        .clickable { isCustomPickerOpen = true },
-                    contentAlignment = Alignment.Center,
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    Text("🎨", fontSize = 18.sp)
-                }
-
-                Spacer(Modifier.width(10.dp))
-
-                // BORDERLESS INFINITE COLOR SWATCHES
-                Row(
-                    modifier = Modifier
-                        .weight(1f)
-                        .horizontalScroll(colorScrollState),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    infiniteColorPalette.forEach { item ->
-                        val isSelected = activeColorHex.equals(item.hex, ignoreCase = true)
-                        val scale by animateFloatAsState(if (isSelected) 1.25f else 1.0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
-
+                    // ACTION ROW: [ 🖼️ Photo Upload ] (Left) + [ 📸 CAPTURE ] (Center) + [ 🧵 Fabric ] (Right)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 18.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        // LEFT: PHOTO UPLOAD ICON BUTTON
                         Box(
                             modifier = Modifier
-                                .size(34.dp)
-                                .scale(scale)
+                                .size(50.dp)
                                 .clip(CircleShape)
-                                .background(item.hex.asComposeColor())
+                                .background(Color.Black.copy(alpha = 0.75f))
+                                .border(1.5.dp, Color.White.copy(alpha = 0.40f), CircleShape)
+                                .clickable { photoPickerLauncher.launch("image/*") },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text("🖼️", fontSize = 22.sp)
+                        }
+
+                        // CENTER: LARGE SHUTTER CAPTURE BUTTON (📸)
+                        Box(
+                            modifier = Modifier
+                                .size(68.dp)
+                                .clip(CircleShape)
+                                .background(Color.White)
+                                .border(4.dp, EditorialSienna, CircleShape)
                                 .clickable {
-                                    selectedColor = item
-                                    customHex = null
+                                    val capturedSkinHex = detectedSkinHex ?: effectiveSkinHex
+
+                                    val rawUserBitmap = if (photoBitmap == null) {
+                                        activePreviewView?.bitmap
+                                    } else {
+                                        photoBitmap
+                                    }
+
+                                    if (rawUserBitmap != null) {
+                                        PhotoAvatarStore.saveAvatarFromBitmap(
+                                            context = context,
+                                            bitmap = rawUserBitmap,
+                                            name = "My Portrait",
+                                            lighting = AvatarLighting.DAYLIGHT,
+                                            skinHex = capturedSkinHex,
+                                        )
+
+                                        val comp = Bitmap.createBitmap(rawUserBitmap.width, rawUserBitmap.height, Bitmap.Config.ARGB_8888)
+                                        val compCanvas = Canvas(comp)
+                                        compCanvas.drawBitmap(rawUserBitmap, 0f, 0f, null)
+
+                                        val w = rawUserBitmap.width.toFloat()
+                                        val h = rawUserBitmap.height.toFloat()
+                                        val chinX = smoothedChinX * w
+                                        val chinY = smoothedChinY * h
+
+                                        val drapePath = AndroidPath().apply {
+                                            moveTo(0f, chinY + h * 0.12f)
+                                            cubicTo(
+                                                w * 0.20f, chinY + h * 0.06f,
+                                                chinX - w * 0.12f, chinY + h * 0.02f,
+                                                chinX, chinY + h * 0.03f,
+                                            )
+                                            cubicTo(
+                                                chinX + w * 0.12f, chinY + h * 0.02f,
+                                                w * 0.80f, chinY + h * 0.06f,
+                                                w, chinY + h * 0.12f,
+                                            )
+                                            lineTo(w, h)
+                                            lineTo(0f, h)
+                                            close()
+                                        }
+
+                                        val basePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                                            color = android.graphics.Color.parseColor(activeColorHex)
+                                            style = Paint.Style.FILL
+                                        }
+                                        compCanvas.drawPath(drapePath, basePaint)
+
+                                        val rawTile = FabricTextureShader.getOrLoadRawBitmap(context, selectedFabric.id)
+                                        rawTile?.let { tile ->
+                                            val tileShader = BitmapShader(tile, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
+                                            val tilePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                                                shader = tileShader
+                                                alpha = (selectedFabric.textureAlpha * 255).toInt().coerceIn(0, 255)
+                                                xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_ATOP)
+                                            }
+                                            compCanvas.drawPath(drapePath, tilePaint)
+                                        }
+
+                                        val snap = DrapeSnapRepository.saveSnap(
+                                            context = context,
+                                            bitmap = comp,
+                                            colorHex = activeColorHex,
+                                            colorName = selectedColor.name,
+                                            fabricId = selectedFabric.id,
+                                            fabricName = selectedFabric.name,
+                                            matchScorePercent = harmonyResult.scorePercent,
+                                            skinHex = capturedSkinHex,
+                                        )
+
+                                        toastMessage = "📸 Look saved! Match: ${snap?.matchScorePercent ?: harmonyResult.scorePercent}%"
+                                        scope.launch {
+                                            kotlinx.coroutines.delay(2200)
+                                            toastMessage = null
+                                        }
+                                    }
                                 },
-                        )
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text("📸", fontSize = 28.sp)
+                        }
+
+                        // RIGHT: FABRIC MATERIAL BUTTON (OPENS UPWARD SHEET)
+                        Box(
+                            modifier = Modifier
+                                .size(50.dp)
+                                .clip(CircleShape)
+                                .background(Color.Black.copy(alpha = 0.75f))
+                                .border(1.5.dp, EditorialSienna, CircleShape)
+                                .clickable { isFabricListExpanded = true },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(selectedFabric.icon, fontSize = 22.sp)
+                        }
+                    }
+
+                    Spacer(Modifier.height(12.dp))
+
+                    // BOTTOM-MOST: BORDERLESS INFINITE LOOPING COLOR SWATCHES + PERMANENT COLOR PICKER
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(26.dp))
+                            .background(Color.Black.copy(alpha = 0.85f))
+                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        // PERMANENT COLOR PICKER BUTTON (FIXED ON LEFT)
+                        Box(
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clip(CircleShape)
+                                .background(EditorialSand.copy(alpha = 0.30f))
+                                .border(1.5.dp, EditorialSienna, CircleShape)
+                                .clickable { isCustomPickerOpen = true },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text("🎨", fontSize = 18.sp)
+                        }
+
+                        Spacer(Modifier.width(10.dp))
+
+                        // BORDERLESS INFINITE COLOR SWATCHES
+                        Row(
+                            modifier = Modifier
+                                .weight(1f)
+                                .horizontalScroll(colorScrollState),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            infiniteColorPalette.forEach { item ->
+                                val isSelected = activeColorHex.equals(item.hex, ignoreCase = true)
+                                val scale by animateFloatAsState(if (isSelected) 1.25f else 1.0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+
+                                Box(
+                                    modifier = Modifier
+                                        .size(34.dp)
+                                        .scale(scale)
+                                        .clip(CircleShape)
+                                        .background(item.hex.asComposeColor())
+                                        .clickable {
+                                            selectedColor = item
+                                            customHex = null
+                                        },
+                                )
+                            }
+                        }
                     }
                 }
             }
