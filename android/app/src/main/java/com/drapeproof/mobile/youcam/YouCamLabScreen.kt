@@ -563,14 +563,19 @@ fun YouCamLabScreen(onBack: () -> Unit) {
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 18.dp),
         ) {
-            Text("Two cloud proofs, under your control.", style = MaterialTheme.typography.headlineMedium)
-            Spacer(Modifier.height(8.dp))
             Text(
-                "Use Facial Color Tones as a secondary measurement, then preview the selected apparel reference. DrapeIt's local contrast result remains the primary evidence.",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.72f),
+                "Neural Lab",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                color = com.drapeproof.mobile.ui.theme.EditorialInk,
             )
-            Spacer(Modifier.height(18.dp))
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "Cloud diagnostics and neural API verification.",
+                style = MaterialTheme.typography.bodySmall,
+                color = com.drapeproof.mobile.ui.theme.EditorialMuted,
+            )
+            Spacer(Modifier.height(16.dp))
 
             SessionCard(
                 accessCode = accessCode,

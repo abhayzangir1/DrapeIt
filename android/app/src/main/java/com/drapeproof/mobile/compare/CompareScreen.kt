@@ -107,13 +107,13 @@ fun CompareScreen(
             ) {
                 Column {
                     Text(
-                        "Photo Compare",
+                        "Compare",
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold,
                         color = EditorialInk,
                     )
                     Text(
-                        "Select 2 to 4 captured looks to compare on your face",
+                        "Side-by-side drape evaluation",
                         style = MaterialTheme.typography.bodySmall,
                         color = EditorialMuted,
                     )
@@ -145,14 +145,14 @@ fun CompareScreen(
                     Text("📸", fontSize = 48.sp)
                     Spacer(Modifier.height(14.dp))
                     Text(
-                        "No Captured Looks Yet",
+                        "No Looks to Compare",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         color = EditorialInk,
                     )
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        "Snap 2 to 4 photos in the Drape studio with different fabrics and colors. They will appear here in a side-by-side comparison collage.",
+                        "Capture drape portraits in the studio to compare fabrics and colors side-by-side.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = EditorialMuted,
                         textAlign = TextAlign.Center,
@@ -163,7 +163,7 @@ fun CompareScreen(
                         shape = RoundedCornerShape(14.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = EditorialSienna),
                     ) {
-                        Text("🪞 Open Drape Studio", color = Color.White, fontWeight = FontWeight.Bold)
+                        Text("Open Drape Studio", color = Color.White, fontWeight = FontWeight.Bold)
                     }
                 }
             } else {
@@ -174,11 +174,11 @@ fun CompareScreen(
                 ) {
                     // SELECTION CAROUSEL / STRIP
                     Text(
-                        "Captured Photos (${selectedSnapIds.size}/4 Selected)",
+                        "SELECTED LOOKS (${selectedSnapIds.size}/4)",
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
-                        color = EditorialMuted,
-                        letterSpacing = 1.sp,
+                        color = EditorialSienna,
+                        letterSpacing = 1.2.sp,
                     )
                     Spacer(Modifier.height(8.dp))
 

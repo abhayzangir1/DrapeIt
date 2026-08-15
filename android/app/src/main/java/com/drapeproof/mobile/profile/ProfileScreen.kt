@@ -234,7 +234,14 @@ fun ProfileScreen(
                     Text("💍", fontSize = 22.sp)
                     Spacer(Modifier.width(12.dp))
                     Column {
-                        Text("Best Metals", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = EditorialMuted)
+                        Text(
+                            "ACCENT METALS",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = EditorialSienna,
+                            letterSpacing = 1.2.sp,
+                        )
+                        Spacer(Modifier.height(2.dp))
                         Text(effectiveProfile.bestMetals, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = EditorialInk)
                     }
                 }
@@ -253,10 +260,11 @@ fun ProfileScreen(
             ) {
                 Column(modifier = Modifier.padding(14.dp)) {
                     Text(
-                        "Best Colors",
-                        style = MaterialTheme.typography.titleSmall,
+                        "COMPATIBLE PALETTE",
+                        style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
-                        color = EditorialInk,
+                        color = EditorialSienna,
+                        letterSpacing = 1.2.sp,
                     )
 
                     Spacer(Modifier.height(10.dp))
@@ -305,10 +313,11 @@ fun ProfileScreen(
             ) {
                 Column(modifier = Modifier.padding(14.dp)) {
                     Text(
-                        "Colors to Avoid",
-                        style = MaterialTheme.typography.titleSmall,
+                        "CONTRAST CAUTION",
+                        style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
-                        color = EditorialInk,
+                        color = EditorialWarning,
+                        letterSpacing = 1.2.sp,
                     )
 
                     Spacer(Modifier.height(10.dp))

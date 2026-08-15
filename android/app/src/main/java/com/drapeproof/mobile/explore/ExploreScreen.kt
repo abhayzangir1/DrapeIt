@@ -249,7 +249,17 @@ fun ExploreScreen(
                     }
                 }
 
-                Spacer(Modifier.height(14.dp))
+                Spacer(Modifier.height(18.dp))
+
+                Text(
+                    "CURATED PALETTE",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = EditorialSienna,
+                    letterSpacing = 1.2.sp,
+                )
+
+                Spacer(Modifier.height(10.dp))
 
                 val matchingItems = allCuratedPaletteItems.filter {
                     it.forSeason.equals(currentProfile.season, ignoreCase = true) && it.category == selectedCategory

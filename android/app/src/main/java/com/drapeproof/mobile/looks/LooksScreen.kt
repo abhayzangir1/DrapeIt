@@ -200,14 +200,14 @@ fun LooksScreen(
                             Text("🪞", fontSize = 38.sp)
                             Spacer(Modifier.height(10.dp))
                             Text(
-                                "No Captured Pictures Yet",
+                                "No Saved Looks Yet",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = EditorialInk,
                             )
                             Spacer(Modifier.height(4.dp))
                             Text(
-                                "Snap portraits in the Drape tab to compare fabrics and colors side-by-side.",
+                                "Capture drape portraits or generate virtual try-ons to review your wardrobe gallery.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = EditorialMuted,
                                 textAlign = TextAlign.Center,
@@ -218,7 +218,7 @@ fun LooksScreen(
                                 shape = RoundedCornerShape(12.dp),
                                 colors = ButtonDefaults.buttonColors(containerColor = EditorialSienna),
                             ) {
-                                Text("🪞 Open Drape Studio", color = Color.White, fontWeight = FontWeight.Bold)
+                                Text("Open Drape Studio", color = Color.White, fontWeight = FontWeight.Bold)
                             }
                         }
                     }

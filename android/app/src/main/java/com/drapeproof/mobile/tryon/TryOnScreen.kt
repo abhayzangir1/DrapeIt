@@ -881,8 +881,14 @@ fun TryOnScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Text("1. Select Color", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = EditorialInk)
-                            Text(selectedColorHex.uppercase(), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = EditorialSienna)
+                            Text(
+                                "COLOR PALETTE",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = EditorialSienna,
+                                letterSpacing = 1.2.sp,
+                            )
+                            Text(selectedColorHex.uppercase(), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = EditorialInk)
                         }
                         Spacer(Modifier.height(10.dp))
 
@@ -920,7 +926,13 @@ fun TryOnScreen(
 
                         // 2. FABRIC SELECTION ROW
                         Spacer(Modifier.height(16.dp))
-                        Text("2. Select Fabric Texture", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = EditorialInk)
+                        Text(
+                            "FABRIC TEXTURE",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = EditorialSienna,
+                            letterSpacing = 1.2.sp,
+                        )
                         Spacer(Modifier.height(10.dp))
 
                         Row(
@@ -968,7 +980,13 @@ fun TryOnScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     if (tryOnResultBitmap != null) {
-                        Text("✨ AI VIRTUAL TRY-ON RESULT", style = MaterialTheme.typography.labelSmall, color = EditorialPositive, fontWeight = FontWeight.Bold)
+                        Text(
+                            "TRY-ON RESULT",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = EditorialPositive,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.2.sp,
+                        )
                         Spacer(Modifier.height(10.dp))
                         Image(
                             bitmap = tryOnResultBitmap!!.asImageBitmap(),
