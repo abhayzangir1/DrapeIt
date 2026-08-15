@@ -219,8 +219,8 @@ fun generateReferenceGarmentBitmap(
         val tileShader = BitmapShader(tile, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
         val tilePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             shader = tileShader
-            alpha = (fabric.textureAlpha * 255).toInt().coerceIn(0, 255)
-            xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_ATOP)
+            alpha = (fabric.textureAlpha * 0.35f * 255).toInt().coerceIn(25, 95)
+            xfermode = PorterDuffXfermode(PorterDuff.Mode.MULTIPLY)
         }
         canvas.drawPath(garmentPath, tilePaint)
     }

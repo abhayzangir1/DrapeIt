@@ -67,7 +67,10 @@ fun ProfileScreen(
     var isLiveScannerOpen by remember { mutableStateOf(false) }
     var isSettingsOpen by remember { mutableStateOf(false) }
     var updateSuccessMessage by remember { mutableStateOf<String?>(null) }
-    var tappedColorHex by remember { mutableStateOf<String?>(null) }
+
+    // Separate independent state for Compatible vs Caution hex reveal
+    var tappedCompatibleHex by remember { mutableStateOf<String?>(null) }
+    var tappedCautionHex by remember { mutableStateOf<String?>(null) }
 
     val photoPickerLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         if (uri != null) {
@@ -109,36 +112,20 @@ fun ProfileScreen(
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(16.dp))
 
-            // HEADER BAR WITH SETTINGS ACTION
+            // HEADER BAR (CALIBRATED BADGE REMOVED FROM HEADER)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        "Profile",
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onBackground,
-                    )
-                    Spacer(Modifier.width(10.dp))
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(EditorialPositive.copy(alpha = 0.12f))
-                            .padding(horizontal = 8.dp, vertical = 4.dp),
-                    ) {
-                        Text(
-                            if (effectiveProfile.isCalibrated) "CALIBRATED" else "DEFAULT",
-                            color = EditorialPositive,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 10.sp,
-                        )
-                    }
-                }
+                Text(
+                    "Profile",
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground,
+                )
 
                 Box(
                     modifier = Modifier
@@ -152,7 +139,7 @@ fun ProfileScreen(
                 }
             }
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(18.dp))
 
             // 1. INSTAGRAM BIO-STYLE HERO COLOR PROFILE CARD
             Card(
@@ -316,7 +303,7 @@ fun ProfileScreen(
 
             Spacer(Modifier.height(18.dp))
 
-            // 2. COMPATIBLE PALETTE (TAP TO REVEAL HEX)
+            // 2. COMPATIBLE PALETTE (INDEPENDENT TAP TO REVEAL HEX)
             Card(
                 shape = RoundedCornerShape(18.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -339,9 +326,9 @@ fun ProfileScreen(
                             letterSpacing = 1.2.sp,
                         )
 
-                        if (tappedColorHex != null) {
+                        if (tappedCompatibleHex != null) {
                             Text(
-                                tappedColorHex!!.uppercase(),
+                                tappedCompatibleHex!!.uppercase(),
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
                                 color = EditorialSienna,
@@ -365,7 +352,7 @@ fun ProfileScreen(
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
                         effectiveProfile.bestColors.forEach { hex ->
-                            val isTapped = tappedColorHex.equals(hex, ignoreCase = true)
+                            val isTapped = tappedCompatibleHex.equals(hex, ignoreCase = true)
                             Box(
                                 modifier = Modifier
                                     .size(42.dp)
@@ -377,7 +364,7 @@ fun ProfileScreen(
                                         shape = CircleShape,
                                     )
                                     .clickable {
-                                        tappedColorHex = if (isTapped) null else hex
+                                        tappedCompatibleHex = if (isTapped) null else hex
                                     },
                             )
                         }
@@ -387,7 +374,7 @@ fun ProfileScreen(
 
             Spacer(Modifier.height(16.dp))
 
-            // 3. COLORS TO AVOID (CONTRAST CAUTION)
+            // 3. COLORS TO AVOID / CONTRAST CAUTION (INDEPENDENT TAP TO REVEAL HEX)
             Card(
                 shape = RoundedCornerShape(18.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -397,13 +384,35 @@ fun ProfileScreen(
                     .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f), RoundedCornerShape(18.dp)),
             ) {
                 Column(modifier = Modifier.padding(14.dp)) {
-                    Text(
-                        "CONTRAST CAUTION",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = EditorialWarning,
-                        letterSpacing = 1.2.sp,
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            "CONTRAST CAUTION",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = EditorialWarning,
+                            letterSpacing = 1.2.sp,
+                        )
+
+                        if (tappedCautionHex != null) {
+                            Text(
+                                tappedCautionHex!!.uppercase(),
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = EditorialWarning,
+                            )
+                        } else {
+                            Text(
+                                "Tap swatch for #HEX",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 10.sp,
+                            )
+                        }
+                    }
 
                     Spacer(Modifier.height(12.dp))
 
@@ -414,7 +423,7 @@ fun ProfileScreen(
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
                         effectiveProfile.worstColors.forEach { hex ->
-                            val isTapped = tappedColorHex.equals(hex, ignoreCase = true)
+                            val isTapped = tappedCautionHex.equals(hex, ignoreCase = true)
                             Box(
                                 modifier = Modifier
                                     .size(42.dp)
@@ -426,7 +435,7 @@ fun ProfileScreen(
                                         shape = CircleShape,
                                     )
                                     .clickable {
-                                        tappedColorHex = if (isTapped) null else hex
+                                        tappedCautionHex = if (isTapped) null else hex
                                     },
                             )
                         }
