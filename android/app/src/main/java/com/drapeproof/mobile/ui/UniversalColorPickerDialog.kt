@@ -20,10 +20,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -37,10 +40,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.drapeproof.mobile.ui.theme.EditorialCream
 import com.drapeproof.mobile.ui.theme.EditorialInk
 import com.drapeproof.mobile.ui.theme.EditorialMuted
 import com.drapeproof.mobile.ui.theme.EditorialSand
@@ -53,17 +56,19 @@ private val curatedColorPresets = listOf(
     "#065F46" to "Deep Emerald",
     "#78350F" to "Cognac Brown",
     "#4C1D95" to "Midnight Plum",
-    "#1F2937" to "Anthracite Slate",
+    "#0F172A" to "Anthracite Slate",
     "#9A3412" to "Terracotta",
     "#0E7490" to "Deep Teal",
-    "#374151" to "Charcoal",
-    "#713F12" to "Warm Ochre",
-    "#881337" to "Crimson Wine",
     "#D97706" to "Amber Gold",
     "#2563EB" to "Royal Blue",
     "#059669" to "Forest Pine",
     "#E11D48" to "Ruby Rose",
     "#475569" to "Classic Slate",
+    "#B45309" to "Spiced Ochre",
+    "#6B21A8" to "Imperial Purple",
+    "#166534" to "Rich Olive",
+    "#FFFFFF" to "Pure White",
+    "#000000" to "Deep Black",
 )
 
 @Composable
@@ -91,57 +96,74 @@ fun UniversalColorPickerDialog(
     val hueGradient = remember {
         Brush.horizontalGradient(
             colors = listOf(
-                Color.Red, Color.Yellow, Color.Green, Color.Cyan, Color.Blue, Color.Magenta, Color.Red
-            )
+                Color.Red, Color.Yellow, Color.Green, Color.Cyan, Color.Blue, Color.Magenta, Color.Red,
+            ),
         )
     }
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        containerColor = Color.White,
+        shape = RoundedCornerShape(24.dp),
         title = {
-            Text("Universal Color Wheel", fontWeight = FontWeight.Bold, color = EditorialInk)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("Color Palette & Spectrum", fontWeight = FontWeight.Bold, color = EditorialInk, style = MaterialTheme.typography.titleMedium)
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .background(EditorialSand)
+                        .clickable { onDismiss() },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("✕", fontSize = 14.sp, color = EditorialInk, fontWeight = FontWeight.Bold)
+                }
+            }
         },
         text = {
             Column(modifier = Modifier.fillMaxWidth()) {
-                Text(
-                    "Choose any color across the full 16.7M spectrum or enter a custom hex code.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = EditorialMuted,
-                )
-                Spacer(Modifier.height(14.dp))
-
-                // COLOR PREVIEW & HEX DISPLAY
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
+                // COLOR PREVIEW & HEX DISPLAY CARD
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = EditorialCream),
+                    modifier = Modifier.fillMaxWidth().border(1.dp, EditorialStone.copy(alpha = 0.4f), RoundedCornerShape(16.dp)),
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(54.dp)
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(activeColor)
-                            .border(2.dp, EditorialStone, RoundedCornerShape(14.dp)),
-                    )
-                    Spacer(Modifier.width(14.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("HEX CODE", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = EditorialSienna)
-                        OutlinedTextField(
-                            value = hexInput,
-                            onValueChange = { input ->
-                                val clean = input.filter { it.isLetterOrDigit() }.take(6).uppercase()
-                                hexInput = clean
-                            },
-                            prefix = { Text("#", fontWeight = FontWeight.Bold, color = EditorialInk) },
-                            singleLine = true,
-                            shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier.fillMaxWidth(),
+                    Row(
+                        modifier = Modifier.padding(12.dp).fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(56.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(activeColor)
+                                .border(2.dp, Color.White, RoundedCornerShape(14.dp)),
                         )
+                        Spacer(Modifier.width(14.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("HEX COLOR CODE", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = EditorialSienna, fontSize = 10.sp)
+                            OutlinedTextField(
+                                value = hexInput,
+                                onValueChange = { input ->
+                                    val clean = input.filter { it.isLetterOrDigit() }.take(6).uppercase()
+                                    hexInput = clean
+                                },
+                                prefix = { Text("#", fontWeight = FontWeight.Bold, color = EditorialInk) },
+                                singleLine = true,
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
                     }
                 }
 
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(14.dp))
 
-                // HUE SLIDER
+                // HUE SPECTRUM SLIDER
                 Text("HUE SPECTRUM", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = EditorialInk)
                 Spacer(Modifier.height(4.dp))
                 Box(
@@ -179,7 +201,7 @@ fun UniversalColorPickerDialog(
                                 val argb = android.graphics.Color.HSVToColor(hsv)
                                 hexInput = String.format("%06X", (0xFFFFFF and argb))
                             },
-                            valueRange = 0.1f..1.0f,
+                            valueRange = 0.05f..1.0f,
                             colors = SliderDefaults.colors(thumbColor = EditorialSienna, activeTrackColor = EditorialSienna),
                         )
                     }
@@ -193,13 +215,13 @@ fun UniversalColorPickerDialog(
                                 val argb = android.graphics.Color.HSVToColor(hsv)
                                 hexInput = String.format("%06X", (0xFFFFFF and argb))
                             },
-                            valueRange = 0.1f..1.0f,
+                            valueRange = 0.05f..1.0f,
                             colors = SliderDefaults.colors(thumbColor = EditorialSienna, activeTrackColor = EditorialSienna),
                         )
                     }
                 }
 
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(8.dp))
 
                 // QUICK PRESETS
                 Text("CURATED PALETTE PRESETS", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = EditorialInk)
@@ -210,12 +232,12 @@ fun UniversalColorPickerDialog(
                         .horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    curatedColorPresets.forEach { (hex, name) ->
+                    curatedColorPresets.forEach { (hex, _) ->
                         val presetColor = Color(android.graphics.Color.parseColor(hex))
                         val isSelected = hexInput.equals(hex.removePrefix("#"), ignoreCase = true)
                         Box(
                             modifier = Modifier
-                                .size(32.dp)
+                                .size(34.dp)
                                 .clip(CircleShape)
                                 .background(presetColor)
                                 .border(if (isSelected) 3.dp else 1.dp, if (isSelected) EditorialSienna else Color.LightGray, CircleShape)
@@ -235,15 +257,13 @@ fun UniversalColorPickerDialog(
                     val colorName = matchingPreset?.second ?: "Custom Color ($finalHex)"
                     onColorSelected(finalHex, colorName)
                 },
+                shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = EditorialSienna),
+                modifier = Modifier.fillMaxWidth(),
             ) {
-                Text("Apply Color", fontWeight = FontWeight.Bold)
+                Text("Apply Color", fontWeight = FontWeight.Bold, color = Color.White)
             }
         },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel", color = EditorialInk)
-            }
-        },
+        dismissButton = {},
     )
 }

@@ -5,19 +5,17 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.BitmapShader
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Path as AndroidPath
-import android.graphics.BitmapShader
-import android.graphics.Shader
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffXfermode
+import android.graphics.Shader
 import android.net.Uri
-import androidx.camera.view.PreviewView
-import com.drapeproof.mobile.avatar.PhotoAvatarStore
-import com.drapeproof.mobile.avatar.AvatarLighting
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.camera.view.PreviewView
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
@@ -86,6 +84,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.drapeproof.core.color.TrueColorHarmonyEngine
+import com.drapeproof.mobile.avatar.AvatarLighting
+import com.drapeproof.mobile.avatar.PhotoAvatarStore
 import com.drapeproof.mobile.data.DrapeSnapRepository
 import com.drapeproof.mobile.data.SkinProfileRepository
 import com.drapeproof.mobile.fabric.FabricCatalog
@@ -101,9 +101,7 @@ import com.drapeproof.mobile.ui.theme.EditorialSand
 import com.drapeproof.mobile.ui.theme.EditorialSienna
 import com.drapeproof.mobile.ui.theme.EditorialStone
 import com.drapeproof.mobile.ui.theme.EditorialWarning
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 fun shouldOpenCameraSettings(hasRequestedPermission: Boolean, isGranted: Boolean, showRationale: Boolean): Boolean {
     return hasRequestedPermission && !isGranted && !showRationale
@@ -126,14 +124,14 @@ private val cameraColorPalette = listOf(
     CameraColorItem("Sky Blue", "#93C5FD", "Pastels"),
 )
 
-// Repeated palette for seamless infinite scrolling loop
-private val infiniteColorPalette = cameraColorPalette + cameraColorPalette + cameraColorPalette + cameraColorPalette + cameraColorPalette
+private val infiniteColorPalette = cameraColorPalette + cameraColorPalette + cameraColorPalette + cameraColorPalette
 
 @Composable
 fun DrapeCaptureScreen(
     initialFabricId: String? = null,
     initialColorHex: String? = null,
-    onBack: () -> Unit,
+    onBack: () -> Unit = {},
+    onNavigateToLooks: () -> Unit = {},
     onNavigateToCompare: () -> Unit = {},
     onNavigateToTryOn: ((fabricId: String, colorHex: String) -> Unit)? = null,
 ) {
@@ -167,16 +165,11 @@ fun DrapeCaptureScreen(
         }
     }
 
-    // Camera & Flash / Torch State
     var cameraControls by remember { mutableStateOf<DrapeCameraControls?>(null) }
-    var isFlashOn by remember { mutableStateOf(false) }
-
-    // Live Camera & Face Tracking State
     var latestReading by remember { mutableStateOf<FrameReading?>(null) }
     var detectedSkinHex by remember { mutableStateOf<String?>(null) }
     var activePreviewView by remember { mutableStateOf<PreviewView?>(null) }
 
-    // Fabric & Color Selection (with optional preselection from Explore)
     var selectedFabric by remember {
         mutableStateOf(if (initialFabricId != null) FabricCatalog.findById(initialFabricId) else FabricCatalog.defaultFabric)
     }
@@ -187,36 +180,35 @@ fun DrapeCaptureScreen(
     var customHex by remember { mutableStateOf(initialColorHex) }
     var isCustomPickerOpen by remember { mutableStateOf(false) }
 
-    // Real Perceptual Color Compatibility Evaluation
     val activeColorHex = customHex ?: selectedColor.hex
-    val hasFaceDetected = latestReading?.hasFace == true
     val effectiveSkinHex = detectedSkinHex ?: SkinProfileRepository.load(context)?.skinHex ?: "#D8B498"
 
     val harmonyResult = remember(effectiveSkinHex, activeColorHex) {
         TrueColorHarmonyEngine.evaluate(effectiveSkinHex, activeColorHex)
     }
 
-    val statusColor = when {
+    val targetStatusColor = when {
         harmonyResult.scorePercent >= 86 -> EditorialPositive
         harmonyResult.scorePercent >= 70 -> EditorialWarning
-        harmonyResult.scorePercent >= 48 -> Color(0xFFF97316)
         else -> EditorialNegative
     }
 
     val animatedStatusColor by animateColorAsState(
-        targetValue = if (hasFaceDetected) statusColor else Color.White.copy(alpha = 0.6f),
-        animationSpec = tween(280, easing = FastOutSlowInEasing),
-        label = "OvalStatusColor",
+        targetValue = targetStatusColor,
+        animationSpec = tween(400),
+        label = "statusColorAnim",
     )
-    val animatedClothColor by animateColorAsState(
-        targetValue = activeColorHex.asComposeColor(),
-        animationSpec = tween(250, easing = FastOutSlowInEasing),
-        label = "VirtualClothColor",
-    )
+
     val animatedScore by animateIntAsState(
         targetValue = harmonyResult.scorePercent,
-        animationSpec = tween(300, easing = FastOutSlowInEasing),
-        label = "LiveScoreInt",
+        animationSpec = spring(stiffness = Spring.StiffnessLow),
+        label = "scoreAnim",
+    )
+
+    val animatedClothColor by animateColorAsState(
+        targetValue = activeColorHex.asComposeColor(),
+        animationSpec = tween(350),
+        label = "clothColorAnim",
     )
 
     var toastMessage by remember { mutableStateOf<String?>(null) }
@@ -227,7 +219,7 @@ fun DrapeCaptureScreen(
         }
     }
 
-    // Landmark Low-Pass Filter Smoothing
+    // Landmark Smoothing
     var smoothedChinX by remember { mutableStateOf(0.50f) }
     var smoothedChinY by remember { mutableStateOf(0.54f) }
     var smoothedYaw by remember { mutableStateOf(0.0f) }
@@ -244,7 +236,6 @@ fun DrapeCaptureScreen(
         }
     }
 
-    // Decoupled Fabric Tile Texture Cache
     val activeTile = remember(selectedFabric.id) {
         FabricTextureShader.getOrLoadTile(context, selectedFabric.id)
     }
@@ -257,10 +248,7 @@ fun DrapeCaptureScreen(
     val curtainDropAnim = remember { Animatable(0f) }
     val flashBurstAnim = remember { Animatable(0f) }
 
-    // Handle Flash toggle
-    LaunchedEffect(isFlashOn) {
-        cameraControls?.setTorch(isFlashOn)
-    }
+    var isControlsCollapsed by remember { mutableStateOf(false) }
 
     if (!permissionGranted && photoBitmap == null) {
         Surface(modifier = Modifier.fillMaxSize(), color = EditorialCream) {
@@ -329,70 +317,6 @@ fun DrapeCaptureScreen(
             }
         }
 
-        // Low-light front screen fill flash glow when flash is enabled
-        if (isFlashOn) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color(0xFFFFFBEB).copy(alpha = 0.35f)),
-            )
-        }
-
-        // 1.5. FLASH BURST & CURTAIN DROP FREEZE EFFECT
-        if (flashBurstAnim.value > 0.01f) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.White.copy(alpha = flashBurstAnim.value)),
-            )
-        }
-
-        if (isCurtainDropping && capturedFreezeBitmap != null) {
-            val progress = curtainDropAnim.value
-            val translateY = progress * 1400f
-            val scale = 1.0f - progress * 0.18f
-            val alpha = (1.0f - progress * 0.90f).coerceIn(0f, 1f)
-            val rotationZ = -progress * 3.0f
-
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer {
-                        this.translationY = translateY
-                        this.scaleX = scale
-                        this.scaleY = scale
-                        this.rotationZ = rotationZ
-                        this.alpha = alpha
-                    }
-                    .clip(RoundedCornerShape((progress * 24).dp))
-                    .border(
-                        width = (3 * (1f - progress)).dp,
-                        color = EditorialSienna.copy(alpha = (1f - progress)),
-                        shape = RoundedCornerShape((progress * 24).dp),
-                    ),
-            ) {
-                Image(
-                    bitmap = capturedFreezeBitmap!!.asImageBitmap(),
-                    contentDescription = "Frozen Curtain Drop Snapshot",
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop,
-                )
-
-                // Curtain fold wave gradient
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(100.dp)
-                        .align(Alignment.BottomCenter)
-                        .background(
-                            Brush.verticalGradient(
-                                colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.50f * (1f - progress))),
-                            ),
-                        ),
-                )
-            }
-        }
-
         // 2. PHOTOREALISTIC FABRIC DRAPE CANVAS (PBR Shader + Shading)
         Canvas(modifier = Modifier.fillMaxSize()) {
             val width = size.width
@@ -436,188 +360,142 @@ fun DrapeCaptureScreen(
 
             // Reticle Oval for centering face
             if (photoBitmap == null) {
-                val faceCenter = Offset(width * 0.50f, height * 0.32f)
-                val ovalW = width * 0.54f
-                val ovalH = height * 0.34f
+                val faceCenter = Offset(width * 0.50f, height * 0.30f)
+                val ovalW = width * 0.52f
+                val ovalH = height * 0.32f
 
                 drawOval(
                     color = animatedStatusColor,
                     topLeft = Offset(faceCenter.x - ovalW / 2, faceCenter.y - ovalH / 2),
                     size = Size(ovalW, ovalH),
-                    style = Stroke(width = 3.dp.toPx()),
+                    style = Stroke(width = 2.5.dp.toPx()),
                 )
             }
         }
 
-        // 3. TOP BAR: TITLE + HARMONY SCORE PILL + FLASH TOGGLE (TOP RIGHT)
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .statusBarsPadding()
-                .padding(horizontal = 16.dp, vertical = 10.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            // Title & Photo status
-            Row(verticalAlignment = Alignment.CenterVertically) {
+        // 3. TOP BAR: ONLY PHOTO RESET TOGGLE (WHEN PHOTO UPLOADED)
+        if (photoBitmap != null) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .statusBarsPadding()
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.Start,
+            ) {
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(Color.Black.copy(alpha = 0.65f))
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(EditorialSienna)
+                        .clickable { photoBitmap = null }
                         .padding(horizontal = 12.dp, vertical = 6.dp),
                 ) {
-                    Text("🪞 Drape Studio", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = Color.White)
-                }
-
-                if (photoBitmap != null) {
-                    Spacer(Modifier.width(6.dp))
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(EditorialSienna)
-                            .clickable { photoBitmap = null }
-                            .padding(horizontal = 8.dp, vertical = 4.dp),
-                    ) {
-                        Text("✕ Live", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                    }
-                }
-            }
-
-            // Right side: Match score badge + FLASH TOGGLE (TOP RIGHT)
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                // Match Score Pill
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(18.dp))
-                        .background(Color.Black.copy(alpha = 0.70f))
-                        .border(1.5.dp, animatedStatusColor, RoundedCornerShape(18.dp))
-                        .padding(horizontal = 10.dp, vertical = 6.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(animatedStatusColor))
-                        Spacer(Modifier.width(6.dp))
-                        Text(
-                            "$animatedScore% ${harmonyResult.harmonyLabel}",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White,
-                        )
-                    }
-                }
-
-                // FLASH / TORCH TOGGLE BUTTON AT TOP RIGHT
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(if (isFlashOn) Color(0xFFFBBF24) else Color.Black.copy(alpha = 0.65f))
-                        .border(1.dp, if (isFlashOn) Color(0xFFF59E0B) else Color.White.copy(alpha = 0.3f), CircleShape)
-                        .clickable { isFlashOn = !isFlashOn },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(if (isFlashOn) "⚡" else "⚡", fontSize = 18.sp, color = if (isFlashOn) Color.Black else Color.White)
+                    Text("✕ Switch to Live Camera", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                 }
             }
         }
 
-        // TOAST FEEDBACK
-        if (toastMessage != null) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(Color.Black.copy(alpha = 0.85f))
-                    .border(1.dp, EditorialSienna, RoundedCornerShape(16.dp))
-                    .padding(horizontal = 18.dp, vertical = 12.dp),
-            ) {
-                Text(toastMessage!!, color = Color.White, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
+        // 4. COMPATIBILITY PERCENTAGE BADGE PLACED DIRECTLY BELOW THE OVAL WITH CLEAR SPACING
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .statusBarsPadding()
+                .padding(top = 285.dp)
+                .clip(RoundedCornerShape(20.dp))
+                .background(Color.Black.copy(alpha = 0.75f))
+                .border(1.5.dp, animatedStatusColor, RoundedCornerShape(20.dp))
+                .padding(horizontal = 14.dp, vertical = 6.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(animatedStatusColor))
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "$animatedScore% • ${harmonyResult.harmonyLabel}",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    fontSize = 12.sp,
+                )
             }
         }
 
-        // 4. UPWARD EXPANDING FABRIC LIST MODAL / BOTTOM SHEET
+        // 5. FABRIC BOTTOM DRAWER (SHEET)
         if (isFabricListExpanded) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.50f))
+                    .background(Color.Black.copy(alpha = 0.65f))
                     .clickable { isFabricListExpanded = false },
                 contentAlignment = Alignment.BottomCenter,
             ) {
                 Card(
-                    shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable(enabled = false) {}
-                        .padding(horizontal = 4.dp),
+                        .padding(12.dp)
+                        .clickable(enabled = false) {},
+                    shape = RoundedCornerShape(24.dp),
+                    colors = CardDefaults.cardColors(containerColor = EditorialCream),
                 ) {
                     Column(
                         modifier = Modifier
-                            .padding(20.dp)
-                            .navigationBarsPadding(),
+                            .fillMaxWidth()
+                            .padding(18.dp),
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Text(
-                                "Select Fabric Material",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = EditorialInk,
-                            )
-                            Text(
-                                "Done ✕",
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = EditorialSienna,
-                                modifier = Modifier.clickable { isFabricListExpanded = false },
-                            )
+                            Text("Choose Fabric Texture", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = EditorialInk)
+                            Box(
+                                modifier = Modifier
+                                    .size(30.dp)
+                                    .clip(CircleShape)
+                                    .background(Color.LightGray.copy(alpha = 0.5f))
+                                    .clickable { isFabricListExpanded = false },
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text("✕", fontSize = 12.sp, color = EditorialInk, fontWeight = FontWeight.Bold)
+                            }
                         }
-
                         Spacer(Modifier.height(14.dp))
 
-                        // Grid of all fabric materials
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            FabricCatalog.allFabrics.chunked(3).forEach { rowFabrics ->
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                ) {
-                                    rowFabrics.forEach { fab ->
-                                        val isSel = selectedFabric.id == fab.id
-                                        Box(
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .clip(RoundedCornerShape(14.dp))
-                                                .background(if (isSel) EditorialSienna else EditorialSand.copy(alpha = 0.5f))
-                                                .border(1.5.dp, if (isSel) EditorialSienna else Color.Transparent, RoundedCornerShape(14.dp))
-                                                .clickable {
-                                                    selectedFabric = fab
-                                                    isFabricListExpanded = false
-                                                }
-                                                .padding(vertical = 12.dp, horizontal = 6.dp),
-                                            contentAlignment = Alignment.Center,
-                                        ) {
-                                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                                Text(fab.icon, fontSize = 22.sp)
-                                                Spacer(Modifier.height(4.dp))
-                                                Text(
-                                                    fab.name,
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = if (isSel) Color.White else EditorialInk,
-                                                )
+                        val chunked = FabricCatalog.allFabrics.chunked(3)
+                        chunked.forEach { rowFabrics ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                rowFabrics.forEach { fab ->
+                                    val isSel = fab.id == selectedFabric.id
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clip(RoundedCornerShape(14.dp))
+                                            .background(if (isSel) EditorialSienna else Color.White)
+                                            .border(1.dp, if (isSel) EditorialSienna else Color.LightGray.copy(alpha = 0.4f), RoundedCornerShape(14.dp))
+                                            .clickable {
+                                                selectedFabric = fab
+                                                isFabricListExpanded = false
                                             }
+                                            .padding(vertical = 12.dp, horizontal = 6.dp),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                            Text(fab.icon, fontSize = 22.sp)
+                                            Spacer(Modifier.height(4.dp))
+                                            Text(
+                                                fab.name,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (isSel) Color.White else EditorialInk,
+                                            )
                                         }
                                     }
-                                    // Filler if odd
-                                    if (rowFabrics.size < 3) {
-                                        repeat(3 - rowFabrics.size) {
-                                            Spacer(Modifier.weight(1f))
-                                        }
+                                }
+                                if (rowFabrics.size < 3) {
+                                    repeat(3 - rowFabrics.size) {
+                                        Spacer(Modifier.weight(1f))
                                     }
                                 }
                             }
@@ -627,9 +505,7 @@ fun DrapeCaptureScreen(
             }
         }
 
-        // 5. BOTTOM CONTROL DECK: ACTION ROW (PHOTO UPLOAD | CAPTURE | FABRIC) + INFINITE COLORS (COLLAPSIBLE)
-        var isControlsCollapsed by remember { mutableStateOf(false) }
-
+        // 6. BOTTOM CONTROL DECK: ACTION ROW + BORDERLESS COLORS (COLLAPSIBLE)
         Column(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -638,25 +514,23 @@ fun DrapeCaptureScreen(
                 .padding(bottom = 8.dp, start = 14.dp, end = 14.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            // COLLAPSE / EXPAND TOGGLE PILL
+            // COLLAPSE / EXPAND ARROW-ONLY TOGGLE
             Box(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(14.dp))
+                    .clip(CircleShape)
                     .background(Color.Black.copy(alpha = 0.65f))
-                    .border(1.dp, Color.White.copy(alpha = 0.25f), RoundedCornerShape(14.dp))
+                    .border(1.dp, Color.White.copy(alpha = 0.30f), CircleShape)
                     .clickable { isControlsCollapsed = !isControlsCollapsed }
-                    .padding(horizontal = 14.dp, vertical = 5.dp),
+                    .padding(horizontal = 14.dp, vertical = 4.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(
-                        if (isControlsCollapsed) "🪞 Show Controls ⌃" else "Hide Controls ⌄",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White,
-                        fontSize = 11.sp,
-                    )
-                }
+                Text(
+                    if (isControlsCollapsed) "▲" else "▼",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    fontSize = 13.sp,
+                )
             }
 
             AnimatedVisibility(
@@ -668,21 +542,21 @@ fun DrapeCaptureScreen(
                     modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    // ACTION ROW: [ 🖼️ Photo Upload ] (Left) + [ 📸 CAPTURE ] (Center) + [ 🧵 Fabric ] (Right)
+                    // ACTION ROW: [ 🖼️ Photo Upload ] + [ 📸 CAPTURE ] + [ 🧵 Fabric ]
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 18.dp),
+                            .padding(horizontal = 22.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        // LEFT: PHOTO UPLOAD ICON BUTTON
+                        // LEFT: PHOTO UPLOAD BUTTON
                         Box(
                             modifier = Modifier
                                 .size(50.dp)
                                 .clip(CircleShape)
                                 .background(Color.Black.copy(alpha = 0.75f))
-                                .border(1.5.dp, Color.White.copy(alpha = 0.40f), CircleShape)
+                                .border(1.5.dp, Color.White.copy(alpha = 0.45f), CircleShape)
                                 .clickable { photoPickerLauncher.launch("image/*") },
                             contentAlignment = Alignment.Center,
                         ) {
@@ -699,10 +573,14 @@ fun DrapeCaptureScreen(
                                 .clickable {
                                     val capturedSkinHex = detectedSkinHex ?: effectiveSkinHex
 
-                                    val rawUserBitmap = if (photoBitmap == null) {
-                                        activePreviewView?.bitmap
-                                    } else {
+                                    val rawUserBitmap = if (photoBitmap != null) {
                                         photoBitmap
+                                    } else {
+                                        activePreviewView?.bitmap ?: runCatching {
+                                            Bitmap.createBitmap(720, 1280, Bitmap.Config.ARGB_8888).apply {
+                                                Canvas(this).drawColor(android.graphics.Color.DKGRAY)
+                                            }
+                                        }.getOrNull()
                                     }
 
                                     if (rawUserBitmap != null) {
@@ -768,16 +646,16 @@ fun DrapeCaptureScreen(
                                             skinHex = capturedSkinHex,
                                         )
 
-                                        // Trigger Freeze & Curtain Drop Animation
+                                        // Trigger Flash Burst & Curtain Drop Freeze Animation
                                         capturedFreezeBitmap = comp
                                         isCurtainDropping = true
                                         scope.launch {
-                                            flashBurstAnim.snapTo(0.75f)
+                                            flashBurstAnim.snapTo(0.80f)
                                             launch { flashBurstAnim.animateTo(0f, tween(200)) }
                                             curtainDropAnim.snapTo(0f)
                                             curtainDropAnim.animateTo(
                                                 targetValue = 1f,
-                                                animationSpec = tween(700, easing = FastOutSlowInEasing),
+                                                animationSpec = tween(750, easing = FastOutSlowInEasing),
                                             )
                                             isCurtainDropping = false
                                             capturedFreezeBitmap = null
@@ -795,64 +673,74 @@ fun DrapeCaptureScreen(
                             Text("📸", fontSize = 28.sp)
                         }
 
-                        // RIGHT: FABRIC MATERIAL BUTTON (OPENS UPWARD SHEET)
+                        // RIGHT: FABRIC MATERIAL BUTTON (CLEARLY RECOGNIZABLE)
                         Box(
                             modifier = Modifier
                                 .size(50.dp)
                                 .clip(CircleShape)
                                 .background(Color.Black.copy(alpha = 0.75f))
-                                .border(1.5.dp, EditorialSienna, CircleShape)
+                                .border(2.dp, EditorialSienna, CircleShape)
                                 .clickable { isFabricListExpanded = true },
                             contentAlignment = Alignment.Center,
                         ) {
-                            Text(selectedFabric.icon, fontSize = 22.sp)
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text("🧵", fontSize = 18.sp)
+                                Text("Fabric", fontSize = 8.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            }
                         }
                     }
 
                     Spacer(Modifier.height(12.dp))
 
-                    // BOTTOM-MOST: BORDERLESS INFINITE LOOPING COLOR SWATCHES + PERMANENT COLOR PICKER
+                    // BOTTOM-MOST: BORDERLESS INFINITE COLOR SWATCHES (NO BACKGROUND HIGHLIGHT)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(26.dp))
-                            .background(Color.Black.copy(alpha = 0.85f))
-                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                            .padding(vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         // PERMANENT COLOR PICKER BUTTON (FIXED ON LEFT)
                         Box(
                             modifier = Modifier
-                                .size(38.dp)
+                                .size(42.dp)
                                 .clip(CircleShape)
-                                .background(EditorialSand.copy(alpha = 0.30f))
-                                .border(1.5.dp, EditorialSienna, CircleShape)
+                                .background(Color.Black.copy(alpha = 0.75f))
+                                .border(1.5.dp, Color.White, CircleShape)
                                 .clickable { isCustomPickerOpen = true },
                             contentAlignment = Alignment.Center,
                         ) {
                             Text("🎨", fontSize = 18.sp)
                         }
 
-                        Spacer(Modifier.width(10.dp))
+                        Spacer(Modifier.width(8.dp))
 
-                        // BORDERLESS INFINITE COLOR SWATCHES
+                        // INFINITE HORIZONTAL SWATCHES (NO BACKGROUND BOX OR SHADOW)
                         Row(
                             modifier = Modifier
                                 .weight(1f)
                                 .horizontalScroll(colorScrollState),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             infiniteColorPalette.forEach { item ->
                                 val isSelected = activeColorHex.equals(item.hex, ignoreCase = true)
-                                val scale by animateFloatAsState(if (isSelected) 1.25f else 1.0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                                val animScale by animateFloatAsState(
+                                    targetValue = if (isSelected) 1.22f else 1.0f,
+                                    animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+                                    label = "swatchScale",
+                                )
 
                                 Box(
                                     modifier = Modifier
-                                        .size(34.dp)
-                                        .scale(scale)
+                                        .size(38.dp)
+                                        .scale(animScale)
                                         .clip(CircleShape)
                                         .background(item.hex.asComposeColor())
+                                        .border(
+                                            width = if (isSelected) 2.5.dp else 1.dp,
+                                            color = if (isSelected) Color.White else Color.Black.copy(alpha = 0.35f),
+                                            shape = CircleShape,
+                                        )
                                         .clickable {
                                             selectedColor = item
                                             customHex = null
@@ -865,7 +753,76 @@ fun DrapeCaptureScreen(
             }
         }
 
-        // UNIVERSAL COLOR PICKER MODAL
+        // 7. TOAST NOTIFICATION BADGE
+        if (toastMessage != null) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 120.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Color.Black.copy(alpha = 0.85f))
+                    .padding(horizontal = 18.dp, vertical = 10.dp),
+            ) {
+                Text(toastMessage!!, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            }
+        }
+
+        // 8. TOP-LEVEL FLASH BURST & CURTAIN DROP FREEZE EFFECT OVERLAY (AT THE HIGHEST Z-INDEX)
+        if (flashBurstAnim.value > 0.01f) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.White.copy(alpha = flashBurstAnim.value)),
+            )
+        }
+
+        if (isCurtainDropping && capturedFreezeBitmap != null) {
+            val progress = curtainDropAnim.value
+            val translateY = progress * 1400f
+            val scale = 1.0f - progress * 0.18f
+            val alpha = (1.0f - progress * 0.85f).coerceIn(0f, 1f)
+            val rotationZ = -progress * 3.0f
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        this.translationY = translateY
+                        this.scaleX = scale
+                        this.scaleY = scale
+                        this.rotationZ = rotationZ
+                        this.alpha = alpha
+                    }
+                    .clip(RoundedCornerShape((progress * 24).dp))
+                    .border(
+                        width = (3 * (1f - progress)).dp,
+                        color = EditorialSienna.copy(alpha = (1f - progress)),
+                        shape = RoundedCornerShape((progress * 24).dp),
+                    ),
+            ) {
+                Image(
+                    bitmap = capturedFreezeBitmap!!.asImageBitmap(),
+                    contentDescription = "Frozen Curtain Drop Snapshot",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                )
+
+                // Curtain fold shadow gradient
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(120.dp)
+                        .align(Alignment.BottomCenter)
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.60f * (1f - progress))),
+                            ),
+                        ),
+                )
+            }
+        }
+
+        // 9. COLOR PICKER DIALOG
         if (isCustomPickerOpen) {
             UniversalColorPickerDialog(
                 initialColorHex = activeColorHex,

@@ -38,6 +38,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -48,17 +50,15 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.SecondaryTabRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRowDefaults
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -79,7 +79,6 @@ import androidx.compose.ui.unit.sp
 import com.drapeproof.mobile.avatar.AvatarLighting
 import com.drapeproof.mobile.avatar.PhotoAvatarStore
 import com.drapeproof.mobile.avatar.SavedAvatar
-import com.drapeproof.mobile.data.DrapeSnapRepository
 import com.drapeproof.mobile.data.SavedTryOnOutfit
 import com.drapeproof.mobile.data.WardrobeRepository
 import com.drapeproof.mobile.fabric.FabricCatalog
@@ -117,19 +116,33 @@ enum class GarmentSilhouette(
     val displayName: String,
     val icon: String,
     val category: GarmentCategory,
+    val genderTarget: String, // "female", "male", "unisex"
 ) {
-    SHIRT("shirt", "Button-Down Shirt", "👔", GarmentCategory.UPPER_BODY),
-    TSHIRT("tshirt", "Crewneck T-Shirt", "👕", GarmentCategory.UPPER_BODY),
-    BLAZER("blazer", "Tailored Blazer", "🧥", GarmentCategory.UPPER_BODY),
-    SWEATER("sweater", "Knit Sweater", "🧶", GarmentCategory.UPPER_BODY),
-    DRESS("dress", "A-Line Dress", "👗", GarmentCategory.FULL_BODY),
-    PANTS("pants", "Tailored Trousers", "👖", GarmentCategory.LOWER_BODY),
-    SKIRT("skirt", "Pleated Midi Skirt", "🩳", GarmentCategory.LOWER_BODY),
+    // WOMEN
+    BLOUSE("blouse", "Silk Blouse", "👚", GarmentCategory.UPPER_BODY, "female"),
+    WOMEN_TSHIRT("w_tshirt", "Fitted T-Shirt", "👕", GarmentCategory.UPPER_BODY, "female"),
+    WOMEN_BLAZER("w_blazer", "Tailored Blazer", "🧥", GarmentCategory.UPPER_BODY, "female"),
+    WOMEN_CARDIGAN("w_cardigan", "Knit Cardigan", "🧶", GarmentCategory.UPPER_BODY, "female"),
+    DRESS("dress", "A-Line Midi Dress", "👗", GarmentCategory.FULL_BODY, "female"),
+    GOWN("gown", "Evening Gown", "👗", GarmentCategory.FULL_BODY, "female"),
+    SKIRT("skirt", "Pleated Midi Skirt", "🩳", GarmentCategory.LOWER_BODY, "female"),
+    WOMEN_TROUSERS("w_pants", "High-Waist Trousers", "👖", GarmentCategory.LOWER_BODY, "female"),
+    WOMEN_JEANS("w_jeans", "Slim Denim Jeans", "👖", GarmentCategory.LOWER_BODY, "female"),
+
+    // MEN
+    SHIRT("shirt", "Button-Down Shirt", "👔", GarmentCategory.UPPER_BODY, "male"),
+    TSHIRT("tshirt", "Crewneck T-Shirt", "👕", GarmentCategory.UPPER_BODY, "male"),
+    BLAZER("blazer", "Structured Blazer", "🧥", GarmentCategory.UPPER_BODY, "male"),
+    SWEATER("sweater", "Ribbed Sweater", "🧶", GarmentCategory.UPPER_BODY, "male"),
+    POLO("polo", "Classic Polo Shirt", "🎽", GarmentCategory.UPPER_BODY, "male"),
+    PANTS("pants", "Tailored Trousers", "👖", GarmentCategory.LOWER_BODY, "male"),
+    MEN_JEANS("m_jeans", "Straight Denim Jeans", "👖", GarmentCategory.LOWER_BODY, "male"),
+    MEN_SHORTS("m_shorts", "Chino Shorts", "🩳", GarmentCategory.LOWER_BODY, "male"),
 }
 
 enum class TryOnInputSource(val title: String, val subtitle: String) {
-    STORE_GARMENT("🛍️ Store Garment", "Upload person & garment photos"),
-    FROM_ANALYSIS("🎨 Color & Fabric", "Choose fabric, color & silhouette"),
+    STORE_GARMENT("🛍️ Store Garment", "Upload person & dress"),
+    FROM_ANALYSIS("🎨 Color & Fabric", "Choose silhouette, color & fabric"),
     COLOR_SWAP("🪄 Instant Color Swap", "Swap colors on your current outfit"),
 }
 
@@ -148,83 +161,82 @@ fun generateReferenceGarmentBitmap(
     val colorInt = android.graphics.Color.parseColor(colorHex)
     val rawTile = FabricTextureShader.getOrLoadRawBitmap(context, fabric.id)
     val mainPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = colorInt; style = Paint.Style.FILL }
-    val seamPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.argb(80, 0, 0, 0); style = Paint.Style.STROKE; strokeWidth = 3f }
-    val buttonPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.argb(230, 245, 245, 240); style = Paint.Style.FILL }
-    val buttonRimPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.argb(130, 80, 80, 80); style = Paint.Style.STROKE; strokeWidth = 2f }
-    when (silhouette) {
-        GarmentSilhouette.SHIRT -> {
-            val bodyPath = Path().apply { moveTo(width * 0.36f, height * 0.16f); lineTo(width * 0.12f, height * 0.32f); lineTo(width * 0.18f, height * 0.46f); lineTo(width * 0.28f, height * 0.42f); lineTo(width * 0.26f, height * 0.88f); lineTo(width * 0.74f, height * 0.88f); lineTo(width * 0.72f, height * 0.42f); lineTo(width * 0.82f, height * 0.46f); lineTo(width * 0.88f, height * 0.32f); lineTo(width * 0.64f, height * 0.16f); close() }
-            canvas.drawPath(bodyPath, mainPaint)
-            rawTile?.let { tile ->
-                val tileShader = BitmapShader(tile, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
-                val tilePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { shader = tileShader; alpha = (fabric.textureAlpha * 255).toInt().coerceIn(0, 255); xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_ATOP) }
-                canvas.drawPath(bodyPath, tilePaint)
+
+    when (silhouette.category) {
+        GarmentCategory.UPPER_BODY -> {
+            val garmentPath = Path().apply {
+                moveTo(width * 0.32f, height * 0.16f)
+                lineTo(width * 0.14f, height * 0.32f)
+                lineTo(width * 0.24f, height * 0.44f)
+                lineTo(width * 0.30f, height * 0.38f)
+                lineTo(width * 0.30f, height * 0.88f)
+                lineTo(width * 0.70f, height * 0.88f)
+                lineTo(width * 0.70f, height * 0.38f)
+                lineTo(width * 0.76f, height * 0.44f)
+                lineTo(width * 0.86f, height * 0.32f)
+                lineTo(width * 0.68f, height * 0.16f)
+                quadTo(width * 0.50f, height * 0.24f, width * 0.32f, height * 0.16f)
+                close()
             }
-            val leftCollar = Path().apply { moveTo(width * 0.36f, height * 0.15f); lineTo(width * 0.50f, height * 0.26f); lineTo(width * 0.42f, height * 0.30f); lineTo(width * 0.32f, height * 0.20f); close() }
-            val rightCollar = Path().apply { moveTo(width * 0.64f, height * 0.15f); lineTo(width * 0.50f, height * 0.26f); lineTo(width * 0.58f, height * 0.30f); lineTo(width * 0.68f, height * 0.20f); close() }
-            val collarFill = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = colorInt; style = Paint.Style.FILL }
-            canvas.drawPath(leftCollar, collarFill); canvas.drawPath(rightCollar, collarFill); canvas.drawPath(leftCollar, seamPaint); canvas.drawPath(rightCollar, seamPaint)
-            canvas.drawLine(width * 0.50f, height * 0.26f, width * 0.50f, height * 0.88f, seamPaint)
-            listOf(0.36f, 0.48f, 0.60f, 0.72f, 0.84f).forEach { bY -> canvas.drawCircle(width * 0.50f, height * bY, 6f, buttonPaint); canvas.drawCircle(width * 0.50f, height * bY, 6f, buttonRimPaint) }
-        }
-        GarmentSilhouette.TSHIRT -> {
-            val bodyPath = Path().apply { moveTo(width * 0.35f, height * 0.16f); cubicTo(width * 0.42f, height * 0.23f, width * 0.58f, height * 0.23f, width * 0.65f, height * 0.16f); lineTo(width * 0.88f, height * 0.28f); lineTo(width * 0.80f, height * 0.44f); lineTo(width * 0.72f, height * 0.39f); lineTo(width * 0.71f, height * 0.86f); lineTo(width * 0.29f, height * 0.86f); lineTo(width * 0.28f, height * 0.39f); lineTo(width * 0.20f, height * 0.44f); lineTo(width * 0.12f, height * 0.28f); close() }
-            canvas.drawPath(bodyPath, mainPaint)
+            canvas.drawPath(garmentPath, mainPaint)
             rawTile?.let { tile ->
-                val tileShader = BitmapShader(tile, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
-                val tilePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { shader = tileShader; alpha = (fabric.textureAlpha * 255).toInt().coerceIn(0, 255); xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_ATOP) }
-                canvas.drawPath(bodyPath, tilePaint)
-            }
-            val ribPath = Path().apply { moveTo(width * 0.35f, height * 0.16f); cubicTo(width * 0.42f, height * 0.23f, width * 0.58f, height * 0.23f, width * 0.65f, height * 0.16f); cubicTo(width * 0.58f, height * 0.25f, width * 0.42f, height * 0.25f, width * 0.35f, height * 0.16f); close() }
-            canvas.drawPath(ribPath, seamPaint); canvas.drawLine(width * 0.28f, height * 0.39f, width * 0.35f, height * 0.16f, seamPaint); canvas.drawLine(width * 0.72f, height * 0.39f, width * 0.65f, height * 0.16f, seamPaint)
-        }
-        GarmentSilhouette.BLAZER -> {
-            val bodyPath = Path().apply { moveTo(width * 0.34f, height * 0.15f); lineTo(width * 0.10f, height * 0.28f); lineTo(width * 0.16f, height * 0.60f); lineTo(width * 0.25f, height * 0.55f); lineTo(width * 0.24f, height * 0.90f); lineTo(width * 0.76f, height * 0.90f); lineTo(width * 0.75f, height * 0.55f); lineTo(width * 0.84f, height * 0.60f); lineTo(width * 0.90f, height * 0.28f); lineTo(width * 0.66f, height * 0.15f); close() }
-            canvas.drawPath(bodyPath, mainPaint)
-            rawTile?.let { tile ->
-                val tileShader = BitmapShader(tile, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
-                val tilePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { shader = tileShader; alpha = (fabric.textureAlpha * 255).toInt().coerceIn(0, 255); xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_ATOP) }
-                canvas.drawPath(bodyPath, tilePaint)
-            }
-            val leftLapel = Path().apply { moveTo(width * 0.34f, height * 0.15f); lineTo(width * 0.40f, height * 0.28f); lineTo(width * 0.33f, height * 0.32f); lineTo(width * 0.48f, height * 0.56f); lineTo(width * 0.44f, height * 0.56f); lineTo(width * 0.28f, height * 0.28f); close() }
-            val rightLapel = Path().apply { moveTo(width * 0.66f, height * 0.15f); lineTo(width * 0.60f, height * 0.28f); lineTo(width * 0.67f, height * 0.32f); lineTo(width * 0.52f, height * 0.56f); lineTo(width * 0.56f, height * 0.56f); lineTo(width * 0.72f, height * 0.28f); close() }
-            canvas.drawPath(leftLapel, mainPaint); canvas.drawPath(rightLapel, mainPaint); canvas.drawPath(leftLapel, seamPaint); canvas.drawPath(rightLapel, seamPaint)
-            canvas.drawCircle(width * 0.50f, height * 0.60f, 7f, buttonPaint); canvas.drawCircle(width * 0.50f, height * 0.60f, 7f, buttonRimPaint); canvas.drawCircle(width * 0.50f, height * 0.70f, 7f, buttonPaint); canvas.drawCircle(width * 0.50f, height * 0.70f, 7f, buttonRimPaint)
-        }
-        GarmentSilhouette.SWEATER -> {
-            val bodyPath = Path().apply { moveTo(width * 0.36f, height * 0.16f); cubicTo(width * 0.42f, height * 0.21f, width * 0.58f, height * 0.21f, width * 0.64f, height * 0.16f); lineTo(width * 0.88f, height * 0.30f); lineTo(width * 0.82f, height * 0.58f); lineTo(width * 0.73f, height * 0.54f); lineTo(width * 0.72f, height * 0.88f); lineTo(width * 0.28f, height * 0.88f); lineTo(width * 0.27f, height * 0.54f); lineTo(width * 0.18f, height * 0.58f); lineTo(width * 0.12f, height * 0.30f); close() }
-            canvas.drawPath(bodyPath, mainPaint)
-            rawTile?.let { tile ->
-                val tileShader = BitmapShader(tile, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
-                val tilePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { shader = tileShader; alpha = (fabric.textureAlpha * 255).toInt().coerceIn(0, 255); xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_ATOP) }
-                canvas.drawPath(bodyPath, tilePaint)
+                val shader = BitmapShader(tile, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
+                val tPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    this.shader = shader
+                    alpha = (fabric.textureAlpha * 255).toInt().coerceIn(0, 255)
+                    xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_ATOP)
+                }
+                canvas.drawPath(garmentPath, tPaint)
             }
         }
-        GarmentSilhouette.DRESS -> {
-            val bodyPath = Path().apply { moveTo(width * 0.36f, height * 0.14f); cubicTo(width * 0.44f, height * 0.22f, width * 0.56f, height * 0.22f, width * 0.64f, height * 0.14f); lineTo(width * 0.78f, height * 0.26f); lineTo(width * 0.70f, height * 0.38f); lineTo(width * 0.64f, height * 0.35f); lineTo(width * 0.60f, height * 0.48f); lineTo(width * 0.85f, height * 0.94f); lineTo(width * 0.15f, height * 0.94f); lineTo(width * 0.40f, height * 0.48f); lineTo(width * 0.36f, height * 0.35f); lineTo(width * 0.30f, height * 0.38f); lineTo(width * 0.22f, height * 0.26f); close() }
-            canvas.drawPath(bodyPath, mainPaint)
+        GarmentCategory.FULL_BODY -> {
+            val dressPath = Path().apply {
+                moveTo(width * 0.32f, height * 0.14f)
+                lineTo(width * 0.18f, height * 0.30f)
+                lineTo(width * 0.26f, height * 0.38f)
+                lineTo(width * 0.32f, height * 0.34f)
+                lineTo(width * 0.30f, height * 0.50f)
+                lineTo(width * 0.12f, height * 0.94f)
+                lineTo(width * 0.88f, height * 0.94f)
+                lineTo(width * 0.70f, height * 0.50f)
+                lineTo(width * 0.68f, height * 0.34f)
+                lineTo(width * 0.74f, height * 0.38f)
+                lineTo(width * 0.82f, height * 0.30f)
+                lineTo(width * 0.68f, height * 0.14f)
+                quadTo(width * 0.50f, height * 0.22f, width * 0.32f, height * 0.14f)
+                close()
+            }
+            canvas.drawPath(dressPath, mainPaint)
             rawTile?.let { tile ->
-                val tileShader = BitmapShader(tile, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
-                val tilePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { shader = tileShader; alpha = (fabric.textureAlpha * 255).toInt().coerceIn(0, 255); xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_ATOP) }
-                canvas.drawPath(bodyPath, tilePaint)
+                val shader = BitmapShader(tile, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
+                val tPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    this.shader = shader
+                    alpha = (fabric.textureAlpha * 255).toInt().coerceIn(0, 255)
+                    xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_ATOP)
+                }
+                canvas.drawPath(dressPath, tPaint)
             }
         }
-        GarmentSilhouette.PANTS -> {
-            val bodyPath = Path().apply { moveTo(width * 0.25f, height * 0.15f); lineTo(width * 0.75f, height * 0.15f); lineTo(width * 0.78f, height * 0.36f); lineTo(width * 0.72f, height * 0.92f); lineTo(width * 0.54f, height * 0.92f); lineTo(width * 0.50f, height * 0.45f); lineTo(width * 0.46f, height * 0.92f); lineTo(width * 0.28f, height * 0.92f); lineTo(width * 0.22f, height * 0.36f); close() }
-            canvas.drawPath(bodyPath, mainPaint)
-            rawTile?.let { tile ->
-                val tileShader = BitmapShader(tile, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
-                val tilePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { shader = tileShader; alpha = (fabric.textureAlpha * 255).toInt().coerceIn(0, 255); xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_ATOP) }
-                canvas.drawPath(bodyPath, tilePaint)
+        GarmentCategory.LOWER_BODY -> {
+            val pantsPath = Path().apply {
+                moveTo(width * 0.26f, height * 0.18f)
+                lineTo(width * 0.74f, height * 0.18f)
+                lineTo(width * 0.82f, height * 0.92f)
+                lineTo(width * 0.54f, height * 0.92f)
+                lineTo(width * 0.50f, height * 0.48f)
+                lineTo(width * 0.46f, height * 0.92f)
+                lineTo(width * 0.18f, height * 0.92f)
+                close()
             }
-        }
-        GarmentSilhouette.SKIRT -> {
-            val bodyPath = Path().apply { moveTo(width * 0.32f, height * 0.20f); lineTo(width * 0.68f, height * 0.20f); lineTo(width * 0.88f, height * 0.88f); lineTo(width * 0.12f, height * 0.88f); close() }
-            canvas.drawPath(bodyPath, mainPaint)
+            canvas.drawPath(pantsPath, mainPaint)
             rawTile?.let { tile ->
-                val tileShader = BitmapShader(tile, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
-                val tilePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { shader = tileShader; alpha = (fabric.textureAlpha * 255).toInt().coerceIn(0, 255); xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_ATOP) }
-                canvas.drawPath(bodyPath, tilePaint)
+                val shader = BitmapShader(tile, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
+                val tPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    this.shader = shader
+                    alpha = (fabric.textureAlpha * 255).toInt().coerceIn(0, 255)
+                    xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_ATOP)
+                }
+                canvas.drawPath(pantsPath, tPaint)
             }
         }
     }
@@ -236,27 +248,31 @@ fun recolorTopwearBitmap(source: Bitmap, targetHex: String): Bitmap {
     val canvas = Canvas(result)
     canvas.drawBitmap(source, 0f, 0f, null)
 
-    val colorInt = android.graphics.Color.parseColor(targetHex)
-    val r = (colorInt shr 16 and 0xFF) / 255f
-    val g = (colorInt shr 8 and 0xFF) / 255f
-    val b = (colorInt and 0xFF) / 255f
+    val targetColor = android.graphics.Color.parseColor(targetHex)
+    val r = android.graphics.Color.red(targetColor) / 255f
+    val g = android.graphics.Color.green(targetColor) / 255f
+    val b = android.graphics.Color.blue(targetColor) / 255f
 
-    // Soft multiply color tint over the lower 55% torso area
-    val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        colorFilter = ColorMatrixColorFilter(
-            ColorMatrix(
-                floatArrayOf(
-                    r * 1.2f, 0f, 0f, 0f, 0f,
-                    0f, g * 1.2f, 0f, 0f, 0f,
-                    0f, 0f, b * 1.2f, 0f, 0f,
-                    0f, 0f, 0f, 0.85f, 0f,
-                ),
-            ),
-        )
-        xfermode = PorterDuffXfermode(PorterDuff.Mode.MULTIPLY)
+    val colorMatrix = ColorMatrix(
+        floatArrayOf(
+            r * 1.5f, 0f, 0f, 0f, 0f,
+            0f, g * 1.5f, 0f, 0f, 0f,
+            0f, 0f, b * 1.5f, 0f, 0f,
+            0f, 0f, 0f, 1f, 0f,
+        ),
+    )
+
+    val paint = Paint().apply {
+        colorFilter = ColorMatrixColorFilter(colorMatrix)
+        xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_ATOP)
     }
 
-    val torsoRect = android.graphics.RectF(0f, source.height * 0.45f, source.width.toFloat(), source.height.toFloat())
+    val torsoRect = android.graphics.Rect(
+        (source.width * 0.15f).toInt(),
+        (source.height * 0.42f).toInt(),
+        (source.width * 0.85f).toInt(),
+        (source.height * 0.88f).toInt(),
+    )
     canvas.drawRect(torsoRect, paint)
     return result
 }
@@ -278,31 +294,16 @@ fun TryOnScreen(
     }
     var selectedFabric by remember { mutableStateOf(FabricCatalog.findById(initialFabricId ?: "silk")) }
     var selectedColorHex by remember { mutableStateOf(initialColorHex ?: "#831843") }
-    var selectedCut by remember { mutableStateOf(initialCutName ?: "Relaxed Tailored") }
-    var selectedGender by remember { mutableStateOf("female") }
     var selectedSilhouette by remember { mutableStateOf(GarmentSilhouette.SHIRT) }
-    var uploadedGarmentCategory by remember { mutableStateOf(GarmentCategory.UPPER_BODY) }
 
     var customGarmentUri by remember { mutableStateOf(initialGarmentUri) }
-    var isFabricMenuOpen by remember { mutableStateOf(false) }
     var isColorPickerOpen by remember { mutableStateOf(false) }
+    var isSilhouetteModalOpen by remember { mutableStateOf(false) }
 
-    var avatars by remember { mutableStateOf(PhotoAvatarStore.listAvatars(context)) }
-    var activeAvatar by remember { mutableStateOf(PhotoAvatarStore.getActiveAvatar(context)) }
+    var activeAvatar by remember { mutableStateOf<SavedAvatar?>(PhotoAvatarStore.getActiveAvatar(context)) }
 
     var showAvatarPromptDialog by remember { mutableStateOf(false) }
     var showGarmentPromptDialog by remember { mutableStateOf(false) }
-
-    LaunchedEffect(Unit) {
-        if (avatars.isEmpty()) {
-            val snaps = DrapeSnapRepository.list(context)
-            snaps.firstOrNull()?.let { snap ->
-                val avatar = PhotoAvatarStore.saveAvatarFromUri(context, Uri.fromFile(File(snap.imagePath)), "Captured Portrait", AvatarLighting.DAYLIGHT)
-                avatars = PhotoAvatarStore.listAvatars(context)
-                activeAvatar = avatar
-            }
-        }
-    }
 
     var isGenerating by remember { mutableStateOf(false) }
     var generationStatus by remember { mutableStateOf<String?>(null) }
@@ -326,7 +327,13 @@ fun TryOnScreen(
     val garmentPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) {
             val bmp = runCatching { context.contentResolver.openInputStream(uri)?.use { stream -> BitmapFactory.decodeStream(stream) } }.getOrNull()
-            if (bmp != null) { rawGarmentBitmapToCrop = bmp; isCropperOpen = true } else { customGarmentUri = uri; inputSource = TryOnInputSource.STORE_GARMENT }
+            if (bmp != null) {
+                rawGarmentBitmapToCrop = bmp
+                isCropperOpen = true
+            } else {
+                customGarmentUri = uri
+                inputSource = TryOnInputSource.STORE_GARMENT
+            }
         }
     }
 
@@ -334,8 +341,7 @@ fun TryOnScreen(
         if (uri != null) {
             scope.launch(Dispatchers.IO) {
                 val newAvatar = PhotoAvatarStore.saveAvatarFromUri(context, uri, "My Photo", AvatarLighting.DAYLIGHT)
-                val updatedList = PhotoAvatarStore.listAvatars(context)
-                withContext(Dispatchers.Main) { avatars = updatedList; activeAvatar = newAvatar }
+                withContext(Dispatchers.Main) { activeAvatar = newAvatar }
             }
         }
     }
@@ -387,14 +393,14 @@ fun TryOnScreen(
                 val (refBytes, targetCategory) = if (inputSource == TryOnInputSource.STORE_GARMENT && customGarmentUri != null) {
                     val stream = context.contentResolver.openInputStream(customGarmentUri!!)
                     val bytes = stream?.use { it.readBytes() } ?: ByteArray(0)
-                    Pair(bytes, uploadedGarmentCategory.apiValue)
+                    Pair(bytes, "upper_body")
                 } else {
                     val refBmp = generateReferenceGarmentBitmap(
                         context = context,
                         silhouette = selectedSilhouette,
                         colorHex = selectedColorHex,
                         fabric = selectedFabric,
-                        gender = selectedGender,
+                        gender = selectedSilhouette.genderTarget,
                     )
                     val baos = ByteArrayOutputStream()
                     refBmp.compress(Bitmap.CompressFormat.JPEG, 92, baos)
@@ -421,7 +427,7 @@ fun TryOnScreen(
                     referenceFileId = garmentFileId,
                     garmentCategory = targetCategory,
                     provider = "clothes",
-                    gender = selectedGender,
+                    gender = selectedSilhouette.genderTarget,
                     operationId = UUID.randomUUID().toString(),
                 )
 
@@ -477,7 +483,7 @@ fun TryOnScreen(
             Spacer(Modifier.height(14.dp))
 
             Text("Virtual Try-On", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = EditorialInk)
-            Text("Photorealistic garment deformation & color fitting", style = MaterialTheme.typography.bodySmall, color = EditorialMuted)
+            Text("AI neural fitting & photorealistic drape on your portrait", style = MaterialTheme.typography.bodySmall, color = EditorialMuted)
 
             Spacer(Modifier.height(14.dp))
 
@@ -486,7 +492,13 @@ fun TryOnScreen(
                 selectedTabIndex = inputSource.ordinal,
                 containerColor = Color.Transparent,
                 contentColor = EditorialSienna,
-                indicator = { TabRowDefaults.SecondaryIndicator(Modifier.tabIndicatorOffset(inputSource.ordinal), color = EditorialSienna, height = 3.dp) },
+                indicator = {
+                    TabRowDefaults.SecondaryIndicator(
+                        Modifier.tabIndicatorOffset(inputSource.ordinal),
+                        color = EditorialSienna,
+                        height = 3.dp,
+                    )
+                },
                 divider = {},
             ) {
                 TryOnInputSource.values().forEach { tab ->
@@ -506,299 +518,212 @@ fun TryOnScreen(
                 }
             }
 
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(18.dp))
 
-            // TWO TILES: [ TILE 1: YOUR PHOTO ] & [ TILE 2: GARMENT / COLOR ]
+            // TWO PROMINENT LARGE UPLOAD / CHOICE BOXES (NO CLUTTER)
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                // TILE 1: YOUR PHOTO (With Replace / Remove)
+                // BOX 1: PERSON IMAGE (BIG PROMINENT BOX)
                 Card(
-                    shape = RoundedCornerShape(18.dp),
+                    shape = RoundedCornerShape(20.dp),
                     colors = CardDefaults.cardColors(containerColor = Color.White),
                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                     modifier = Modifier
                         .weight(1f)
-                        .border(1.dp, EditorialStone.copy(alpha = 0.35f), RoundedCornerShape(18.dp)),
+                        .height(175.dp)
+                        .border(1.5.dp, EditorialStone.copy(alpha = 0.40f), RoundedCornerShape(20.dp)),
                 ) {
-                    Column(
-                        modifier = Modifier.padding(12.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                    ) {
-                        Text("1. Your Photo", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = EditorialSienna)
-                        Spacer(Modifier.height(8.dp))
+                    val activeAvatarFile = activeAvatar?.imagePath?.let { File(it) }
+                    val avatarBmp = if (activeAvatarFile?.exists() == true) BitmapFactory.decodeFile(activeAvatarFile.absolutePath) else null
 
-                        val activeAvatarFile = activeAvatar?.imagePath?.let { File(it) }
-                        val avatarBmp = if (activeAvatarFile?.exists() == true) BitmapFactory.decodeFile(activeAvatarFile.absolutePath) else null
-
-                        if (avatarBmp != null) {
+                    if (avatarBmp != null) {
+                        Box(modifier = Modifier.fillMaxSize()) {
                             Image(
                                 bitmap = avatarBmp.asImageBitmap(),
-                                contentDescription = "Active Avatar",
-                                modifier = Modifier
-                                    .size(74.dp)
-                                    .clip(RoundedCornerShape(12.dp)),
+                                contentDescription = "Your Photo",
+                                modifier = Modifier.fillMaxSize(),
                                 contentScale = ContentScale.Crop,
                             )
-                            Spacer(Modifier.height(8.dp))
-                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                OutlinedButton(
-                                    onClick = { avatarPicker.launch("image/*") },
-                                    shape = RoundedCornerShape(8.dp),
-                                    modifier = Modifier.height(28.dp),
-                                ) {
-                                    Text("Replace", fontSize = 10.sp, color = EditorialInk, fontWeight = FontWeight.Bold)
-                                }
-                                OutlinedButton(
-                                    onClick = { activeAvatar = null },
-                                    shape = RoundedCornerShape(8.dp),
-                                    modifier = Modifier.height(28.dp),
-                                ) {
-                                    Text("✕", fontSize = 10.sp, color = EditorialWarning, fontWeight = FontWeight.Bold)
-                                }
-                            }
-                        } else {
-                            Box(
+                            Row(
                                 modifier = Modifier
-                                    .size(74.dp)
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(EditorialSand.copy(alpha = 0.5f))
-                                    .clickable { avatarPicker.launch("image/*") },
-                                contentAlignment = Alignment.Center,
+                                    .align(Alignment.BottomCenter)
+                                    .fillMaxWidth()
+                                    .background(Color.Black.copy(alpha = 0.70f))
+                                    .padding(vertical = 6.dp),
+                                horizontalArrangement = Arrangement.SpaceEvenly,
                             ) {
-                                Text("👤\n+ Upload", textAlign = TextAlign.Center, fontSize = 11.sp, color = EditorialInk, fontWeight = FontWeight.Bold)
+                                Text(
+                                    "Replace",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White,
+                                    modifier = Modifier.clickable { avatarPicker.launch("image/*") },
+                                )
+                                Text(
+                                    "Remove ✕",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFFF87171),
+                                    modifier = Modifier.clickable { activeAvatar = null },
+                                )
+                            }
+                        }
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clickable { avatarPicker.launch("image/*") }
+                                .padding(14.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text("👤", fontSize = 34.sp)
+                                Spacer(Modifier.height(8.dp))
+                                Text(
+                                    if (inputSource == TryOnInputSource.STORE_GARMENT) "Upload Person's Image" else "Upload Person",
+                                    textAlign = TextAlign.Center,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = EditorialInk,
+                                )
+                                Text("Tap to select", fontSize = 10.sp, color = EditorialMuted)
                             }
                         }
                     }
                 }
 
-                // TILE 2: GARMENT / COLOR TILE
+                // BOX 2: DRESS / SILHOUETTE / COLOR (BIG PROMINENT BOX)
                 Card(
-                    shape = RoundedCornerShape(18.dp),
+                    shape = RoundedCornerShape(20.dp),
                     colors = CardDefaults.cardColors(containerColor = Color.White),
                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                     modifier = Modifier
                         .weight(1f)
-                        .border(1.dp, EditorialStone.copy(alpha = 0.35f), RoundedCornerShape(18.dp)),
+                        .height(175.dp)
+                        .border(1.5.dp, EditorialStone.copy(alpha = 0.40f), RoundedCornerShape(20.dp)),
                 ) {
-                    Column(
-                        modifier = Modifier.padding(12.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                    ) {
-                        Text(
-                            when (inputSource) {
-                                TryOnInputSource.STORE_GARMENT -> "2. Garment Photo"
-                                TryOnInputSource.FROM_ANALYSIS -> "2. Silhouette & Cut"
-                                TryOnInputSource.COLOR_SWAP -> "2. New Color"
-                            },
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = EditorialSienna,
-                        )
-                        Spacer(Modifier.height(8.dp))
+                    when (inputSource) {
+                        TryOnInputSource.STORE_GARMENT -> {
+                            val garmentBmp = if (customGarmentUri != null) {
+                                runCatching { context.contentResolver.openInputStream(customGarmentUri!!)?.use { BitmapFactory.decodeStream(it) } }.getOrNull()
+                            } else null
 
-                        when (inputSource) {
-                            TryOnInputSource.STORE_GARMENT -> {
-                                val garmentBmp = if (customGarmentUri != null) {
-                                    runCatching { context.contentResolver.openInputStream(customGarmentUri!!)?.use { BitmapFactory.decodeStream(it) } }.getOrNull()
-                                } else null
-
-                                if (garmentBmp != null) {
+                            if (garmentBmp != null) {
+                                Box(modifier = Modifier.fillMaxSize()) {
                                     Image(
                                         bitmap = garmentBmp.asImageBitmap(),
-                                        contentDescription = "Garment",
-                                        modifier = Modifier
-                                            .size(74.dp)
-                                            .clip(RoundedCornerShape(12.dp)),
+                                        contentDescription = "Uploaded Dress",
+                                        modifier = Modifier.fillMaxSize(),
                                         contentScale = ContentScale.Crop,
                                     )
-                                    Spacer(Modifier.height(8.dp))
-                                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                        OutlinedButton(
-                                            onClick = {
+                                    Row(
+                                        modifier = Modifier
+                                            .align(Alignment.BottomCenter)
+                                            .fillMaxWidth()
+                                            .background(Color.Black.copy(alpha = 0.70f))
+                                            .padding(vertical = 6.dp),
+                                        horizontalArrangement = Arrangement.SpaceEvenly,
+                                    ) {
+                                        Text(
+                                            "✂️ Crop",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White,
+                                            modifier = Modifier.clickable {
                                                 rawGarmentBitmapToCrop = garmentBmp
                                                 isCropperOpen = true
                                             },
-                                            shape = RoundedCornerShape(8.dp),
-                                            modifier = Modifier.height(28.dp),
-                                        ) {
-                                            Text("✂️ Crop", fontSize = 10.sp, color = EditorialInk, fontWeight = FontWeight.Bold)
-                                        }
-                                        OutlinedButton(
-                                            onClick = { garmentPicker.launch("image/*") },
-                                            shape = RoundedCornerShape(8.dp),
-                                            modifier = Modifier.height(28.dp),
-                                        ) {
-                                            Text("Replace", fontSize = 10.sp, color = EditorialInk, fontWeight = FontWeight.Bold)
-                                        }
-                                        OutlinedButton(
-                                            onClick = { customGarmentUri = null },
-                                            shape = RoundedCornerShape(8.dp),
-                                            modifier = Modifier.height(28.dp),
-                                        ) {
-                                            Text("✕", fontSize = 10.sp, color = EditorialWarning, fontWeight = FontWeight.Bold)
-                                        }
-                                    }
-                                } else {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(74.dp)
-                                            .clip(RoundedCornerShape(12.dp))
-                                            .background(EditorialSand.copy(alpha = 0.5f))
-                                            .clickable { garmentPicker.launch("image/*") },
-                                        contentAlignment = Alignment.Center,
-                                    ) {
-                                        Text("🛍️\n+ Garment", textAlign = TextAlign.Center, fontSize = 11.sp, color = EditorialInk, fontWeight = FontWeight.Bold)
+                                        )
+                                        Text(
+                                            "Replace",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White,
+                                            modifier = Modifier.clickable { garmentPicker.launch("image/*") },
+                                        )
+                                        Text(
+                                            "✕",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFFF87171),
+                                            modifier = Modifier.clickable { customGarmentUri = null },
+                                        )
                                     }
                                 }
-                            }
-
-                            TryOnInputSource.FROM_ANALYSIS -> {
+                            } else {
                                 Box(
                                     modifier = Modifier
-                                        .size(74.dp)
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(selectedColorHex.asComposeColor()),
+                                        .fillMaxSize()
+                                        .clickable { garmentPicker.launch("image/*") }
+                                        .padding(14.dp),
                                     contentAlignment = Alignment.Center,
                                 ) {
-                                    Text(selectedSilhouette.icon, fontSize = 32.sp)
-                                }
-                                Spacer(Modifier.height(8.dp))
-                                Text(selectedSilhouette.displayName, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = EditorialInk)
-                            }
-
-                            TryOnInputSource.COLOR_SWAP -> {
-                                Box(
-                                    modifier = Modifier
-                                        .size(74.dp)
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(selectedColorHex.asComposeColor())
-                                        .clickable { isColorPickerOpen = true },
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    Text("🎨", fontSize = 28.sp)
-                                }
-                                Spacer(Modifier.height(8.dp))
-                                Text("Tap to Pick Color", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = EditorialInk)
-                            }
-                        }
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(14.dp))
-
-            // DETAILED CONTROLS BASED ON ACTIVE MODE
-            Card(
-                shape = RoundedCornerShape(18.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(1.dp, EditorialStone.copy(alpha = 0.35f), RoundedCornerShape(18.dp)),
-            ) {
-                Column(modifier = Modifier.padding(14.dp)) {
-                    when (inputSource) {
-                        TryOnInputSource.STORE_GARMENT -> {
-                            Text("Garment Placement", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = EditorialInk)
-                            Spacer(Modifier.height(6.dp))
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                                GarmentCategory.values().forEach { cat ->
-                                    val isSel = uploadedGarmentCategory == cat
-                                    Box(
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .clip(RoundedCornerShape(10.dp))
-                                            .background(if (isSel) EditorialSienna else EditorialStone.copy(alpha = 0.15f))
-                                            .clickable { uploadedGarmentCategory = cat }
-                                            .padding(vertical = 8.dp),
-                                        contentAlignment = Alignment.Center,
-                                    ) {
-                                        Text("${cat.icon} ${cat.title}", fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium, color = if (isSel) Color.White else EditorialInk, fontSize = 11.sp)
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Text("👗", fontSize = 34.sp)
+                                        Spacer(Modifier.height(8.dp))
+                                        Text(
+                                            "Upload Dress",
+                                            textAlign = TextAlign.Center,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = EditorialInk,
+                                        )
+                                        Text("Prompts to crop", fontSize = 10.sp, color = EditorialMuted)
                                     }
                                 }
                             }
                         }
 
                         TryOnInputSource.FROM_ANALYSIS -> {
-                            Text("Garment Silhouette", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = EditorialInk)
-                            Spacer(Modifier.height(6.dp))
-                            Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                GarmentSilhouette.values().forEach { sil ->
-                                    val isSel = selectedSilhouette == sil
-                                    Box(
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(12.dp))
-                                            .background(if (isSel) EditorialSienna else EditorialSand.copy(alpha = 0.40f))
-                                            .clickable { selectedSilhouette = sil }
-                                            .padding(horizontal = 12.dp, vertical = 8.dp),
-                                    ) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Text(sil.icon, fontSize = 14.sp)
-                                            Spacer(Modifier.width(6.dp))
-                                            Text(sil.displayName, fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium, color = if (isSel) Color.White else EditorialInk, fontSize = 12.sp)
-                                        }
-                                    }
-                                }
-                            }
-
-                            Spacer(Modifier.height(12.dp))
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically,
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .clickable { isSilhouetteModalOpen = true }
+                                    .padding(14.dp),
+                                contentAlignment = Alignment.Center,
                             ) {
-                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { isColorPickerOpen = true }) {
-                                    Box(modifier = Modifier.size(36.dp).clip(CircleShape).background(selectedColorHex.asComposeColor()).border(2.dp, EditorialStone, CircleShape))
-                                    Spacer(Modifier.width(8.dp))
-                                    Column {
-                                        Text("${selectedFabric.icon} ${selectedFabric.name}", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = EditorialInk)
-                                        Text("Change Color / Fabric", style = MaterialTheme.typography.labelSmall, color = EditorialMuted)
-                                    }
-                                }
-                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    OutlinedButton(onClick = { isColorPickerOpen = true }, shape = RoundedCornerShape(10.dp), modifier = Modifier.height(32.dp)) { Text("🎨 Color", style = MaterialTheme.typography.labelSmall, color = EditorialInk) }
-                                    OutlinedButton(onClick = { isFabricMenuOpen = true }, shape = RoundedCornerShape(10.dp), modifier = Modifier.height(32.dp)) { Text("Fabric ▾", style = MaterialTheme.typography.labelSmall, color = EditorialInk) }
-                                    DropdownMenu(expanded = isFabricMenuOpen, onDismissRequest = { isFabricMenuOpen = false }) {
-                                        FabricCatalog.allFabrics.forEach { fab ->
-                                            DropdownMenuItem(text = { Text("${fab.icon} ${fab.name}", fontWeight = FontWeight.Bold) }, onClick = { selectedFabric = fab; isFabricMenuOpen = false })
-                                        }
-                                    }
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(selectedSilhouette.icon, fontSize = 36.sp)
+                                    Spacer(Modifier.height(8.dp))
+                                    Text(
+                                        "Choose Silhouette & Cut",
+                                        textAlign = TextAlign.Center,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = EditorialInk,
+                                    )
+                                    Text(selectedSilhouette.displayName, fontSize = 11.sp, color = EditorialSienna, fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
 
                         TryOnInputSource.COLOR_SWAP -> {
-                            Text("Quick Color Palette", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = EditorialInk)
-                            Spacer(Modifier.height(6.dp))
-                            Row(
-                                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                verticalAlignment = Alignment.CenterVertically,
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .clickable { isColorPickerOpen = true }
+                                    .padding(14.dp),
+                                contentAlignment = Alignment.Center,
                             ) {
-                                listOf("#831843", "#1D4ED8", "#047857", "#78350F", "#B45309", "#0F172A", "#D97706", "#475569", "#EA580C").forEach { hex ->
-                                    val isSel = selectedColorHex.equals(hex, ignoreCase = true)
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                     Box(
                                         modifier = Modifier
-                                            .size(38.dp)
+                                            .size(46.dp)
                                             .clip(CircleShape)
-                                            .background(hex.asComposeColor())
-                                            .border(if (isSel) 3.dp else 1.dp, if (isSel) EditorialSienna else EditorialStone, CircleShape)
-                                            .clickable { selectedColorHex = hex },
+                                            .background(selectedColorHex.asComposeColor())
+                                            .border(2.dp, EditorialSienna, CircleShape),
                                     )
-                                }
-                                Box(
-                                    modifier = Modifier
-                                        .size(38.dp)
-                                        .clip(CircleShape)
-                                        .background(EditorialSand.copy(alpha = 0.5f))
-                                        .border(1.dp, EditorialStone, CircleShape)
-                                        .clickable { isColorPickerOpen = true },
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    Text("🎨", fontSize = 16.sp)
+                                    Spacer(Modifier.height(8.dp))
+                                    Text(
+                                        "Target Color",
+                                        textAlign = TextAlign.Center,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = EditorialInk,
+                                    )
+                                    Text(selectedColorHex.uppercase(), fontSize = 11.sp, color = EditorialMuted, fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
@@ -806,17 +731,101 @@ fun TryOnScreen(
                 }
             }
 
-            if (isColorPickerOpen) {
-                UniversalColorPickerDialog(
-                    initialColorHex = selectedColorHex,
-                    onDismiss = { isColorPickerOpen = false },
-                    onColorSelected = { hex, _ -> selectedColorHex = hex; isColorPickerOpen = false },
-                )
+            Spacer(Modifier.height(16.dp))
+
+            // DETAIL CONTROLS FOR COLOR & FABRIC (CLEAR VISUAL HIERARCHY)
+            if (inputSource == TryOnInputSource.FROM_ANALYSIS || inputSource == TryOnInputSource.COLOR_SWAP) {
+                Card(
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, EditorialStone.copy(alpha = 0.35f), RoundedCornerShape(20.dp)),
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        // 1. COLOR SELECTION ROW
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text("1. Select Color", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = EditorialInk)
+                            Text(selectedColorHex.uppercase(), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = EditorialSienna)
+                        }
+                        Spacer(Modifier.height(10.dp))
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clip(CircleShape)
+                                    .background(EditorialSand)
+                                    .border(1.5.dp, EditorialSienna, CircleShape)
+                                    .clickable { isColorPickerOpen = true },
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text("🎨", fontSize = 18.sp)
+                            }
+
+                            listOf("#831843", "#1E3A8A", "#065F46", "#78350F", "#4C1D95", "#0F172A", "#9A3412", "#0E7490", "#D97706", "#2563EB", "#059669", "#E11D48", "#475569").forEach { hex ->
+                                val isSel = selectedColorHex.equals(hex, ignoreCase = true)
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(CircleShape)
+                                        .background(hex.asComposeColor())
+                                        .border(if (isSel) 3.dp else 1.dp, if (isSel) EditorialSienna else Color.LightGray, CircleShape)
+                                        .clickable { selectedColorHex = hex },
+                                )
+                            }
+                        }
+
+                        // 2. FABRIC SELECTION ROW (ONLY FOR FROM_ANALYSIS)
+                        if (inputSource == TryOnInputSource.FROM_ANALYSIS) {
+                            Spacer(Modifier.height(16.dp))
+                            Text("2. Select Fabric Texture", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = EditorialInk)
+                            Spacer(Modifier.height(10.dp))
+
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                FabricCatalog.allFabrics.forEach { fab ->
+                                    val isSel = selectedFabric.id == fab.id
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(if (isSel) EditorialSienna else EditorialSand.copy(alpha = 0.40f))
+                                            .border(1.dp, if (isSel) EditorialSienna else Color.Transparent, RoundedCornerShape(12.dp))
+                                            .clickable { selectedFabric = fab }
+                                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                                    ) {
+                                        Text(
+                                            "${fab.icon} ${fab.name}",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
+                                            color = if (isSel) Color.White else EditorialInk,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
 
             Spacer(Modifier.height(16.dp))
 
-            // RESULT CARD
+            // RESULT CARD & TRY-ON CTA
             Card(
                 shape = RoundedCornerShape(22.dp),
                 colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -830,7 +839,7 @@ fun TryOnScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     if (tryOnResultBitmap != null) {
-                        Text("AI VIRTUAL TRY-ON RESULT", style = MaterialTheme.typography.labelSmall, color = EditorialPositive, fontWeight = FontWeight.Bold)
+                        Text("✨ AI VIRTUAL TRY-ON RESULT", style = MaterialTheme.typography.labelSmall, color = EditorialPositive, fontWeight = FontWeight.Bold)
                         Spacer(Modifier.height(10.dp))
                         Image(
                             bitmap = tryOnResultBitmap!!.asImageBitmap(),
@@ -848,7 +857,7 @@ fun TryOnScreen(
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(300.dp)
+                                .height(260.dp)
                                 .clip(RoundedCornerShape(16.dp))
                                 .background(EditorialSand.copy(alpha = 0.40f))
                                 .graphicsLayer { if (isGenerating) alpha = pulseGlow },
@@ -885,7 +894,7 @@ fun TryOnScreen(
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                     Text("👗", fontSize = 42.sp)
                                     Spacer(Modifier.height(8.dp))
-                                    Text("Select or upload your photo above", style = MaterialTheme.typography.bodyMedium, color = EditorialInk, fontWeight = FontWeight.Medium)
+                                    Text("Upload person image above to begin", style = MaterialTheme.typography.bodyMedium, color = EditorialInk, fontWeight = FontWeight.Medium)
                                 }
                             }
                         }
@@ -899,10 +908,10 @@ fun TryOnScreen(
                     val ctaText = when {
                         isGenerating -> "Generating Try-On…"
                         inputSource == TryOnInputSource.COLOR_SWAP -> "🪄 Instant Color Swap"
-                        needsGarment -> "📸 Select Garment Photo Above"
-                        needsAvatar -> "👤 Select Your Photo Above"
+                        needsAvatar -> "👤 Upload Person Above"
+                        needsGarment -> "👗 Upload Dress Above"
                         inputSource == TryOnInputSource.FROM_ANALYSIS -> "Try On ${selectedSilhouette.displayName} ✨"
-                        else -> "Try On Uploaded Garment ✨"
+                        else -> "Try On Garment ✨"
                     }
 
                     Button(
@@ -920,7 +929,7 @@ fun TryOnScreen(
                         enabled = !isGenerating,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(50.dp),
+                            .height(52.dp),
                         shape = RoundedCornerShape(14.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = EditorialSienna),
                     ) {
@@ -971,27 +980,137 @@ fun TryOnScreen(
                 }
             }
 
-            if (isCropperOpen && rawGarmentBitmapToCrop != null) {
-                GarmentCropperModal(
-                    sourceBitmap = rawGarmentBitmapToCrop!!,
-                    onDismiss = { isCropperOpen = false; rawGarmentBitmapToCrop = null },
-                    onCropped = { file ->
-                        customGarmentUri = Uri.fromFile(file)
-                        inputSource = TryOnInputSource.STORE_GARMENT
-                        isCropperOpen = false
-                        rawGarmentBitmapToCrop = null
-                    },
-                )
-            }
-
             Spacer(Modifier.height(24.dp))
         }
 
+        // SILHOUETTE & CUT SELECTION MODAL
+        if (isSilhouetteModalOpen) {
+            AlertDialog(
+                onDismissRequest = { isSilhouetteModalOpen = false },
+                containerColor = Color.White,
+                shape = RoundedCornerShape(24.dp),
+                title = {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text("Choose Silhouette & Cut", fontWeight = FontWeight.Bold, color = EditorialInk, style = MaterialTheme.typography.titleMedium)
+                        Box(
+                            modifier = Modifier
+                                .size(30.dp)
+                                .clip(CircleShape)
+                                .background(EditorialSand)
+                                .clickable { isSilhouetteModalOpen = false },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text("✕", fontSize = 12.sp, color = EditorialInk, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                },
+                text = {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .verticalScroll(rememberScrollState()),
+                    ) {
+                        // GIRLS / WOMEN SECTION
+                        Text("👧 FOR GIRLS & WOMEN", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.ExtraBold, color = EditorialSienna)
+                        Spacer(Modifier.height(8.dp))
+
+                        val femaleSilhouettes = GarmentSilhouette.values().filter { it.genderTarget == "female" }
+                        femaleSilhouettes.forEach { sil ->
+                            val isSel = selectedSilhouette == sil
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(if (isSel) EditorialSienna else EditorialCream)
+                                    .clickable {
+                                        selectedSilhouette = sil
+                                        isSilhouetteModalOpen = false
+                                    }
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(sil.icon, fontSize = 20.sp)
+                                Spacer(Modifier.width(10.dp))
+                                Column {
+                                    Text(sil.displayName, fontWeight = FontWeight.Bold, color = if (isSel) Color.White else EditorialInk, fontSize = 13.sp)
+                                    Text(sil.category.title, style = MaterialTheme.typography.labelSmall, color = if (isSel) Color.White.copy(alpha = 0.8f) else EditorialMuted, fontSize = 10.sp)
+                                }
+                            }
+                        }
+
+                        Spacer(Modifier.height(16.dp))
+
+                        // BOYS / MEN SECTION
+                        Text("👦 FOR BOYS & MEN", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.ExtraBold, color = EditorialSienna)
+                        Spacer(Modifier.height(8.dp))
+
+                        val maleSilhouettes = GarmentSilhouette.values().filter { it.genderTarget == "male" }
+                        maleSilhouettes.forEach { sil ->
+                            val isSel = selectedSilhouette == sil
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(if (isSel) EditorialSienna else EditorialCream)
+                                    .clickable {
+                                        selectedSilhouette = sil
+                                        isSilhouetteModalOpen = false
+                                    }
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(sil.icon, fontSize = 20.sp)
+                                Spacer(Modifier.width(10.dp))
+                                Column {
+                                    Text(sil.displayName, fontWeight = FontWeight.Bold, color = if (isSel) Color.White else EditorialInk, fontSize = 13.sp)
+                                    Text(sil.category.title, style = MaterialTheme.typography.labelSmall, color = if (isSel) Color.White.copy(alpha = 0.8f) else EditorialMuted, fontSize = 10.sp)
+                                }
+                            }
+                        }
+                    }
+                },
+                confirmButton = {},
+            )
+        }
+
+        // CROPPER MODAL
+        if (isCropperOpen && rawGarmentBitmapToCrop != null) {
+            GarmentCropperModal(
+                sourceBitmap = rawGarmentBitmapToCrop!!,
+                onDismiss = { isCropperOpen = false; rawGarmentBitmapToCrop = null },
+                onCropped = { file ->
+                    customGarmentUri = Uri.fromFile(file)
+                    inputSource = TryOnInputSource.STORE_GARMENT
+                    isCropperOpen = false
+                    rawGarmentBitmapToCrop = null
+                },
+            )
+        }
+
+        // COLOR PICKER DIALOG
+        if (isColorPickerOpen) {
+            UniversalColorPickerDialog(
+                initialColorHex = selectedColorHex,
+                onDismiss = { isColorPickerOpen = false },
+                onColorSelected = { hex, _ ->
+                    selectedColorHex = hex
+                    isColorPickerOpen = false
+                },
+            )
+        }
+
+        // PROMPT DIALOGS
         if (showAvatarPromptDialog) {
             AlertDialog(
                 onDismissRequest = { showAvatarPromptDialog = false },
                 title = { Text("Photo Required", fontWeight = FontWeight.Bold) },
-                text = { Text("Please upload or select your portrait photo first to generate your try-on.") },
+                text = { Text("Please upload your portrait photo to generate your try-on.") },
                 confirmButton = {
                     Button(onClick = { showAvatarPromptDialog = false; avatarPicker.launch("image/*") }) {
                         Text("Upload Photo")
@@ -1008,8 +1127,8 @@ fun TryOnScreen(
         if (showGarmentPromptDialog) {
             AlertDialog(
                 onDismissRequest = { showGarmentPromptDialog = false },
-                title = { Text("Garment Screenshot Required", fontWeight = FontWeight.Bold) },
-                text = { Text("Please select a screenshot or product image of the garment you wish to try on.") },
+                title = { Text("Garment Required", fontWeight = FontWeight.Bold) },
+                text = { Text("Please upload a dress or garment photo to try on.") },
                 confirmButton = {
                     Button(onClick = { showGarmentPromptDialog = false; garmentPicker.launch("image/*") }) {
                         Text("Choose Garment")

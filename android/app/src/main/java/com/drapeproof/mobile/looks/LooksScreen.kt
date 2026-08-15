@@ -37,6 +37,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -79,8 +80,13 @@ fun LooksScreen(
 
     var snaps by remember { mutableStateOf(DrapeSnapRepository.list(context)) }
     var savedOutfits by remember { mutableStateOf(WardrobeRepository.listOutfits(context)) }
-
     val selectedCompareIds = remember { mutableStateListOf<String>() }
+
+    LaunchedEffect(Unit) {
+        snaps = DrapeSnapRepository.list(context)
+        savedOutfits = WardrobeRepository.listOutfits(context)
+        selectedCompareIds.clear()
+    }
     var alertMessage by remember { mutableStateOf<String?>(null) }
 
     fun toggleSelection(id: String) {
