@@ -1,14 +1,19 @@
 package com.drapeproof.mobile.ui
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -22,13 +27,12 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -38,17 +42,24 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.drapeproof.mobile.ui.theme.EditorialCream
+import com.drapeproof.mobile.ui.theme.EditorialGold
 import com.drapeproof.mobile.ui.theme.EditorialInk
 import com.drapeproof.mobile.ui.theme.EditorialMuted
-import com.drapeproof.mobile.ui.theme.EditorialSand
 import com.drapeproof.mobile.ui.theme.EditorialSienna
 import com.drapeproof.mobile.ui.theme.EditorialStone
+import kotlin.math.atan2
+import kotlin.math.cos
+import kotlin.math.sin
+import kotlin.math.sqrt
 
 private val curatedColorPresets = listOf(
     "#831843" to "Royal Burgundy",
@@ -71,6 +82,7 @@ private val curatedColorPresets = listOf(
     "#000000" to "Deep Black",
 )
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun UniversalColorPickerDialog(
     initialColorHex: String,
@@ -80,152 +92,224 @@ fun UniversalColorPickerDialog(
     var hexInput by remember { mutableStateOf(initialColorHex.removePrefix("#").uppercase()) }
     var hue by remember { mutableFloatStateOf(0f) }
     var saturation by remember { mutableFloatStateOf(0.85f) }
-    var value by remember { mutableFloatStateOf(0.65f) }
+    var value by remember { mutableFloatStateOf(0.70f) }
 
-    val activeColor = remember(hue, saturation, value, hexInput) {
+    // Synchronize initial HSV from initialColorHex
+    remember(initialColorHex) {
         runCatching {
-            val parsed = android.graphics.Color.parseColor("#$hexInput")
-            Color(parsed)
-        }.getOrElse {
-            val hsv = floatArrayOf(hue, saturation, value)
-            val argb = android.graphics.Color.HSVToColor(hsv)
-            Color(argb)
+            val parsed = android.graphics.Color.parseColor(if (initialColorHex.startsWith("#")) initialColorHex else "#$initialColorHex")
+            val hsv = FloatArray(3)
+            android.graphics.Color.colorToHSV(parsed, hsv)
+            hue = hsv[0]
+            saturation = hsv[1]
+            value = hsv[2]
         }
     }
 
-    val hueGradient = remember {
-        Brush.horizontalGradient(
-            colors = listOf(
-                Color.Red, Color.Yellow, Color.Green, Color.Cyan, Color.Blue, Color.Magenta, Color.Red,
-            ),
-        )
+    val activeColor = remember(hue, saturation, value, hexInput) {
+        val hsv = floatArrayOf(hue, saturation, value)
+        val argb = android.graphics.Color.HSVToColor(hsv)
+        Color(argb)
     }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color.White,
-        shape = RoundedCornerShape(24.dp),
+        containerColor = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(26.dp),
         title = {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text("Color Palette & Spectrum", fontWeight = FontWeight.Bold, color = EditorialInk, style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "Spectrum & Color Wheel",
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    style = MaterialTheme.typography.titleMedium,
+                )
                 Box(
                     modifier = Modifier
                         .size(32.dp)
                         .clip(CircleShape)
-                        .background(EditorialSand)
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
                         .clickable { onDismiss() },
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text("✕", fontSize = 14.sp, color = EditorialInk, fontWeight = FontWeight.Bold)
+                    Text("✕", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Bold)
                 }
             }
         },
         text = {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                // COLOR PREVIEW & HEX DISPLAY CARD
-                Card(
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = EditorialCream),
-                    modifier = Modifier.fillMaxWidth().border(1.dp, EditorialStone.copy(alpha = 0.4f), RoundedCornerShape(16.dp)),
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                // 1. CIRCULAR COLOR WHEEL / SPECTRUM SLIDER
+                Box(
+                    modifier = Modifier
+                        .size(190.dp)
+                        .padding(8.dp),
+                    contentAlignment = Alignment.Center,
                 ) {
-                    Row(
-                        modifier = Modifier.padding(12.dp).fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(56.dp)
-                                .clip(RoundedCornerShape(14.dp))
-                                .background(activeColor)
-                                .border(2.dp, Color.White, RoundedCornerShape(14.dp)),
+                    val spectrumSweep = remember {
+                        Brush.sweepGradient(
+                            listOf(
+                                Color.Red, Color.Yellow, Color.Green,
+                                Color.Cyan, Color.Blue, Color.Magenta, Color.Red,
+                            ),
                         )
-                        Spacer(Modifier.width(14.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("HEX COLOR CODE", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = EditorialSienna, fontSize = 10.sp)
-                            OutlinedTextField(
-                                value = hexInput,
-                                onValueChange = { input ->
-                                    val clean = input.filter { it.isLetterOrDigit() }.take(6).uppercase()
-                                    hexInput = clean
-                                },
-                                prefix = { Text("#", fontWeight = FontWeight.Bold, color = EditorialInk) },
-                                singleLine = true,
-                                shape = RoundedCornerShape(10.dp),
-                                modifier = Modifier.fillMaxWidth(),
-                            )
-                        }
+                    }
+
+                    Canvas(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .pointerInput(Unit) {
+                                detectDragGestures { change, _ ->
+                                    val center = Offset(size.width / 2f, size.height / 2f)
+                                    val touch = change.position
+                                    val angleRad = atan2(touch.y - center.y, touch.x - center.x)
+                                    var degrees = Math.toDegrees(angleRad.toDouble()).toFloat()
+                                    if (degrees < 0) degrees += 360f
+                                    hue = degrees
+                                    val hsv = floatArrayOf(hue, saturation, value)
+                                    val argb = android.graphics.Color.HSVToColor(hsv)
+                                    hexInput = String.format("%06X", (0xFFFFFF and argb))
+                                }
+                            }
+                            .pointerInput(Unit) {
+                                detectTapGestures { touch ->
+                                    val center = Offset(size.width / 2f, size.height / 2f)
+                                    val angleRad = atan2(touch.y - center.y, touch.x - center.x)
+                                    var degrees = Math.toDegrees(angleRad.toDouble()).toFloat()
+                                    if (degrees < 0) degrees += 360f
+                                    hue = degrees
+                                    val hsv = floatArrayOf(hue, saturation, value)
+                                    val argb = android.graphics.Color.HSVToColor(hsv)
+                                    hexInput = String.format("%06X", (0xFFFFFF and argb))
+                                }
+                            },
+                    ) {
+                        val strokeWidth = 24.dp.toPx()
+                        val radius = (size.minDimension - strokeWidth) / 2f
+                        val center = Offset(size.width / 2f, size.height / 2f)
+
+                        // Outer Rainbow Wheel
+                        drawCircle(
+                            brush = spectrumSweep,
+                            radius = radius,
+                            center = center,
+                            style = Stroke(width = strokeWidth, cap = StrokeCap.Round),
+                        )
+
+                        // Circular Thumb Indicator positioned on the wheel
+                        val angleRad = Math.toRadians(hue.toDouble())
+                        val thumbX = center.x + radius * cos(angleRad).toFloat()
+                        val thumbY = center.y + radius * sin(angleRad).toFloat()
+                        val thumbRadius = 14.dp.toPx()
+
+                        // Dynamic live-color filled thumb ring
+                        drawCircle(
+                            color = Color.White,
+                            radius = thumbRadius + 2.dp.toPx(),
+                            center = Offset(thumbX, thumbY),
+                        )
+                        drawCircle(
+                            color = activeColor,
+                            radius = thumbRadius,
+                            center = Offset(thumbX, thumbY),
+                        )
+                        drawCircle(
+                            color = EditorialSienna,
+                            radius = thumbRadius,
+                            center = Offset(thumbX, thumbY),
+                            style = Stroke(width = 2.dp.toPx()),
+                        )
+                    }
+
+                    // Center live color swatch preview disc
+                    Box(
+                        modifier = Modifier
+                            .size(76.dp)
+                            .clip(CircleShape)
+                            .background(activeColor)
+                            .border(3.dp, Color.White, CircleShape)
+                            .border(4.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), CircleShape),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            "#$hexInput",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (value > 0.5f && saturation < 0.6f) Color.Black else Color.White,
+                        )
                     }
                 }
 
-                Spacer(Modifier.height(14.dp))
+                Spacer(Modifier.height(10.dp))
 
-                // HUE SPECTRUM SLIDER
-                Text("HUE SPECTRUM", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = EditorialInk)
-                Spacer(Modifier.height(4.dp))
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(18.dp)
-                        .clip(RoundedCornerShape(9.dp))
-                        .background(hueGradient),
-                )
-                Slider(
-                    value = hue,
-                    onValueChange = {
-                        hue = it
-                        val hsv = floatArrayOf(hue, saturation, value)
-                        val argb = android.graphics.Color.HSVToColor(hsv)
-                        hexInput = String.format("%06X", (0xFFFFFF and argb))
-                    },
-                    valueRange = 0f..360f,
-                    colors = SliderDefaults.colors(
-                        thumbColor = EditorialSienna,
-                        activeTrackColor = Color.Transparent,
-                        inactiveTrackColor = Color.Transparent,
-                    ),
-                )
+                // 2. SATURATION & BRIGHTNESS ROUND SLIDERS
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Text("SATURATION", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = EditorialSienna, fontSize = 10.sp)
+                        Text("${(saturation * 100).toInt()}%", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                    }
+                    Slider(
+                        value = saturation,
+                        onValueChange = {
+                            saturation = it
+                            val hsv = floatArrayOf(hue, saturation, value)
+                            val argb = android.graphics.Color.HSVToColor(hsv)
+                            hexInput = String.format("%06X", (0xFFFFFF and argb))
+                        },
+                        valueRange = 0.05f..1.0f,
+                        colors = SliderDefaults.colors(
+                            thumbColor = activeColor,
+                            activeTrackColor = EditorialSienna,
+                            inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant,
+                        ),
+                    )
 
-                // SATURATION & BRIGHTNESS
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("SATURATION", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = EditorialMuted, fontSize = 10.sp)
-                        Slider(
-                            value = saturation,
-                            onValueChange = {
-                                saturation = it
-                                val hsv = floatArrayOf(hue, saturation, value)
-                                val argb = android.graphics.Color.HSVToColor(hsv)
-                                hexInput = String.format("%06X", (0xFFFFFF and argb))
-                            },
-                            valueRange = 0.05f..1.0f,
-                            colors = SliderDefaults.colors(thumbColor = EditorialSienna, activeTrackColor = EditorialSienna),
-                        )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Text("BRIGHTNESS", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = EditorialSienna, fontSize = 10.sp)
+                        Text("${(value * 100).toInt()}%", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                     }
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("BRIGHTNESS", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = EditorialMuted, fontSize = 10.sp)
-                        Slider(
-                            value = value,
-                            onValueChange = {
-                                value = it
-                                val hsv = floatArrayOf(hue, saturation, value)
-                                val argb = android.graphics.Color.HSVToColor(hsv)
-                                hexInput = String.format("%06X", (0xFFFFFF and argb))
-                            },
-                            valueRange = 0.05f..1.0f,
-                            colors = SliderDefaults.colors(thumbColor = EditorialSienna, activeTrackColor = EditorialSienna),
-                        )
-                    }
+                    Slider(
+                        value = value,
+                        onValueChange = {
+                            value = it
+                            val hsv = floatArrayOf(hue, saturation, value)
+                            val argb = android.graphics.Color.HSVToColor(hsv)
+                            hexInput = String.format("%06X", (0xFFFFFF and argb))
+                        },
+                        valueRange = 0.05f..1.0f,
+                        colors = SliderDefaults.colors(
+                            thumbColor = activeColor,
+                            activeTrackColor = EditorialSienna,
+                            inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant,
+                        ),
+                    )
                 }
 
                 Spacer(Modifier.height(8.dp))
 
-                // QUICK PRESETS
-                Text("CURATED PALETTE PRESETS", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = EditorialInk)
-                Spacer(Modifier.height(6.dp))
+                // 3. CURATED PALETTE SWATCHES
+                Text(
+                    "CURATED PRESETS",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = EditorialSienna,
+                    letterSpacing = 1.2.sp,
+                    modifier = Modifier.align(Alignment.Start),
+                )
+                Spacer(Modifier.height(8.dp))
+
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -237,12 +321,18 @@ fun UniversalColorPickerDialog(
                         val isSelected = hexInput.equals(hex.removePrefix("#"), ignoreCase = true)
                         Box(
                             modifier = Modifier
-                                .size(34.dp)
+                                .size(32.dp)
                                 .clip(CircleShape)
                                 .background(presetColor)
-                                .border(if (isSelected) 3.dp else 1.dp, if (isSelected) EditorialSienna else Color.LightGray, CircleShape)
+                                .border(if (isSelected) 3.dp else 1.dp, if (isSelected) EditorialSienna else MaterialTheme.colorScheme.outline, CircleShape)
                                 .clickable {
                                     hexInput = hex.removePrefix("#").uppercase()
+                                    val parsed = android.graphics.Color.parseColor(hex)
+                                    val hsv = FloatArray(3)
+                                    android.graphics.Color.colorToHSV(parsed, hsv)
+                                    hue = hsv[0]
+                                    saturation = hsv[1]
+                                    value = hsv[2]
                                 },
                         )
                     }
@@ -257,11 +347,11 @@ fun UniversalColorPickerDialog(
                     val colorName = matchingPreset?.second ?: "Custom Color ($finalHex)"
                     onColorSelected(finalHex, colorName)
                 },
-                shape = RoundedCornerShape(12.dp),
+                shape = RoundedCornerShape(14.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = EditorialSienna),
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().height(48.dp),
             ) {
-                Text("Apply Color", fontWeight = FontWeight.Bold, color = Color.White)
+                Text("Apply Color", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 13.sp)
             }
         },
         dismissButton = {},

@@ -88,6 +88,7 @@ import com.drapeproof.mobile.fabric.FabricTextureShader
 import com.drapeproof.mobile.network.DrapeProofApiClient
 import com.drapeproof.mobile.network.RemoteTaskResult
 import com.drapeproof.mobile.network.UploadInput
+import com.drapeproof.mobile.ui.components.FullScreenImageViewerModal
 import com.drapeproof.mobile.ui.UniversalColorPickerDialog
 import com.drapeproof.mobile.ui.theme.EditorialCream
 import com.drapeproof.mobile.ui.theme.EditorialInk
@@ -310,6 +311,7 @@ fun TryOnScreen(
     var isGenerating by remember { mutableStateOf(false) }
     var generationStatus by remember { mutableStateOf<String?>(null) }
     var tryOnResultBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    var fullScreenPreviewBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var savedOutfitId by remember { mutableStateOf<String?>(null) }
 
     var showAvatarPromptDialog by remember { mutableStateOf(false) }
@@ -866,16 +868,16 @@ fun TryOnScreen(
 
             // DETAIL CONTROLS ONLY FOR STYLE (COLOR & FABRIC) TAB
             if (inputSource == TryOnInputSource.STYLE) {
+                // 1. COLOR SELECTION CARD
                 Card(
                     shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .border(1.dp, EditorialStone.copy(alpha = 0.35f), RoundedCornerShape(20.dp)),
+                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), RoundedCornerShape(20.dp)),
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        // 1. COLOR SELECTION ROW
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -888,7 +890,19 @@ fun TryOnScreen(
                                 color = EditorialSienna,
                                 letterSpacing = 1.2.sp,
                             )
-                            Text(selectedColorHex.uppercase(), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = EditorialInk)
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(EditorialSienna.copy(alpha = 0.10f))
+                                    .padding(horizontal = 8.dp, vertical = 2.dp),
+                            ) {
+                                Text(
+                                    selectedColorHex.uppercase(),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = EditorialSienna,
+                                )
+                            }
                         }
                         Spacer(Modifier.height(10.dp))
 
@@ -896,14 +910,14 @@ fun TryOnScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .horizontalScroll(rememberScrollState()),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(38.dp)
+                                    .size(40.dp)
                                     .clip(CircleShape)
-                                    .background(EditorialSand)
+                                    .background(MaterialTheme.colorScheme.surfaceVariant)
                                     .border(1.5.dp, EditorialSienna, CircleShape)
                                     .clickable { isColorPickerOpen = true },
                                 contentAlignment = Alignment.Center,
@@ -915,48 +929,93 @@ fun TryOnScreen(
                                 val isSel = selectedColorHex.equals(hex, ignoreCase = true)
                                 Box(
                                     modifier = Modifier
-                                        .size(36.dp)
+                                        .size(38.dp)
                                         .clip(CircleShape)
                                         .background(hex.asComposeColor())
-                                        .border(if (isSel) 3.dp else 1.dp, if (isSel) EditorialSienna else Color.LightGray, CircleShape)
+                                        .border(if (isSel) 3.dp else 1.dp, if (isSel) EditorialSienna else MaterialTheme.colorScheme.outline, CircleShape)
                                         .clickable { selectedColorHex = hex },
                                 )
                             }
                         }
+                    }
+                }
 
-                        // 2. FABRIC SELECTION ROW
-                        Spacer(Modifier.height(16.dp))
-                        Text(
-                            "FABRIC TEXTURE",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = EditorialSienna,
-                            letterSpacing = 1.2.sp,
-                        )
-                        Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(12.dp))
+
+                // 2. FABRIC MATERIAL TEXTURE CARD
+                Card(
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), RoundedCornerShape(20.dp)),
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                "FABRIC TEXTURE & WEAVE",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = EditorialSienna,
+                                letterSpacing = 1.2.sp,
+                            )
+                            Text(
+                                selectedFabric.name,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                        }
+                        Spacer(Modifier.height(12.dp))
 
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .horizontalScroll(rememberScrollState()),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
                         ) {
                             FabricCatalog.allFabrics.forEach { fab ->
                                 val isSel = selectedFabric.id == fab.id
-                                Box(
+                                Card(
+                                    shape = RoundedCornerShape(14.dp),
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = if (isSel) EditorialSienna.copy(alpha = 0.08f) else MaterialTheme.colorScheme.surfaceVariant,
+                                    ),
                                     modifier = Modifier
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(if (isSel) EditorialSienna else EditorialSand.copy(alpha = 0.40f))
-                                        .border(1.dp, if (isSel) EditorialSienna else Color.Transparent, RoundedCornerShape(12.dp))
-                                        .clickable { selectedFabric = fab }
-                                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                                        .width(115.dp)
+                                        .border(
+                                            width = if (isSel) 2.dp else 1.dp,
+                                            color = if (isSel) EditorialSienna else MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+                                            shape = RoundedCornerShape(14.dp),
+                                        )
+                                        .clickable { selectedFabric = fab },
                                 ) {
-                                    Text(
-                                        "${fab.icon} ${fab.name}",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
-                                        color = if (isSel) Color.White else EditorialInk,
-                                    )
+                                    Column(
+                                        modifier = Modifier.padding(10.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                    ) {
+                                        Text(fab.icon, fontSize = 24.sp)
+                                        Spacer(Modifier.height(4.dp))
+                                        Text(
+                                            fab.name,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = if (isSel) FontWeight.Bold else FontWeight.SemiBold,
+                                            color = if (isSel) EditorialSienna else MaterialTheme.colorScheme.onSurface,
+                                            maxLines = 1,
+                                        )
+                                        Spacer(Modifier.height(2.dp))
+                                        Text(
+                                            fab.weaveType,
+                                            fontSize = 9.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            maxLines = 1,
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -969,11 +1028,11 @@ fun TryOnScreen(
             // RESULT CARD & TRY-ON CTA
             Card(
                 shape = RoundedCornerShape(22.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .border(1.dp, EditorialStone.copy(alpha = 0.35f), RoundedCornerShape(22.dp)),
+                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), RoundedCornerShape(22.dp)),
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp),
@@ -981,7 +1040,7 @@ fun TryOnScreen(
                 ) {
                     if (tryOnResultBitmap != null) {
                         Text(
-                            "TRY-ON RESULT",
+                            "TRY-ON RESULT (TAP TO ENLARGE)",
                             style = MaterialTheme.typography.labelSmall,
                             color = EditorialPositive,
                             fontWeight = FontWeight.Bold,
@@ -994,7 +1053,8 @@ fun TryOnScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(380.dp)
-                                .clip(RoundedCornerShape(16.dp)),
+                                .clip(RoundedCornerShape(16.dp))
+                                .clickable { fullScreenPreviewBitmap = tryOnResultBitmap },
                             contentScale = ContentScale.Crop,
                         )
                     } else {
@@ -1300,6 +1360,15 @@ fun TryOnScreen(
                         Text("Cancel", color = EditorialInk)
                     }
                 },
+            )
+        }
+
+        if (fullScreenPreviewBitmap != null) {
+            FullScreenImageViewerModal(
+                bitmap = fullScreenPreviewBitmap!!,
+                title = "Try-On Result",
+                subtitle = "${selectedFabric.name} • $selectedColorHex",
+                onDismiss = { fullScreenPreviewBitmap = null },
             )
         }
     }

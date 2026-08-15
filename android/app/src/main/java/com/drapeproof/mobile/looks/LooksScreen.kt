@@ -1,10 +1,7 @@
 package com.drapeproof.mobile.looks
 
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.net.Uri
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -36,7 +33,6 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -52,27 +48,27 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.drapeproof.mobile.data.DrapeSnapRepository
 import com.drapeproof.mobile.data.WardrobeRepository
-import com.drapeproof.mobile.ui.theme.EditorialCream
+import com.drapeproof.mobile.ui.components.FullScreenImageViewerModal
+import com.drapeproof.mobile.ui.theme.EditorialGold
 import com.drapeproof.mobile.ui.theme.EditorialInk
 import com.drapeproof.mobile.ui.theme.EditorialMuted
 import com.drapeproof.mobile.ui.theme.EditorialPositive
-import com.drapeproof.mobile.ui.theme.EditorialSand
 import com.drapeproof.mobile.ui.theme.EditorialSienna
-import com.drapeproof.mobile.ui.theme.EditorialStone
-import com.drapeproof.mobile.ui.theme.EditorialWarning
+import com.drapeproof.mobile.util.ImageExportUtils
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
 
 @Composable
 fun LooksScreen(
-    onNavigateToTryOn: (fabricId: String, colorHex: String, garmentUri: Uri?) -> Unit,
     onNavigateToDrape: (fabricId: String, colorHex: String) -> Unit,
-    onNavigateToCompare: (selectedIds: List<String>) -> Unit,
+    onNavigateToTryOn: (fabricId: String, colorHex: String, snapId: String?) -> Unit,
+    onNavigateToCompare: (selectedSnapIds: List<String>) -> Unit,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -81,35 +77,36 @@ fun LooksScreen(
     var savedOutfits by remember { mutableStateOf(WardrobeRepository.listOutfits(context)) }
     val selectedCompareIds = remember { mutableStateListOf<String>() }
 
-    LaunchedEffect(Unit) {
-        snaps = DrapeSnapRepository.list(context)
-        savedOutfits = WardrobeRepository.listOutfits(context)
-        selectedCompareIds.clear()
-    }
-
-    var alertMessage by remember { mutableStateOf<String?>(null) }
     var snapToDeleteId by remember { mutableStateOf<String?>(null) }
     var outfitToDeleteId by remember { mutableStateOf<String?>(null) }
+    var alertMessage by remember { mutableStateOf<String?>(null) }
+    var fullScreenImageBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    var fullScreenTitle by remember { mutableStateOf("Look Preview") }
 
-    fun toggleSelection(id: String) {
-        if (id in selectedCompareIds) {
-            selectedCompareIds.remove(id)
+    fun refreshData() {
+        snaps = DrapeSnapRepository.list(context)
+        savedOutfits = WardrobeRepository.listOutfits(context)
+    }
+
+    fun toggleSelection(snapId: String) {
+        if (snapId in selectedCompareIds) {
+            selectedCompareIds.remove(snapId)
         } else {
             if (selectedCompareIds.size >= 4) {
-                alertMessage = "You can compare up to 4 pictures at a time."
+                alertMessage = "You can select up to 4 looks for side-by-side comparison."
                 scope.launch {
                     delay(2500)
                     alertMessage = null
                 }
             } else {
-                selectedCompareIds.add(id)
+                selectedCompareIds.add(snapId)
             }
         }
     }
 
     Surface(
         modifier = Modifier.fillMaxSize(),
-        color = EditorialCream,
+        color = MaterialTheme.colorScheme.background,
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             Column(
@@ -122,18 +119,26 @@ fun LooksScreen(
             ) {
                 Spacer(Modifier.height(14.dp))
 
-                // TOP HEADER
+                // TOP HEADER BAR
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(
-                        "Looks",
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = EditorialInk,
-                    )
+                    Column {
+                        Text(
+                            "Looks",
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onBackground,
+                        )
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            "Your personal wardrobe gallery",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
 
                     if (selectedCompareIds.isNotEmpty()) {
                         Text(
@@ -162,7 +167,7 @@ fun LooksScreen(
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
                         color = EditorialSienna,
-                        letterSpacing = 1.sp,
+                        letterSpacing = 1.2.sp,
                     )
 
                     if (snaps.isNotEmpty()) {
@@ -170,7 +175,7 @@ fun LooksScreen(
                             if (selectedCompareIds.size == snaps.size) "Deselect All" else "Select All",
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.SemiBold,
-                            color = EditorialMuted,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.clickable {
                                 if (selectedCompareIds.size == snaps.size) {
                                     selectedCompareIds.clear()
@@ -188,10 +193,10 @@ fun LooksScreen(
                 if (snaps.isEmpty()) {
                     Card(
                         shape = RoundedCornerShape(18.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .border(1.dp, EditorialStone.copy(alpha = 0.35f), RoundedCornerShape(18.dp)),
+                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f), RoundedCornerShape(18.dp)),
                     ) {
                         Column(
                             modifier = Modifier.padding(24.dp),
@@ -203,13 +208,13 @@ fun LooksScreen(
                                 "No Saved Looks Yet",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
-                                color = EditorialInk,
+                                color = MaterialTheme.colorScheme.onSurface,
                             )
                             Spacer(Modifier.height(4.dp))
                             Text(
                                 "Capture drape portraits or generate virtual try-ons to review your wardrobe gallery.",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = EditorialMuted,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 textAlign = TextAlign.Center,
                             )
                             Spacer(Modifier.height(14.dp))
@@ -223,152 +228,155 @@ fun LooksScreen(
                         }
                     }
                 } else {
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        snaps.forEach { snap ->
-                            val file = File(snap.imagePath)
-                            val bmp = if (file.exists()) BitmapFactory.decodeFile(file.absolutePath) else null
-                            val isSelected = snap.id in selectedCompareIds
-
-                            Card(
-                                shape = RoundedCornerShape(18.dp),
-                                colors = CardDefaults.cardColors(
-                                    containerColor = if (isSelected) EditorialSienna.copy(alpha = 0.06f) else Color.White,
-                                ),
-                                elevation = CardDefaults.cardElevation(defaultElevation = if (isSelected) 3.dp else 1.dp),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .border(
-                                        width = if (isSelected) 2.dp else 1.dp,
-                                        color = if (isSelected) EditorialSienna else EditorialStone.copy(alpha = 0.35f),
-                                        shape = RoundedCornerShape(18.dp),
-                                    )
-                                    .clickable { toggleSelection(snap.id) },
+                    // 2-COLUMN WARDROBE DRAPES GRID
+                    val chunkedSnaps = snaps.chunked(2)
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        chunkedSnaps.forEach { pair ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
                             ) {
-                                Row(
-                                    modifier = Modifier.padding(12.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    // Thumbnail
-                                    if (bmp != null) {
-                                        Image(
-                                            bitmap = bmp.asImageBitmap(),
-                                            contentDescription = snap.fabricName,
-                                            modifier = Modifier
-                                                .size(72.dp)
-                                                .clip(RoundedCornerShape(14.dp)),
-                                            contentScale = ContentScale.Crop,
-                                        )
-                                    } else {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(72.dp)
-                                                .clip(RoundedCornerShape(14.dp))
-                                                .background(snap.colorHex.asComposeColor()),
-                                        )
-                                    }
+                                pair.forEach { snap ->
+                                    val file = File(snap.imagePath)
+                                    val bmp = if (file.exists()) BitmapFactory.decodeFile(file.absolutePath) else null
+                                    val isSelected = snap.id in selectedCompareIds
 
-                                    Spacer(Modifier.width(14.dp))
-
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            "${snap.fabricName} • ${snap.colorName}",
-                                            style = MaterialTheme.typography.titleSmall,
-                                            fontWeight = FontWeight.Bold,
-                                            color = EditorialInk,
-                                        )
-                                        Spacer(Modifier.height(2.dp))
-                                        Text(
-                                            "Harmony Match: ${snap.matchScorePercent}%",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = EditorialPositive,
-                                            fontWeight = FontWeight.SemiBold,
-                                        )
-                                        Spacer(Modifier.height(8.dp))
-                                        Row(
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                        ) {
-                                            // ADD / REMOVE COMPARE PILL
-                                            Box(
-                                                modifier = Modifier
-                                                    .clip(RoundedCornerShape(8.dp))
-                                                    .background(if (isSelected) EditorialSienna else EditorialSand)
-                                                    .clickable { toggleSelection(snap.id) }
-                                                    .padding(horizontal = 8.dp, vertical = 4.dp),
-                                            ) {
-                                                Text(
-                                                    if (isSelected) "✓ In Compare" else "+ Compare",
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = if (isSelected) Color.White else EditorialInk,
-                                                    fontSize = 11.sp,
-                                                )
-                                            }
-
-                                            // TRY-ON EXACT COLOR CTA
-                                            Box(
-                                                modifier = Modifier
-                                                    .clip(RoundedCornerShape(8.dp))
-                                                    .background(EditorialSand.copy(alpha = 0.5f))
-                                                    .clickable {
-                                                        onNavigateToTryOn(snap.fabricId, snap.colorHex, null)
-                                                    }
-                                                    .padding(horizontal = 8.dp, vertical = 4.dp),
-                                            ) {
-                                                Text(
-                                                    "Try-On Color ✨",
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = EditorialSienna,
-                                                    fontSize = 11.sp,
-                                                )
-                                            }
-                                        }
-                                    }
-
-                                    Row(
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
+                                    Card(
+                                        shape = RoundedCornerShape(18.dp),
+                                        colors = CardDefaults.cardColors(
+                                            containerColor = if (isSelected) EditorialSienna.copy(alpha = 0.08f) else MaterialTheme.colorScheme.surface,
+                                        ),
+                                        elevation = CardDefaults.cardElevation(defaultElevation = if (isSelected) 3.dp else 1.dp),
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .border(
+                                                width = if (isSelected) 2.dp else 1.dp,
+                                                color = if (isSelected) EditorialSienna else MaterialTheme.colorScheme.outline.copy(alpha = 0.40f),
+                                                shape = RoundedCornerShape(18.dp),
+                                            ),
                                     ) {
-                                        // DOWNLOAD / SAVE BUTTON
-                                        Box(
-                                            modifier = Modifier
-                                                .size(36.dp)
-                                                .clip(CircleShape)
-                                                .background(EditorialSand.copy(alpha = 0.40f))
-                                                .clickable {
-                                                    bmp?.let { snapBitmap ->
-                                                        com.drapeproof.mobile.util.ImageExportUtils.saveImageToGallery(
-                                                            context = context,
-                                                            bitmap = snapBitmap,
-                                                            title = "DrapeIt_Look_${snap.id}",
-                                                        )
-                                                    }
-                                                },
-                                            contentAlignment = Alignment.Center,
-                                        ) {
-                                            Text("💾", fontSize = 14.sp)
-                                        }
+                                        Column(modifier = Modifier.padding(10.dp)) {
+                                            // THUMBNAIL WITH TAP-TO-FULLSCREEN & ACTIONS
+                                            Box(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .height(130.dp)
+                                                    .clip(RoundedCornerShape(12.dp))
+                                                    .background(snap.colorHex.asComposeColor())
+                                                    .clickable {
+                                                        if (bmp != null) {
+                                                            fullScreenImageBitmap = bmp
+                                                            fullScreenTitle = "${snap.fabricName} • ${snap.colorName}"
+                                                        }
+                                                    },
+                                            ) {
+                                                if (bmp != null) {
+                                                    Image(
+                                                        bitmap = bmp.asImageBitmap(),
+                                                        contentDescription = snap.fabricName,
+                                                        modifier = Modifier.fillMaxSize(),
+                                                        contentScale = ContentScale.Crop,
+                                                    )
+                                                }
 
-                                        // VERTICALLY CENTERED TRASH DELETE BUTTON
-                                        Box(
-                                            modifier = Modifier
-                                                .size(36.dp)
-                                                .clip(CircleShape)
-                                                .background(EditorialSand.copy(alpha = 0.40f))
-                                                .clickable { snapToDeleteId = snap.id },
-                                            contentAlignment = Alignment.Center,
-                                        ) {
-                                            Text("🗑️", fontSize = 14.sp)
+                                                // TOP HARMONY PILL
+                                                Box(
+                                                    modifier = Modifier
+                                                        .align(Alignment.TopStart)
+                                                        .padding(6.dp)
+                                                        .clip(RoundedCornerShape(6.dp))
+                                                        .background(Color.Black.copy(alpha = 0.65f))
+                                                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                                                ) {
+                                                    Text(
+                                                        "${snap.matchScorePercent}%",
+                                                        color = Color.White,
+                                                        fontWeight = FontWeight.Bold,
+                                                        fontSize = 10.sp,
+                                                    )
+                                                }
+
+                                                // QUICK SAVE BUTTON TOP RIGHT
+                                                Box(
+                                                    modifier = Modifier
+                                                        .align(Alignment.TopEnd)
+                                                        .padding(6.dp)
+                                                        .size(28.dp)
+                                                        .clip(CircleShape)
+                                                        .background(Color.Black.copy(alpha = 0.65f))
+                                                        .clickable {
+                                                            bmp?.let { snapBmp ->
+                                                                ImageExportUtils.saveImageToGallery(
+                                                                    context = context,
+                                                                    bitmap = snapBmp,
+                                                                    title = "DrapeIt_${snap.id}",
+                                                                )
+                                                            }
+                                                        },
+                                                    contentAlignment = Alignment.Center,
+                                                ) {
+                                                    Text("💾", fontSize = 12.sp)
+                                                }
+                                            }
+
+                                            Spacer(Modifier.height(8.dp))
+
+                                            Text(
+                                                "${snap.fabricName} • ${snap.colorName}",
+                                                style = MaterialTheme.typography.titleSmall,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onSurface,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                            )
+
+                                            Spacer(Modifier.height(6.dp))
+
+                                            // COMPARE & DELETE BUTTONS
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically,
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .clip(RoundedCornerShape(8.dp))
+                                                        .background(if (isSelected) EditorialSienna else MaterialTheme.colorScheme.surfaceVariant)
+                                                        .clickable { toggleSelection(snap.id) }
+                                                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                                                ) {
+                                                    Text(
+                                                        if (isSelected) "✓ Picked" else "+ Compare",
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface,
+                                                        fontSize = 10.sp,
+                                                    )
+                                                }
+
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(28.dp)
+                                                        .clip(CircleShape)
+                                                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                                                        .clickable { snapToDeleteId = snap.id },
+                                                    contentAlignment = Alignment.Center,
+                                                ) {
+                                                    Text("🗑️", fontSize = 12.sp)
+                                                }
+                                            }
                                         }
                                     }
+                                }
+                                if (pair.size == 1) {
+                                    Spacer(Modifier.weight(1f))
                                 }
                             }
                         }
                     }
                 }
 
-                Spacer(Modifier.height(22.dp))
+                Spacer(Modifier.height(24.dp))
 
                 // SAVED VIRTUAL TRY-ON OUTFITS
                 if (savedOutfits.isNotEmpty()) {
@@ -377,79 +385,91 @@ fun LooksScreen(
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
                         color = EditorialSienna,
-                        letterSpacing = 1.sp,
+                        letterSpacing = 1.2.sp,
                     )
                     Spacer(Modifier.height(10.dp))
 
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        savedOutfits.forEach { outfit ->
-                            Card(
-                                shape = RoundedCornerShape(18.dp),
-                                colors = CardDefaults.cardColors(containerColor = Color.White),
-                                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .border(1.dp, EditorialStone.copy(alpha = 0.35f), RoundedCornerShape(18.dp)),
+                    val chunkedOutfits = savedOutfits.chunked(2)
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        chunkedOutfits.forEach { pair ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
                             ) {
-                                Row(
-                                    modifier = Modifier.padding(12.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    Box(
+                                pair.forEach { outfit ->
+                                    Card(
+                                        shape = RoundedCornerShape(18.dp),
+                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
                                         modifier = Modifier
-                                            .size(64.dp)
-                                            .clip(RoundedCornerShape(12.dp))
-                                            .background(outfit.colorHex.asComposeColor()),
-                                        contentAlignment = Alignment.Center,
+                                            .weight(1f)
+                                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f), RoundedCornerShape(18.dp)),
                                     ) {
-                                        Text("👔", fontSize = 24.sp)
-                                    }
+                                        Column(modifier = Modifier.padding(10.dp)) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .height(80.dp)
+                                                    .clip(RoundedCornerShape(12.dp))
+                                                    .background(outfit.colorHex.asComposeColor()),
+                                                contentAlignment = Alignment.Center,
+                                            ) {
+                                                Text("👔", fontSize = 28.sp)
+                                            }
 
-                                    Spacer(Modifier.width(14.dp))
+                                            Spacer(Modifier.height(8.dp))
 
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            outfit.title,
-                                            style = MaterialTheme.typography.titleSmall,
-                                            fontWeight = FontWeight.Bold,
-                                            color = EditorialInk,
-                                        )
-                                        Text(
-                                            "${outfit.fabricName} • ${outfit.topwearCut}",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = EditorialMuted,
-                                        )
-                                        Spacer(Modifier.height(6.dp))
-                                        Box(
-                                            modifier = Modifier
-                                                .clip(RoundedCornerShape(8.dp))
-                                                .background(EditorialSand.copy(alpha = 0.5f))
-                                                .clickable {
-                                                    onNavigateToTryOn("silk", outfit.colorHex, null)
-                                                }
-                                                .padding(horizontal = 8.dp, vertical = 4.dp),
-                                        ) {
                                             Text(
-                                                "Try-On Again →",
-                                                style = MaterialTheme.typography.labelSmall,
+                                                outfit.title,
+                                                style = MaterialTheme.typography.titleSmall,
                                                 fontWeight = FontWeight.Bold,
-                                                color = EditorialSienna,
-                                                fontSize = 11.sp,
+                                                color = MaterialTheme.colorScheme.onSurface,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
                                             )
+                                            Text(
+                                                "${outfit.fabricName} • ${outfit.topwearCut}",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                fontSize = 11.sp,
+                                                maxLines = 1,
+                                            )
+
+                                            Spacer(Modifier.height(8.dp))
+
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically,
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .clip(RoundedCornerShape(8.dp))
+                                                        .background(EditorialSienna.copy(alpha = 0.10f))
+                                                        .clickable {
+                                                            onNavigateToTryOn("silk", outfit.colorHex, null)
+                                                        }
+                                                        .padding(horizontal = 6.dp, vertical = 3.dp),
+                                                ) {
+                                                    Text("Try-On →", color = EditorialSienna, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                                }
+
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(28.dp)
+                                                        .clip(CircleShape)
+                                                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                                                        .clickable { outfitToDeleteId = outfit.id },
+                                                    contentAlignment = Alignment.Center,
+                                                ) {
+                                                    Text("🗑️", fontSize = 12.sp)
+                                                }
+                                            }
                                         }
                                     }
-
-                                    // VERTICALLY CENTERED TRASH DELETE BUTTON
-                                    Box(
-                                        modifier = Modifier
-                                            .size(38.dp)
-                                            .clip(CircleShape)
-                                            .background(EditorialSand.copy(alpha = 0.40f))
-                                            .clickable { outfitToDeleteId = outfit.id },
-                                        contentAlignment = Alignment.Center,
-                                    ) {
-                                        Text("🗑️", fontSize = 16.sp)
-                                    }
+                                }
+                                if (pair.size == 1) {
+                                    Spacer(Modifier.weight(1f))
                                 }
                             }
                         }
@@ -504,79 +524,85 @@ fun LooksScreen(
                     },
                     shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = if (selectedCompareIds.size >= 2) EditorialSienna else EditorialInk.copy(alpha = 0.75f),
+                        containerColor = if (selectedCompareIds.size >= 2) EditorialSienna else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f),
                     ),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(52.dp),
+                        .height(50.dp),
                 ) {
                     Text(
                         if (selectedCompareIds.size >= 2) {
                             "⚡ Compare ${selectedCompareIds.size} Looks Side-by-Side"
                         } else {
-                            "⚡ Compare Looks (Select at least 2)"
+                            "⚡ Compare Looks (Select 2 to 4)"
                         },
                         color = Color.White,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp,
                     )
                 }
             }
+        }
 
-            // DELETE CONFIRMATION DIALOG FOR DRAPE SNAPS
-            if (snapToDeleteId != null) {
-                AlertDialog(
-                    onDismissRequest = { snapToDeleteId = null },
-                    title = { Text("Delete Look?", fontWeight = FontWeight.Bold, color = EditorialInk) },
-                    text = { Text("Are you sure you want to delete this look? This cannot be undone.", color = EditorialMuted) },
-                    confirmButton = {
-                        Button(
-                            onClick = {
-                                val id = snapToDeleteId!!
-                                selectedCompareIds.remove(id)
-                                DrapeSnapRepository.delete(context, id)
-                                snaps = DrapeSnapRepository.list(context)
-                                snapToDeleteId = null
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = EditorialWarning),
-                        ) {
-                            Text("Delete", color = Color.White, fontWeight = FontWeight.Bold)
-                        }
-                    },
-                    dismissButton = {
-                        OutlinedButton(onClick = { snapToDeleteId = null }) {
-                            Text("Cancel", color = EditorialInk)
-                        }
-                    },
-                )
-            }
+        // FULL SCREEN IMAGE LIGHTBOX
+        if (fullScreenImageBitmap != null) {
+            FullScreenImageViewerModal(
+                bitmap = fullScreenImageBitmap!!,
+                title = fullScreenTitle,
+                onDismiss = { fullScreenImageBitmap = null },
+            )
+        }
 
-            // DELETE CONFIRMATION DIALOG FOR OUTFITS
-            if (outfitToDeleteId != null) {
-                AlertDialog(
-                    onDismissRequest = { outfitToDeleteId = null },
-                    title = { Text("Remove Outfit?", fontWeight = FontWeight.Bold, color = EditorialInk) },
-                    text = { Text("Are you sure you want to remove this saved outfit?", color = EditorialMuted) },
-                    confirmButton = {
-                        Button(
-                            onClick = {
-                                val id = outfitToDeleteId!!
-                                WardrobeRepository.removeOutfit(context, id)
-                                savedOutfits = WardrobeRepository.listOutfits(context)
-                                outfitToDeleteId = null
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = EditorialWarning),
-                        ) {
-                            Text("Remove", color = Color.White, fontWeight = FontWeight.Bold)
-                        }
-                    },
-                    dismissButton = {
-                        OutlinedButton(onClick = { outfitToDeleteId = null }) {
-                            Text("Cancel", color = EditorialInk)
-                        }
-                    },
-                )
-            }
+        // DELETE SNAP CONFIRMATION DIALOG
+        if (snapToDeleteId != null) {
+            AlertDialog(
+                onDismissRequest = { snapToDeleteId = null },
+                title = { Text("Delete Look?", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface) },
+                text = { Text("This captured drape photo will be permanently removed from your private wardrobe.", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            DrapeSnapRepository.delete(context, snapToDeleteId!!)
+                            selectedCompareIds.remove(snapToDeleteId!!)
+                            snapToDeleteId = null
+                            refreshData()
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                    ) {
+                        Text("Delete", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    OutlinedButton(onClick = { snapToDeleteId = null }) {
+                        Text("Cancel", color = MaterialTheme.colorScheme.onSurface)
+                    }
+                },
+            )
+        }
+
+        // DELETE OUTFIT CONFIRMATION DIALOG
+        if (outfitToDeleteId != null) {
+            AlertDialog(
+                onDismissRequest = { outfitToDeleteId = null },
+                title = { Text("Delete Outfit?", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface) },
+                text = { Text("This saved try-on outfit will be removed from your collection.", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            WardrobeRepository.removeOutfit(context, outfitToDeleteId!!)
+                            outfitToDeleteId = null
+                            refreshData()
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                    ) {
+                        Text("Delete", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    OutlinedButton(onClick = { outfitToDeleteId = null }) {
+                        Text("Cancel", color = MaterialTheme.colorScheme.onSurface)
+                    }
+                },
+            )
         }
     }
 }

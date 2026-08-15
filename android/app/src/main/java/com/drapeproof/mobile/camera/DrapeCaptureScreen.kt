@@ -101,6 +101,7 @@ import com.drapeproof.mobile.fabric.FabricMaterial
 import com.drapeproof.mobile.fabric.FabricTextureShader
 import com.drapeproof.mobile.ui.UniversalColorPickerDialog
 import com.drapeproof.mobile.ui.theme.EditorialCream
+import com.drapeproof.mobile.ui.theme.EditorialGold
 import com.drapeproof.mobile.ui.theme.EditorialInk
 import com.drapeproof.mobile.ui.theme.EditorialMuted
 import com.drapeproof.mobile.ui.theme.EditorialNegative
@@ -194,15 +195,17 @@ fun DrapeCaptureScreen(
 
     val activeColorHex = customHex ?: selectedColor.hex
     val storedProfile = remember { SkinProfileRepository.load(context) }
-    val effectiveSkinHex = if (storedProfile != null && storedProfile.isCalibrated) {
-        storedProfile.skinHex
-    } else {
-        detectedSkinHex ?: storedProfile?.skinHex ?: "#D8B498"
-    }
+    val effectiveSkinHex = detectedSkinHex ?: storedProfile?.skinHex ?: "#D8B498"
+    val liveLuminance = latestReading?.faceLuminance ?: 0.50
 
-    val harmonyResult = remember(effectiveSkinHex, activeColorHex, isFaceInFrame) {
+    val harmonyResult = remember(effectiveSkinHex, activeColorHex, selectedFabric.id, liveLuminance, isFaceInFrame) {
         if (isFaceInFrame) {
-            TrueColorHarmonyEngine.evaluate(effectiveSkinHex, activeColorHex)
+            TrueColorHarmonyEngine.evaluate(
+                skinHex = effectiveSkinHex,
+                fabricHex = activeColorHex,
+                fabricId = selectedFabric.id,
+                ambientLuminance = liveLuminance,
+            )
         } else {
             com.drapeproof.core.color.HarmonyAnalysisResult(
                 scorePercent = 0,
@@ -682,20 +685,32 @@ fun DrapeCaptureScreen(
                             )
                         }
 
-                        // RIGHT: FABRIC MATERIAL BUTTON
+                        // RIGHT: FABRIC MATERIAL BUTTON WITH EMBEDDED TEXT
                         Box(
                             modifier = Modifier
-                                .size(48.dp)
+                                .size(52.dp)
                                 .clip(CircleShape)
-                                .background(Color.Black.copy(alpha = 0.65f))
-                                .border(1.2.dp, EditorialSienna, CircleShape)
+                                .background(Color.Black.copy(alpha = 0.75f))
+                                .border(1.5.dp, EditorialGold.copy(alpha = 0.70f), CircleShape)
                                 .clickable {
                                     runCatching { currentView.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK) }
                                     isFabricListExpanded = true
                                 },
                             contentAlignment = Alignment.Center,
                         ) {
-                            Text(selectedFabric.icon, fontSize = 20.sp)
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center,
+                            ) {
+                                Text(selectedFabric.icon, fontSize = 16.sp)
+                                Text(
+                                    "Fabric",
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White,
+                                    letterSpacing = 0.5.sp,
+                                )
+                            }
                         }
                     }
 

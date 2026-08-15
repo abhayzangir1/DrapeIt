@@ -2,26 +2,40 @@ package com.drapeproof.mobile.ui.theme
 
 import android.app.Activity
 import android.os.Build
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
+import com.drapeproof.mobile.data.AppSettingsRepository
+import com.drapeproof.mobile.data.AppThemeMode
 
-// Minimal Luxury Tokens (Clean, Crisp, Airy)
+// Minimal Luxury Tokens (Clean, Crisp, Lighter Radiant Crimson & Warm Gold)
 val EditorialInk = Color(0xFF111111)
-val EditorialWarmBlack = Color(0xFF1F1F1F)
+val EditorialWarmBlack = Color(0xFF18181B)
 val EditorialCream = Color(0xFFFCFCFC) // Pure, airy, minimalist off-white canvas
-val EditorialSand = Color(0xFFF5F5F4)  // Neutral stone surface variant
-val EditorialStone = Color(0xFFE7E5E4) // Delicate hairline border
-val EditorialMuted = Color(0xFF78716C) // Neutral stone subtext
-val EditorialSienna = Color(0xFF7A1C30) // Subtle couture wine accent from Logo
-val EditorialGold = Color(0xFFB48B57)   // Subtle champagne gold
-val EditorialPositive = Color(0xFF15803D)
-val EditorialWarning = Color(0xFFB45309)
-val EditorialNegative = Color(0xFFBE123C)
+val EditorialSand = Color(0xFFF4F4F5)  // Neutral stone surface variant
+val EditorialStone = Color(0xFFE4E4E7) // Delicate hairline border
+val EditorialMuted = Color(0xFF71717A) // Neutral stone subtext
+val EditorialSienna = Color(0xFFC23B5A) // Lighter radiant couture crimson
+val EditorialGold = Color(0xFFD4AF37)   // Luxury warm metallic gold
+val EditorialPositive = Color(0xFF16A34A)
+val EditorialWarning = Color(0xFFD97706)
+val EditorialNegative = Color(0xFFE11D48)
+
+// Dark Luxury Theme Palette (Obsidian Black, Warm Gold & Radiant Crimson)
+val DarkCanvas = Color(0xFF0D0D11)
+val DarkSurface = Color(0xFF16161E)
+val DarkSurfaceVariant = Color(0xFF20202C)
+val DarkBorder = Color(0xFF2E2E3E)
+val DarkTextPrimary = Color(0xFFF4F4F5)
+val DarkTextSecondary = Color(0xFFA1A1AA)
 
 // Backward-compatibility aliases
 val LuxuryCanvas = EditorialCream
@@ -34,8 +48,8 @@ val DrapeCoral = EditorialSienna
 val GoldAccent = EditorialGold
 val Moss = EditorialPositive
 val ClashingRed = EditorialNegative
-val Cobalt = Color(0xFF1E3A8A)
-val Plum = Color(0xFF7A1C30)
+val Cobalt = Color(0xFF2563EB)
+val Plum = EditorialSienna
 val Ink = EditorialInk
 val Canvas = EditorialCream
 val Paper = LuxurySurface
@@ -46,7 +60,7 @@ private val EditorialLuxuryColorScheme = lightColorScheme(
     onPrimary = Color.White,
     secondary = EditorialSienna,
     onSecondary = Color.White,
-    tertiary = EditorialPositive,
+    tertiary = EditorialGold,
     background = EditorialCream,
     onBackground = EditorialInk,
     surface = Color.White,
@@ -57,18 +71,45 @@ private val EditorialLuxuryColorScheme = lightColorScheme(
     outlineVariant = EditorialStone.copy(alpha = 0.50f),
 )
 
+private val EditorialDarkLuxuryColorScheme = darkColorScheme(
+    primary = EditorialGold,
+    onPrimary = Color.Black,
+    secondary = EditorialSienna,
+    onSecondary = Color.White,
+    tertiary = EditorialGold,
+    background = DarkCanvas,
+    onBackground = DarkTextPrimary,
+    surface = DarkSurface,
+    onSurface = DarkTextPrimary,
+    surfaceVariant = DarkSurfaceVariant,
+    onSurfaceVariant = DarkTextSecondary,
+    outline = DarkBorder,
+    outlineVariant = DarkBorder.copy(alpha = 0.60f),
+)
+
 @Composable
 fun DrapeProofTheme(
-    darkTheme: Boolean = false,
+    darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit,
 ) {
-    val colors = EditorialLuxuryColorScheme
+    val context = LocalContext.current
+    val userMode = AppSettingsRepository.getThemeMode(context)
+    val isDark = when (userMode) {
+        AppThemeMode.SYSTEM -> darkTheme
+        AppThemeMode.LIGHT -> false
+        AppThemeMode.DARK -> true
+    }
+
+    val colors = if (isDark) EditorialDarkLuxuryColorScheme else EditorialLuxuryColorScheme
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
             window.statusBarColor = Color.Transparent.toArgb()
             window.navigationBarColor = colors.background.toArgb()
+            val controller = WindowCompat.getInsetsController(window, view)
+            controller.isAppearanceLightStatusBars = !isDark
+            controller.isAppearanceLightNavigationBars = !isDark
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 window.isNavigationBarContrastEnforced = false
             }

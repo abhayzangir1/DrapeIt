@@ -13,14 +13,19 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -42,6 +47,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.drapeproof.mobile.camera.DrapeCaptureScreen
 import com.drapeproof.mobile.compare.CompareScreen
+import com.drapeproof.mobile.data.AppSettingsRepository
+import com.drapeproof.mobile.data.AppThemeMode
 import com.drapeproof.mobile.data.TutorialRepository
 import com.drapeproof.mobile.explore.ExploreScreen
 import com.drapeproof.mobile.looks.LooksScreen
@@ -49,12 +56,14 @@ import com.drapeproof.mobile.onboarding.OnboardingLoginScreen
 import com.drapeproof.mobile.profile.ProfileScreen
 import com.drapeproof.mobile.silhouette.UserProfileStore
 import com.drapeproof.mobile.tryon.TryOnScreen
+import com.drapeproof.mobile.ui.theme.DrapeProofTheme
 import com.drapeproof.mobile.ui.theme.EditorialCream
+import com.drapeproof.mobile.ui.theme.EditorialGold
 import com.drapeproof.mobile.ui.theme.EditorialMuted
 import com.drapeproof.mobile.ui.theme.EditorialSand
 import com.drapeproof.mobile.ui.theme.EditorialSienna
 import com.drapeproof.mobile.ui.theme.EditorialStone
-import com.drapeproof.mobile.ui.tutorial.DrapeTutorialModal
+import com.drapeproof.mobile.ui.tutorial.DrapeInteractiveGuide
 import com.drapeproof.mobile.ui.welcome.DrapeWelcomeScreen
 import com.drapeproof.mobile.youcam.YouCamLabScreen
 
@@ -78,13 +87,31 @@ fun DrapeProofApp(
     onSharedImageConsumed: () -> Unit,
 ) {
     val context = LocalContext.current
+    var themeMode by remember { mutableStateOf(AppSettingsRepository.getThemeMode(context)) }
+
+    DrapeProofTheme {
+        DrapeProofAppContent(
+            sharedImageUri = sharedImageUri,
+            onSharedImageConsumed = onSharedImageConsumed,
+            onThemeChanged = { themeMode = it },
+        )
+    }
+}
+
+@Composable
+private fun DrapeProofAppContent(
+    sharedImageUri: Uri?,
+    onSharedImageConsumed: () -> Unit,
+    onThemeChanged: (AppThemeMode) -> Unit,
+) {
+    val context = LocalContext.current
     var showWelcome by remember { mutableStateOf(true) }
     val mainEntranceWhiteAlpha = remember { Animatable(1f) }
 
     var isOnboarded by remember { mutableStateOf(UserProfileStore.isOnboarded(context)) }
     var currentTab by remember { mutableStateOf(AppTab.EXPLORE) }
     var subFlow by remember { mutableStateOf(SubFlow.NONE) }
-    var showTutorial by remember { mutableStateOf(!TutorialRepository.isTutorialCompleted(context)) }
+    var showInteractiveGuide by remember { mutableStateOf(!AppSettingsRepository.isInteractiveTourDone(context)) }
 
     // Inter-screen parameters for Drape
     var drapeInitialFabricId by remember { mutableStateOf<String?>("silk") }
@@ -136,12 +163,12 @@ fun DrapeProofApp(
         }
     }
 
-    val glossyMaroonBrush = remember {
+    val circularMaroonBrush = remember {
         Brush.verticalGradient(
             colors = listOf(
-                Color(0xFFA82643), // Lustrous silky top highlight
-                Color(0xFF7A1C30), // Rich couture maroon
-                Color(0xFF50101D), // Deep velvet maroon base
+                Color(0xFFD44D6C), // Lighter radiant silky rose-crimson
+                Color(0xFFC23B5A), // Radiant couture crimson
+                Color(0xFF8F1E38), // Rich luxury velvet crimson base
             )
         )
     }
@@ -151,12 +178,12 @@ fun DrapeProofApp(
             bottomBar = {
                 if (subFlow == SubFlow.NONE) {
                     Surface(
-                        color = Color.White,
+                        color = MaterialTheme.colorScheme.surface,
                         modifier = Modifier
                             .fillMaxWidth()
                             .border(
                                 width = 0.75.dp,
-                                color = EditorialStone.copy(alpha = 0.60f),
+                                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.50f),
                                 shape = androidx.compose.ui.graphics.RectangleShape,
                             ),
                     ) {
@@ -171,7 +198,7 @@ fun DrapeProofApp(
                             AppTab.values().forEach { tab ->
                                 val selected = currentTab == tab
                                 val tabScale by animateFloatAsState(
-                                    targetValue = if (selected) 1.18f else 1.0f,
+                                    targetValue = if (selected) 1.15f else 1.0f,
                                     animationSpec = spring(
                                         dampingRatio = Spring.DampingRatioMediumBouncy,
                                         stiffness = Spring.StiffnessLow,
@@ -182,36 +209,37 @@ fun DrapeProofApp(
                                 Box(
                                     modifier = Modifier
                                         .scale(tabScale)
-                                        .clip(RoundedCornerShape(14.dp))
                                         .then(
                                             if (selected) {
                                                 Modifier
-                                                    .background(glossyMaroonBrush)
-                                                    .border(1.dp, Color.White.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
-                                                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                                                    .size(48.dp)
+                                                    .clip(CircleShape)
+                                                    .background(circularMaroonBrush)
+                                                    .border(1.5.dp, EditorialGold.copy(alpha = 0.85f), CircleShape)
                                             } else {
                                                 Modifier
+                                                    .size(48.dp)
+                                                    .clip(CircleShape)
                                                     .clickable { currentTab = tab }
-                                                    .padding(horizontal = 10.dp, vertical = 6.dp)
                                             }
                                         ),
                                     contentAlignment = Alignment.Center,
                                 ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.Center,
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.Center,
                                     ) {
                                         Text(
                                             tab.icon,
                                             fontSize = if (selected) 18.sp else 19.sp,
                                         )
                                         if (selected) {
-                                            Spacer(Modifier.width(6.dp))
                                             Text(
                                                 tab.title,
                                                 fontWeight = FontWeight.Bold,
                                                 color = Color.White,
-                                                fontSize = 11.sp,
+                                                fontSize = 8.sp,
+                                                maxLines = 1,
                                             )
                                         }
                                     }
@@ -302,10 +330,10 @@ fun DrapeProofApp(
 
                             AppTab.LOOKS -> {
                                 LooksScreen(
-                                    onNavigateToTryOn = { fabricId, colorHex, garmentUri ->
+                                    onNavigateToTryOn = { fabricId, colorHex, _ ->
                                         tryOnFabricId = fabricId
                                         tryOnColorHex = colorHex
-                                        tryOnGarmentUri = garmentUri
+                                        tryOnGarmentUri = null
                                         currentTab = AppTab.TRY_ON
                                     },
                                     onNavigateToDrape = { fabricId, colorHex ->
@@ -322,9 +350,10 @@ fun DrapeProofApp(
 
                             AppTab.PROFILE -> {
                                 ProfileScreen(
-                                    onRecalibrate = { currentTab = AppTab.DRAPE },
                                     onOpenYouCamLab = { subFlow = SubFlow.YOUCAM_LAB },
-                                    onOpenTutorial = { showTutorial = true },
+                                    onOpenTutorial = { showInteractiveGuide = true },
+                                    onRestartInteractiveGuide = { showInteractiveGuide = true },
+                                    onThemeChanged = onThemeChanged,
                                 )
                             }
                         }
@@ -342,12 +371,21 @@ fun DrapeProofApp(
             )
         }
 
-        // FIRST TIME COMPLETE APP TUTORIAL MODAL
-        if (showTutorial) {
-            DrapeTutorialModal(
-                onDismiss = {
-                    showTutorial = false
-                    TutorialRepository.setTutorialCompleted(context, true)
+        // IN-APP INTERACTIVE GUIDED ONBOARDING WALKTHROUGH
+        if (showInteractiveGuide) {
+            DrapeInteractiveGuide(
+                currentTab = currentTab.name.lowercase(),
+                onNavigateToTab = { tabName ->
+                    when (tabName.lowercase()) {
+                        "drape" -> currentTab = AppTab.DRAPE
+                        "tryon", "try_on" -> currentTab = AppTab.TRY_ON
+                        "looks" -> currentTab = AppTab.LOOKS
+                        "profile" -> currentTab = AppTab.PROFILE
+                        else -> currentTab = AppTab.EXPLORE
+                    }
+                },
+                onCompleteGuide = {
+                    showInteractiveGuide = false
                 },
             )
         }

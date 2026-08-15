@@ -23,9 +23,15 @@ object TrueColorHarmonyEngine {
 
     /**
      * Evaluates perceptual color compatibility based on CIELAB ΔL* (Contrast),
-     * Δh (Hue/Undertone alignment), and ΔC* (Chroma saturation).
+     * Δh (Hue/Undertone alignment), ΔC* (Chroma saturation), physical fabric optics,
+     * and live ambient lighting conditions.
      */
-    fun evaluate(skinHex: String, fabricHex: String): HarmonyAnalysisResult {
+    fun evaluate(
+        skinHex: String,
+        fabricHex: String,
+        fabricId: String? = null,
+        ambientLuminance: Double = 0.50,
+    ): HarmonyAnalysisResult {
         return runCatching {
             val skinLab = ColorConversions.hexToLab(skinHex)
             val fabricLab = ColorConversions.hexToLab(fabricHex)
@@ -42,14 +48,17 @@ object TrueColorHarmonyEngine {
             val skinHue = (atan2(skinLab.b, skinLab.a) * 180.0 / Math.PI + 360.0) % 360.0
             val fabricHue = (atan2(fabricLab.b, fabricLab.a) * 180.0 / Math.PI + 360.0) % 360.0
 
-            // 1. Contrast Score (Luminance Separation ΔL*)
+            // 1. Contrast Score (Luminance Separation ΔL*) with Ambient Lighting Adjustment
+            val lightingFactor = (ambientLuminance - 0.50) * 10.0 // Shifts perception in bright vs dim lighting
+            val effectiveDeltaL = (deltaL + lightingFactor).coerceAtLeast(0.0)
+
             val contrastRaw = when {
-                deltaL < 6.0 && deltaChroma < 8.0 -> 30.0 // Blends severely into skin
-                deltaL < 12.0 -> 55.0 // Low contrast
-                deltaL in 18.0..58.0 -> 96.0 // Optimal flattering definition
+                effectiveDeltaL < 6.0 && deltaChroma < 8.0 -> 30.0 // Blends severely into skin
+                effectiveDeltaL < 12.0 -> 55.0 // Low contrast
+                effectiveDeltaL in 18.0..58.0 -> 96.0 // Optimal flattering definition
                 else -> 82.0
             }
-            val contrastScore = contrastRaw.toInt().coerceIn(20, 98)
+            var contrastScore = contrastRaw.toInt().coerceIn(20, 98)
 
             // 2. Chroma / Saturation Compatibility
             val chromaRaw = when {
@@ -58,7 +67,7 @@ object TrueColorHarmonyEngine {
                 fabricChroma in 15.0..55.0 -> 94.0 // Balanced harmonious saturation
                 else -> 85.0
             }
-            val chromaScore = chromaRaw.toInt().coerceIn(25, 98)
+            var chromaScore = chromaRaw.toInt().coerceIn(25, 98)
 
             // 3. Hue & Undertone Harmony
             val isSkinWarm = skinLab.b > 11.0
@@ -77,11 +86,46 @@ object TrueColorHarmonyEngine {
             }
             val hueScore = hueRaw.toInt().coerceIn(20, 98)
 
+            // 4. Physical Fabric Optical Modifiers (Reflectance, Luster & Scattering)
+            var fabricOpticsBonus = 0
+            val fabricReason: String? = when (fabricId?.lowercase()) {
+                "silk", "satin" -> {
+                    // Specular sheen elevates luminance separation and radiant glow
+                    fabricOpticsBonus = if (contrastScore >= 75) +4 else -2
+                    "✓ Silk specular luster provides luminous facial radiance"
+                }
+                "velvet" -> {
+                    // Deep light trapping nap deepens contrast
+                    fabricOpticsBonus = if (effectiveDeltaL >= 20.0) +5 else -4
+                    "✓ Velvet light-trapping enhances dramatic contour separation"
+                }
+                "linen", "cotton" -> {
+                    // Soft diffuse scattering tempers high chroma into wearable tones
+                    if (chromaScore <= 70) chromaScore += 6
+                    fabricOpticsBonus = +2
+                    "✓ Natural diffuse weave softens color glare against complexion"
+                }
+                "leather" -> {
+                    fabricOpticsBonus = if (isFabricWarm || effectiveDeltaL > 25.0) +4 else +1
+                    "✓ Micro-grain structure adds rich sculptural definition"
+                }
+                "wool", "tweed" -> {
+                    fabricOpticsBonus = if (effectiveDeltaL in 15.0..50.0) +3 else 0
+                    "✓ Textured fiber weave delivers organic, grounded depth"
+                }
+                else -> null
+            }
+
             // Weighted Composite Compatibility Score
-            val compositeScore = (0.40 * contrastScore + 0.35 * hueScore + 0.25 * chromaScore).toInt().coerceIn(15, 98)
+            val baseComposite = (0.40 * contrastScore + 0.35 * hueScore + 0.25 * chromaScore).toInt()
+            val compositeScore = (baseComposite + fabricOpticsBonus).coerceIn(15, 99)
 
             // Dynamic Plain-Language Bullet Reasons
             val reasons = mutableListOf<String>()
+            if (fabricReason != null) {
+                reasons.add(fabricReason)
+            }
+
             if (contrastScore >= 85) {
                 reasons.add("✓ Strong lightness contrast defines your facial contour")
             } else if (contrastScore >= 70) {
@@ -109,7 +153,7 @@ object TrueColorHarmonyEngine {
             val (label, summary, isFlattering) = when {
                 compositeScore >= 86 -> Triple(
                     "Strong Compatibility",
-                    "Enhances your natural skin undertone with crisp, balanced contrast.",
+                    "Enhances your natural skin undertone with crisp, balanced contrast and fabric radiance.",
                     true,
                 )
                 compositeScore in 70..85 -> Triple(
@@ -141,19 +185,19 @@ object TrueColorHarmonyEngine {
                 deltaLuminance = deltaL,
                 isFlattering = isFlattering,
             )
-        }.getOrDefault(
+        }.getOrElse {
             HarmonyAnalysisResult(
-                scorePercent = 82,
-                harmonyLabel = "Good Compatibility",
-                summaryFeedback = "Clean pairing with natural separation.",
-                contrastScorePercent = 85,
-                hueScorePercent = 80,
-                chromaScorePercent = 82,
-                reasonsList = listOf("✓ Balanced contrast with facial complexion"),
-                deltaE00 = 28.0,
-                deltaLuminance = 25.0,
+                scorePercent = 70,
+                harmonyLabel = "Neutral Compatibility",
+                summaryFeedback = "Balanced everyday pairing for your complexion.",
+                contrastScorePercent = 70,
+                hueScorePercent = 70,
+                chromaScorePercent = 70,
+                reasonsList = listOf("✓ Neutral balanced contrast"),
+                deltaE00 = 25.0,
+                deltaLuminance = 30.0,
                 isFlattering = true,
-            ),
-        )
+            )
+        }
     }
 }
