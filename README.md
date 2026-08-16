@@ -7,21 +7,28 @@
 [![YouCam AI](https://img.shields.io/badge/YouCam%20AI-Clothes%20V3%20%26%20Skin%20Tone-FF1493.svg?style=flat)](https://www.perfectcorp.com)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-DrapeIt is an Android digital styling platform that solves a fundamental e-commerce question: **"Will this exact fabric, material, and color actually flatter my complexion before I buy?"**
+DrapeIt is an Android digital styling application that answers a key shopping question: **"Will this exact fabric, texture, and color actually flatter my complexion before I buy?"**
 
-By fusing **on-device CameraX & MediaPipe FaceMesh tracking**, **dual-layer luminance-preserving PBR fabric shaders**, and **YouCam S2S Cloud AI (Clothes V3 & Skin Tone Analysis)**, DrapeIt allows users to test real luxury fabrics, adjust any color across a 360° spectrum, and generate photorealistic virtual try-ons.
+By combining **on-device CameraX & MediaPipe FaceMesh tracking**, **physically-based procedural fabric shaders (PBR)**, and **YouCam S2S Cloud AI (Clothes V3)**, DrapeIt lets users test real luxury fabrics in real time, explore any color across a 360° spectrum, and generate photorealistic virtual try-ons.
 
 ---
 
-## 🌟 Key Features
+## 🧭 Evaluation & Testing Guide for Judges
+
+For a 5-minute walkthrough of all features and direct installation instructions, see the **[Judge Testing & Evaluation Guide](docs/JUDGE_TEST_GUIDE.md)**.
+
+---
+
+## 🌟 Core Features
 
 ### 1. 🪞 Real-Time AR Live Drape Studio
-* **Anatomical FaceMesh Tracking:** Uses MediaPipe on-device face mesh landmarks (chin anchor point 152) to project a tailored virtual cloth drape across the user's chest in real time.
-* **Jitter-Free Exponential Smoothing:** Implements a low-pass filter ($\alpha = 0.28$) on landmark coordinates, removing camera shake and giving virtual cloth realistic, stable weight.
+* **Anatomical FaceMesh Tracking:** Uses MediaPipe on-device face mesh landmarks (chin anchor point 152) to project a tailored virtual cloth drape across the user's chest in real time at 60 FPS.
+* **Jitter-Free Exponential Smoothing:** Implements a low-pass filter ($\alpha = 0.28$) on landmark coordinates, removing camera shake and giving virtual cloth a natural drape.
 * **Instant Harmony Scoring:** Real-time colorimetry engine computes CIEDE2000 contrast separation and evaluates tone harmony dynamically as lighting changes.
+* **Static Photo Mode:** Upload any portrait from the gallery to run one-shot MediaPipe pixel analysis.
 
 ### 2. 🧵 Physically-Based Procedural Fabric Shaders
-DrapeIt features a **4-pass luminance-preserving texture engine** across **14 real-world materials**:
+DrapeIt features a multi-pass luminance-preserving texture engine across **14 real-world materials**:
 1. **Mulberry Silk** — Micro-directional filament weave with anisotropic specular sheen
 2. **Lustrous Satin** — Liquid gloss reflections and ultra-smooth highlights
 3. **Genuine Leather** — Cellular Voronoi grain, fine micro-creases, and edge highlights
@@ -37,22 +44,31 @@ DrapeIt features a **4-pass luminance-preserving texture engine** across **14 re
 13. **Organic Cotton** — Classic soft plain basketweave
 14. **Tech Polyester** — Technical micro-piqué athletic honeycomb mesh
 
-### 3. 🎨 Universal 360° HSV Color Picker (16.7M Colors)
-* **Unrestricted Palette Freedom:** Full 360° Hue spectrum slider with Saturation and Value adjustment.
-* **Direct Hex Input:** Real-time `#RRGGBB` hex code parser with validation and live preview swatch.
-* **Curated Seasonal Swatches:** 1-tap presets (Royal Burgundy, Cobalt Navy, Deep Emerald, Terracotta, Midnight Charcoal, Amber Ochre, etc.).
+### 3. 🎨 Universal 360° Color Spectrum (16.7M Colors)
+* **Full Spectrum Freedom:** 360° Hue spectrum slider with Saturation and Value adjustment.
+* **Direct Hex Input:** Real-time `#RRGGBB` hex code parser with instant preview.
+* **Fabric Preservation:** Material weave and highlights remain tangible and sharp under any chosen color without flat color overlay degradation.
 
-### 4. ✂️ Interactive On-Device Garment Cropper & Normalizer
-* **Compose-Native Viewport:** Pinch-to-zoom, pan, rotate 90°, and 3:4 portrait crop guides to isolate clothes from e-commerce screenshots, hangers, or model photos.
-* **White-Canvas Normalization:** Automatically flattens cropped garments onto a clean white background with padding and optimizes export quality for cloud fitting.
+### 4. 👤 Profile & Real-Time Colorimetric Calibration
+* **15-Frame Sliding-Window Stability Test:** Measures color stability across consecutive frames ($\le 1.2\ \Delta E_{00}$) to lock genuine complexion readings without sensor noise.
+* **Dynamic Palette Derivation:** Calculates ITA (Individual Typology Angle) and generates **Compatible Palette** and **Contrast Caution** swatches mathematically from real skin tone coordinates.
+* **Dual Calibration Entry:** Calibrate via live front camera or pick directly from a clear portrait photo.
 
-### 5. 📸 Photorealistic AI Virtual Try-On (YouCam Clothes V3)
-* **Cloud VTO Integration:** Securely uploads user avatars and cropped garments to YouCam's `/s2s/v2.0/task/cloth-v3` API via a secure backend proxy.
-* **Virtual Wardrobe Gallery:** Saves fitted outfits, allows high-resolution fullscreen inspection, and direct photo export to the device gallery.
+### 5. 👗 Virtual Try-On Studio (YouCam Clothes V3 AI)
+* **Guided 2-Step Workflow:**
+  - **Box 1 (Upload Person):** Select your model portrait with instant 90° rotation controls.
+  - **Box 2 (Upload Garment):** Select clothing and use the built-in 3:4 cropper to pan, zoom, and frame the item.
+  - **Step 2 Alternative (Style Mode):** Choose an occasion, silhouette, luxury fabric weave, and color.
+* **Neural Fit Generation:** Dispatches the pair to YouCam's `/s2s/v2.0/task/cloth-v3` API via a secure backend proxy and displays the fitted look in a dedicated Studio Result canvas.
+* **Instant Export:** Save high-resolution try-on results directly to your phone gallery or to the in-app wardrobe.
 
-### 6. ⚖️ Photo Compare Studio
-* Multi-select 2 to 4 captured looks in a side-by-side comparison grid.
-* Displays match score percentiles, fabric details, and visual contrast indicators.
+### 6. 🧭 Explore & Occasion Styling
+* Dynamic styling recommendations across **Daily Wear**, **Formal Work**, **Evening Gala**, and **Weekend Casual**.
+* Color palettes and fabric pairings dynamically adapt to your calibrated skin undertone and seasonal profile.
+
+### 7. ✨ Looks & Side-by-Side Compare Studio
+* **Wardrobe Gallery:** Masonry feed of saved drape snaps and virtual try-ons with filters for Garment vs. Style try-ons.
+* **Photo Compare:** Select 2 to 4 saved looks for side-by-side review with Delta-E contrast metrics and style details.
 
 ---
 
@@ -61,10 +77,10 @@ DrapeIt features a **4-pass luminance-preserving texture engine** across **14 re
 ```mermaid
 flowchart TD
     subgraph Client ["Android App (Jetpack Compose)"]
-        UI["Navigation & UI (Haute Couture Design System)"]
+        UI["Navigation & UI (5 Tab Layout)"]
         CAM["CameraX + MediaPipe FaceMesh"]
         PBR["PBR Shaders (14 Material Bump Maps)"]
-        HSV["Universal 360° HSV Color Picker"]
+        HSV["Universal 360° Color Picker"]
         CROP["Interactive Garment Cropper"]
         CORE["Pure Kotlin Core (CIEDE2000 / CIELAB)"]
         API["DrapeProofApiClient (Stateless Session)"]
