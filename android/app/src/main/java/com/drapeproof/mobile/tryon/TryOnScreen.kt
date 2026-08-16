@@ -702,7 +702,11 @@ fun TryOnScreen(
                             contentAlignment = Alignment.Center,
                         ) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text("📤", fontSize = 32.sp)
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text("👤", fontSize = 28.sp)
+                                    Spacer(Modifier.width(4.dp))
+                                    Text("📤", fontSize = 20.sp)
+                                }
                                 Spacer(Modifier.height(6.dp))
                                 Text(
                                     "Upload Person",
@@ -711,6 +715,7 @@ fun TryOnScreen(
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onSurface,
                                 )
+                                Text("Your model photo", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                     }
@@ -827,7 +832,7 @@ fun TryOnScreen(
                                             fontWeight = FontWeight.Bold,
                                             color = MaterialTheme.colorScheme.onSurface,
                                         )
-                                        Text("Prompts to crop", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Text("Dress onto person", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
                                 }
                             }
@@ -1136,7 +1141,7 @@ fun TryOnScreen(
                                     )
                                     Spacer(Modifier.height(4.dp))
                                     Text(
-                                        if (inputSource == TryOnInputSource.GARMENT) "Tap 'Generate Try-On' to fit your uploaded garment onto your model" else "Tap 'Try On' to drape selected fabric and silhouette onto your model",
+                                        if (inputSource == TryOnInputSource.GARMENT) "Upload a person image and a garment to dress the clothing onto the person" else "Tap 'Try On' to drape selected fabric and silhouette onto your model",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         textAlign = TextAlign.Center,
@@ -1152,11 +1157,11 @@ fun TryOnScreen(
                     val needsAvatar = activeAvatar == null
 
                     val ctaText = when {
-                        isGenerating -> "Generating…"
-                        needsAvatar -> "Upload Person"
-                        needsGarment -> "Upload Garment"
-                        inputSource == TryOnInputSource.STYLE -> "Try On ${selectedSilhouette.displayName}"
-                        else -> "Generate Try-On"
+                        isGenerating -> "Dressing Garment on Person…"
+                        needsAvatar -> "1. Upload Person Photo"
+                        needsGarment -> "2. Upload Garment to Dress"
+                        inputSource == TryOnInputSource.STYLE -> "✨ Try On ${selectedSilhouette.displayName}"
+                        else -> "✨ Dress Garment on Person"
                     }
 
                     Button(
