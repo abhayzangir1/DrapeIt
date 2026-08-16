@@ -142,7 +142,6 @@ enum class GarmentSilhouette(
 enum class TryOnInputSource(val title: String, val subtitle: String) {
     GARMENT("Garment", "Upload person & garment"),
     STYLE("Style", "Choose cut, color & fabric"),
-    SWAP("Swap", "Instant topwear color swap"),
 }
 
 fun generateReferenceGarmentBitmap(
@@ -235,41 +234,6 @@ fun generateReferenceGarmentBitmap(
     return bmp
 }
 
-fun applyInstantColorSwap(sourceBitmap: Bitmap, targetHex: String): Bitmap {
-    val width = sourceBitmap.width
-    val height = sourceBitmap.height
-    val resultBmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-    val canvas = Canvas(resultBmp)
-
-    // Draw base image
-    canvas.drawBitmap(sourceBitmap, 0f, 0f, null)
-
-    // Create upper body color overlay with soft-light blending
-    val overlayPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = android.graphics.Color.parseColor(targetHex)
-        xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_ATOP)
-        alpha = 140
-    }
-
-    // Mask upper chest area (y: 28% to 75%, x: 18% to 82%)
-    val chestPath = Path().apply {
-        addOval(
-            width * 0.18f,
-            height * 0.30f,
-            width * 0.82f,
-            height * 0.76f,
-            Path.Direction.CW,
-        )
-    }
-
-    canvas.save()
-    canvas.clipPath(chestPath)
-    canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), overlayPaint)
-    canvas.restore()
-
-    return resultBmp
-}
-
 @Composable
 fun TryOnScreen(
     initialFabricId: String = "silk",
@@ -295,6 +259,25 @@ fun TryOnScreen(
     var isCropperOpen by remember { mutableStateOf(false) }
 
     var activeAvatar by remember { mutableStateOf<SavedAvatar?>(PhotoAvatarStore.getActiveAvatar(context)) }
+
+    // Direct in-memory bitmaps for 0ms instant rotation
+    var activeAvatarBitmap by remember(activeAvatar) {
+        mutableStateOf(
+            activeAvatar?.imagePath?.let { path ->
+                val f = File(path)
+                if (f.exists()) BitmapFactory.decodeFile(f.absolutePath) else null
+            }
+        )
+    }
+
+    var customGarmentBitmap by remember(customGarmentUri) {
+        mutableStateOf(
+            customGarmentUri?.let { uri ->
+                runCatching { context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it) } }.getOrNull()
+            }
+        )
+    }
+
     var isSilhouetteModalOpen by remember { mutableStateOf(false) }
     var isColorPickerOpen by remember { mutableStateOf(false) }
     var isSettingsOpen by remember { mutableStateOf(false) }
@@ -319,6 +302,8 @@ fun TryOnScreen(
             )
             if (saved != null) {
                 activeAvatar = saved
+                val f = File(saved.imagePath)
+                if (f.exists()) activeAvatarBitmap = BitmapFactory.decodeFile(f.absolutePath)
             }
         }
     }
@@ -347,7 +332,9 @@ fun TryOnScreen(
 
     fun resetState() {
         activeAvatar = null
+        activeAvatarBitmap = null
         customGarmentUri = null
+        customGarmentBitmap = null
         tryOnResultBitmap = null
         savedOutfitId = null
         generationStatus = null
@@ -355,18 +342,11 @@ fun TryOnScreen(
     }
 
     fun executeGeneration() {
-        if (activeAvatar == null) {
+        val avatarBmp = activeAvatarBitmap
+        if (activeAvatar == null || avatarBmp == null) {
             showAvatarPromptDialog = true
             return
         }
-
-        val avatarFile = File(activeAvatar!!.imagePath)
-        if (!avatarFile.exists()) {
-            showAvatarPromptDialog = true
-            return
-        }
-
-        val avatarBmp = BitmapFactory.decodeFile(avatarFile.absolutePath) ?: return
 
         isGenerating = true
         generationStatus = "Initializing Neural Clothes V3 Pipeline…"
@@ -374,49 +354,8 @@ fun TryOnScreen(
 
         scope.launch(Dispatchers.IO) {
             try {
-                if (inputSource == TryOnInputSource.SWAP) {
-                    withContext(Dispatchers.Main) { generationStatus = "Applying color swap…" }
-                    val swapBmp = applyInstantColorSwap(avatarBmp, selectedColorHex)
-
-                    val realSkinHex = SkinProfileRepository.load(context)?.skinHex ?: "#D8B498"
-                    val swapHarmony = TrueColorHarmonyEngine.evaluate(realSkinHex, selectedColorHex, selectedFabric.id)
-                    val swapScore = swapHarmony.scorePercent
-
-                    // Auto-save outfit to WardrobeRepository
-                    val outfit = SavedTryOnOutfit(
-                        title = "Color Swap ($selectedColorHex)",
-                        fabricName = selectedFabric.name,
-                        colorHex = selectedColorHex,
-                        topwearCut = selectedSilhouette.displayName,
-                        bottomwearCut = "Standard",
-                        bottomwearColor = "",
-                        resultImagePath = null,
-                        matchScorePercent = swapScore,
-                    )
-                    WardrobeRepository.addOutfit(context, outfit)
-
-                    DrapeSnapRepository.saveSnap(
-                        context = context,
-                        bitmap = swapBmp,
-                        colorHex = selectedColorHex,
-                        colorName = "Custom Swap",
-                        fabricId = selectedFabric.id,
-                        fabricName = selectedFabric.name,
-                        matchScorePercent = swapScore,
-                        skinHex = realSkinHex,
-                    )
-
-                    withContext(Dispatchers.Main) {
-                        tryOnResultBitmap = swapBmp
-                        isGenerating = false
-                        generationStatus = null
-                    }
-                    return@launch
-                }
-
-                val finalGarmentBmp: Bitmap = if (inputSource == TryOnInputSource.GARMENT && customGarmentUri != null) {
-                    val stream = context.contentResolver.openInputStream(customGarmentUri!!)
-                    BitmapFactory.decodeStream(stream) ?: generateReferenceGarmentBitmap(context, selectedSilhouette, selectedColorHex, selectedFabric, "unisex")
+                val finalGarmentBmp: Bitmap = if (inputSource == TryOnInputSource.GARMENT && customGarmentBitmap != null) {
+                    customGarmentBitmap!!
                 } else {
                     withContext(Dispatchers.Main) { generationStatus = "Synthesizing ${selectedFabric.name} ${selectedSilhouette.displayName}…" }
                     generateReferenceGarmentBitmap(
@@ -490,29 +429,44 @@ fun TryOnScreen(
                     val vtoHarmony = TrueColorHarmonyEngine.evaluate(vtoSkinHex, selectedColorHex, selectedFabric.id)
                     val vtoScore = vtoHarmony.scorePercent
 
-                    // Auto-save outfit to WardrobeRepository and DrapeSnapRepository
-                    val outfit = SavedTryOnOutfit(
-                        title = "${selectedFabric.name} ${selectedSilhouette.displayName}",
-                        fabricName = selectedFabric.name,
-                        colorHex = selectedColorHex,
-                        topwearCut = selectedSilhouette.displayName,
-                        bottomwearCut = "Tailored",
-                        bottomwearColor = "",
-                        resultImagePath = null,
-                        matchScorePercent = vtoScore,
-                    )
-                    WardrobeRepository.addOutfit(context, outfit)
+                    // Save accurately based on what was actually tried
+                    if (inputSource == TryOnInputSource.GARMENT) {
+                        // For custom garment, save exclusively as a DrapeSnap in Looks (no duplicate style outfit)
+                        DrapeSnapRepository.saveSnap(
+                            context = context,
+                            bitmap = downloadedBmp,
+                            colorHex = selectedColorHex,
+                            colorName = "Custom Garment",
+                            fabricId = "garment",
+                            fabricName = "Custom Garment",
+                            matchScorePercent = vtoScore,
+                            skinHex = vtoSkinHex,
+                        )
+                    } else {
+                        // For style selection, save outfit metadata & drape snap
+                        val outfit = SavedTryOnOutfit(
+                            title = "${selectedFabric.name} ${selectedSilhouette.displayName}",
+                            fabricName = selectedFabric.name,
+                            colorHex = selectedColorHex,
+                            topwearCut = selectedSilhouette.displayName,
+                            bottomwearCut = "Tailored",
+                            bottomwearColor = "",
+                            resultImagePath = null,
+                            matchScorePercent = vtoScore,
+                        )
+                        WardrobeRepository.addOutfit(context, outfit)
 
-                    DrapeSnapRepository.saveSnap(
-                        context = context,
-                        bitmap = downloadedBmp,
-                        colorHex = selectedColorHex,
-                        colorName = selectedSilhouette.displayName,
-                        fabricId = selectedFabric.id,
-                        fabricName = selectedFabric.name,
-                        matchScorePercent = vtoScore,
-                        skinHex = vtoSkinHex,
-                    )
+                        DrapeSnapRepository.saveSnap(
+                            context = context,
+                            bitmap = downloadedBmp,
+                            colorHex = selectedColorHex,
+                            colorName = selectedSilhouette.displayName,
+                            fabricId = selectedFabric.id,
+                            fabricName = selectedFabric.name,
+                            matchScorePercent = vtoScore,
+                            skinHex = vtoSkinHex,
+                        )
+                    }
 
                     withContext(Dispatchers.Main) {
                         tryOnResultBitmap = downloadedBmp
@@ -583,7 +537,7 @@ fun TryOnScreen(
 
             Spacer(Modifier.height(18.dp))
 
-            // MODE SWITCHER TABS: [ Garment ] [ Style ] [ Swap ]
+            // MODE SWITCHER TABS: [ Garment ] [ Style ]
             SecondaryTabRow(
                 selectedTabIndex = inputSource.ordinal,
                 containerColor = Color.Transparent,
@@ -604,6 +558,8 @@ fun TryOnScreen(
                         onClick = {
                             SoundEffectManager.playTap(currentView)
                             inputSource = tab
+                            tryOnResultBitmap = null
+                            generationStatus = null
                         },
                         text = {
                             Text(
@@ -634,9 +590,7 @@ fun TryOnScreen(
                         .height(185.dp)
                         .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.40f), RoundedCornerShape(20.dp)),
                 ) {
-                    val activeAvatarFile = activeAvatar?.imagePath?.let { File(it) }
-                    val avatarBmp = if (activeAvatarFile?.exists() == true) BitmapFactory.decodeFile(activeAvatarFile.absolutePath) else null
-
+                    val avatarBmp = activeAvatarBitmap
                     if (avatarBmp != null) {
                         Box(modifier = Modifier.fillMaxSize()) {
                             Image(
@@ -660,10 +614,13 @@ fun TryOnScreen(
                                     color = Color.White,
                                     modifier = Modifier.clickable {
                                         SoundEffectManager.playTap(currentView)
-                                        val rotated = com.drapeproof.mobile.util.ImageExportUtils.rotateBitmap(avatarBmp)
-                                        activeAvatarFile?.let { f ->
-                                            java.io.FileOutputStream(f).use { rotated.compress(Bitmap.CompressFormat.JPEG, 95, it) }
-                                            activeAvatar = activeAvatar?.copy(imagePath = f.absolutePath)
+                                        val rotated = com.drapeproof.mobile.util.ImageExportUtils.rotateBitmap(avatarBmp, 90f)
+                                        activeAvatarBitmap = rotated
+                                        scope.launch(Dispatchers.IO) {
+                                            activeAvatar?.imagePath?.let { path ->
+                                                val f = File(path)
+                                                java.io.FileOutputStream(f).use { rotated.compress(Bitmap.CompressFormat.JPEG, 95, it) }
+                                            }
                                         }
                                     },
                                 )
@@ -689,6 +646,7 @@ fun TryOnScreen(
                                         }
                                         PhotoAvatarStore.clearActiveAvatar(context)
                                         activeAvatar = null
+                                        activeAvatarBitmap = null
                                     },
                                 )
                             }
@@ -731,10 +689,7 @@ fun TryOnScreen(
                 ) {
                     when (inputSource) {
                         TryOnInputSource.GARMENT -> {
-                            val garmentBmp = if (customGarmentUri != null) {
-                                runCatching { context.contentResolver.openInputStream(customGarmentUri!!)?.use { BitmapFactory.decodeStream(it) } }.getOrNull()
-                            } else null
-
+                            val garmentBmp = customGarmentBitmap
                             if (garmentBmp != null) {
                                 Box(modifier = Modifier.fillMaxSize()) {
                                     Image(
@@ -758,10 +713,15 @@ fun TryOnScreen(
                                             color = Color.White,
                                             modifier = Modifier.clickable {
                                                 SoundEffectManager.playTap(currentView)
-                                                val rotated = com.drapeproof.mobile.util.ImageExportUtils.rotateBitmap(garmentBmp)
-                                                val tempFile = java.io.File(context.cacheDir, "garment_rot_${System.currentTimeMillis()}.jpg")
-                                                java.io.FileOutputStream(tempFile).use { rotated.compress(Bitmap.CompressFormat.JPEG, 95, it) }
-                                                customGarmentUri = Uri.fromFile(tempFile)
+                                                val rotated = com.drapeproof.mobile.util.ImageExportUtils.rotateBitmap(garmentBmp, 90f)
+                                                customGarmentBitmap = rotated
+                                                scope.launch(Dispatchers.IO) {
+                                                    val tempFile = java.io.File(context.cacheDir, "garment_rot_${System.currentTimeMillis()}.jpg")
+                                                    java.io.FileOutputStream(tempFile).use { rotated.compress(Bitmap.CompressFormat.JPEG, 95, it) }
+                                                    withContext(Dispatchers.Main) {
+                                                        customGarmentUri = Uri.fromFile(tempFile)
+                                                    }
+                                                }
                                             },
                                         )
                                         Text(
@@ -793,6 +753,7 @@ fun TryOnScreen(
                                             modifier = Modifier.clickable {
                                                 SoundEffectManager.playTap(currentView)
                                                 customGarmentUri = null
+                                                customGarmentBitmap = null
                                             },
                                         )
                                     }
@@ -850,81 +811,6 @@ fun TryOnScreen(
                                         color = MaterialTheme.colorScheme.onSurface,
                                     )
                                     Text(selectedSilhouette.displayName, fontSize = 11.sp, color = EditorialSienna, fontWeight = FontWeight.Bold)
-                                }
-                            }
-                        }
-
-                        TryOnInputSource.SWAP -> {
-                            // INTEGRATED TARGET COLOR CARD: TOP 35% SOLID FILL, BOTTOM 65% SWATCHES & COLOR WHEEL
-                            Column(modifier = Modifier.fillMaxSize()) {
-                                // TOP 35%: SOLID TARGET COLOR BAR
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .weight(0.38f)
-                                        .background(selectedColorHex.asComposeColor())
-                                        .clickable {
-                                            SoundEffectManager.playTap(currentView)
-                                            isColorPickerOpen = true
-                                        }
-                                        .padding(horizontal = 10.dp, vertical = 6.dp),
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    Text(
-                                        "Target: ${selectedColorHex.uppercase()}",
-                                        color = Color.White,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        fontSize = 11.sp,
-                                    )
-                                }
-
-                                // BOTTOM 65%: COLOR SWATCHES & PERMANENT WHEEL BUTTON
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .weight(0.62f)
-                                        .padding(horizontal = 8.dp, vertical = 6.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(34.dp)
-                                            .clip(CircleShape)
-                                            .background(MaterialTheme.colorScheme.surfaceVariant)
-                                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.40f), CircleShape)
-                                            .clickable {
-                                                SoundEffectManager.playTap(currentView)
-                                                isColorPickerOpen = true
-                                            },
-                                        contentAlignment = Alignment.Center,
-                                    ) {
-                                        Text("🎨", fontSize = 16.sp)
-                                    }
-
-                                    Spacer(Modifier.width(6.dp))
-
-                                    Row(
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .horizontalScroll(rememberScrollState()),
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                    ) {
-                                        listOf("#831843", "#1E3A8A", "#065F46", "#78350F", "#4C1D95", "#0F172A", "#D97706", "#2563EB", "#E11D48").forEach { hex ->
-                                            val isSel = selectedColorHex.equals(hex, ignoreCase = true)
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(28.dp)
-                                                    .clip(CircleShape)
-                                                    .background(hex.asComposeColor())
-                                                    .border(if (isSel) 2.5.dp else 1.dp, if (isSel) EditorialSienna else MaterialTheme.colorScheme.outline.copy(alpha = 0.35f), CircleShape)
-                                                    .clickable {
-                                                        SoundEffectManager.playTap(currentView)
-                                                        selectedColorHex = hex
-                                                    },
-                                            )
-                                        }
-                                    }
                                 }
                             }
                         }
@@ -1196,7 +1082,6 @@ fun TryOnScreen(
                         isGenerating -> "Generating…"
                         needsAvatar -> "Upload Person"
                         needsGarment -> "Upload Garment"
-                        inputSource == TryOnInputSource.SWAP -> "Swap Color"
                         inputSource == TryOnInputSource.STYLE -> "Try On ${selectedSilhouette.displayName}"
                         else -> "Generate Try-On"
                     }
@@ -1266,6 +1151,7 @@ fun TryOnScreen(
                             Button(
                                 onClick = {
                                     SoundEffectManager.playTap(currentView)
+                                    tryOnResultBitmap = null
                                     onNavigateToLooks()
                                 },
                                 shape = RoundedCornerShape(12.dp),
@@ -1394,6 +1280,7 @@ fun TryOnScreen(
                 onDismiss = { isCropperOpen = false; rawGarmentBitmapToCrop = null },
                 onCropped = { file ->
                     customGarmentUri = Uri.fromFile(file)
+                    customGarmentBitmap = BitmapFactory.decodeFile(file.absolutePath)
                     inputSource = TryOnInputSource.GARMENT
                     isCropperOpen = false
                     rawGarmentBitmapToCrop = null

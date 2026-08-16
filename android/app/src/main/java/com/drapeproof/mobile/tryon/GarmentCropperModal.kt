@@ -50,6 +50,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -161,18 +162,21 @@ fun GarmentCropperModal(
                         val cropBoxLeft = (viewportW - cropBoxW) / 2
                         val cropBoxTop = (viewportH - cropBoxH) / 2
 
-                        // Draw image with transformations
-                        drawImage(
-                            image = imageBmp,
-                            dstOffset = androidx.compose.ui.unit.IntOffset(
-                                (cropBoxLeft + offsetX).toInt(),
-                                (cropBoxTop + offsetY).toInt(),
-                            ),
-                            dstSize = androidx.compose.ui.unit.IntSize(
-                                (cropBoxW * scale).toInt(),
-                                (cropBoxH * scale * (sourceBitmap.height.toFloat() / sourceBitmap.width.toFloat())).toInt(),
-                            ),
-                        )
+                        // Draw image with transformations & rotation
+                        val cropCenter = Offset(cropBoxLeft + cropBoxW / 2f, cropBoxTop + cropBoxH / 2f)
+                        rotate(degrees = rotationDegrees, pivot = cropCenter) {
+                            drawImage(
+                                image = imageBmp,
+                                dstOffset = androidx.compose.ui.unit.IntOffset(
+                                    (cropBoxLeft + offsetX).toInt(),
+                                    (cropBoxTop + offsetY).toInt(),
+                                ),
+                                dstSize = androidx.compose.ui.unit.IntSize(
+                                    (cropBoxW * scale).toInt(),
+                                    (cropBoxH * scale * (sourceBitmap.height.toFloat() / sourceBitmap.width.toFloat())).toInt(),
+                                ),
+                            )
+                        }
 
                         // Shaded Dimming Outside Crop Window
                         // Top rect

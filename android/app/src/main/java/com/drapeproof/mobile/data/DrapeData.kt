@@ -88,9 +88,8 @@ object SkinProfileRepository {
 
     fun deriveProfileFromSkinHex(skinHex: String, source: String = "face_scan"): StoredSkinProfile {
         val lab = com.drapeproof.core.color.ColorConversions.hexToLab(skinHex)
-        val isWarm = lab.b > 11.0
-        val isCool = lab.b < 7.0
-        val isNeutral = !isWarm && !isCool
+        val isWarm = lab.b > 9.0
+        val isCool = lab.b < 5.0
         val isDark = lab.l < 55.0
 
         val undertone = when {
@@ -99,45 +98,48 @@ object SkinProfileRepository {
             else -> "Balanced Neutral"
         }
 
-        val (season, seasonDesc, bestMetals, bestColors, worstColors) = when {
-            isWarm && isDark -> Quintuple(
+        val (season, seasonDesc, bestMetals) = when {
+            isWarm && isDark -> Triple(
                 "Deep Autumn",
                 "Warm, deep, and earthy. You look radiant in rich burgundies, warm terracotta, deep olive, and burnished gold.",
                 "Yellow Gold, Antique Brass & Copper",
-                listOf("#831843", "#78350F", "#3F6212", "#0F172A", "#D97706", "#B45309", "#451A03"),
-                listOf("#93C5FD", "#F472B6", "#E0E7FF", "#C7D2FE"),
             )
-            isWarm && !isDark -> Quintuple(
+            isWarm && !isDark -> Triple(
                 "Warm Spring",
                 "Clear, warm, and sunlit. Glowing in coral, camel, peach, warm ivory, and vibrant moss green.",
                 "Polished Yellow Gold & Rose Gold",
-                listOf("#EA580C", "#CA8A04", "#65A30D", "#0D9488", "#E11D48", "#D97706", "#F59E0B"),
-                listOf("#475569", "#64748B", "#334155", "#94A3B8"),
             )
-            isCool && isDark -> Quintuple(
+            isCool && isDark -> Triple(
                 "True Winter",
                 "Crisp, vivid, and high-contrast. Striking in cobalt navy, obsidian noir, emerald jewel, and pure snow white.",
                 "Silver, Platinum & White Gold",
-                listOf("#1D4ED8", "#0F172A", "#047857", "#4C1D95", "#BE123C", "#1E293B", "#374151"),
-                listOf("#FDE047", "#F59E0B", "#B45309", "#78350F"),
             )
-            isCool && !isDark -> Quintuple(
+            isCool && !isDark -> Triple(
                 "Soft Summer",
                 "Delicate, cool, and soft. Elegant in dusty rose, slate blue, heather mauve, and French navy.",
                 "Brushed Silver, White Gold & Rose Gold",
-                listOf("#475569", "#64748B", "#9333EA", "#2563EB", "#BE185D", "#0284C7", "#6D28D9"),
-                listOf("#EA580C", "#F97316", "#D97706", "#CA8A04"),
             )
-            else -> Quintuple(
+            else -> Triple(
                 "Neutral Classic",
                 "Balanced tone with natural adaptability across warm and cool palettes.",
                 "Rose Gold, Gold & Silver (All Metals)",
-                listOf("#831843", "#1D4ED8", "#3F6212", "#78350F", "#0F172A", "#D97706", "#4B5563"),
-                listOf("#84CC16", "#E11D48"),
             )
         }
 
         val ita = (kotlin.math.atan2(lab.l - 50.0, lab.b) * 180.0 / Math.PI).toFloat()
+
+        // Genuinely analyze and score candidate spectrum colors against user skin
+        val scoredPalette = REFERENCE_COLOR_PALETTE.map { colorHex ->
+            val result = com.drapeproof.core.color.TrueColorHarmonyEngine.evaluate(
+                skinHex = skinHex,
+                fabricHex = colorHex,
+                fabricId = "cotton",
+            )
+            colorHex to result.scorePercent
+        }.sortedByDescending { it.second }
+
+        val bestColors = scoredPalette.take(7).map { it.first }
+        val worstColors = scoredPalette.takeLast(4).reversed().map { it.first }
 
         return StoredSkinProfile(
             skinHex = skinHex,
@@ -148,7 +150,7 @@ object SkinProfileRepository {
             undertone = undertone,
             season = season,
             seasonDescription = seasonDesc,
-            itaScore = ita.toFloat(),
+            itaScore = ita,
             bestMetals = bestMetals,
             bestColors = bestColors,
             worstColors = worstColors,
@@ -156,12 +158,54 @@ object SkinProfileRepository {
     }
 }
 
-private data class Quintuple<A, B, C, D, E>(
-    val first: A,
-    val second: B,
-    val third: C,
-    val fourth: D,
-    val fifth: E,
+private val REFERENCE_COLOR_PALETTE = listOf(
+    // Deep Warm Jewels & Earth
+    "#831843", // Deep Berry
+    "#78350F", // Warm Terracotta
+    "#3F6212", // Deep Olive
+    "#451A03", // Dark Mahogany
+    "#D97706", // Burnished Ochre
+    "#B45309", // Warm Rust
+    "#9A3412", // Burnt Orange
+    "#713F12", // Antique Gold
+    "#7C2D12", // Spiced Cinnamon
+
+    // Light Warm & Spring Tones
+    "#EA580C", // Bright Coral Flame
+    "#CA8A04", // Sunlit Gold
+    "#65A30D", // Fresh Spring Grass
+    "#0D9488", // Warm Persian Teal
+    "#F59E0B", // Sun Amber
+    "#FB923C", // Radiant Peach
+    "#EAB308", // Goldenrod
+    "#84CC16", // Lime Chartreuse
+
+    // Deep Cool Jewels & Winter
+    "#1D4ED8", // Royal Cobalt
+    "#0F172A", // Obsidian Midnight
+    "#047857", // Deep Emerald Jewel
+    "#4C1D95", // Imperial Amethyst
+    "#BE123C", // Vivid Crimson Ruby
+    "#1E293B", // Cool Navy Charcoal
+    "#374151", // Graphite Noir
+    "#312E81", // Deep Indigo
+
+    // Soft Cool Pastels & Summer
+    "#475569", // Slate Blue
+    "#64748B", // Dusty Denim
+    "#9333EA", // Vibrant Orchid
+    "#2563EB", // Sapphire Blue
+    "#BE185D", // Heather Magenta
+    "#0284C7", // Mediterranean Cerulean
+    "#6D28D9", // Royal Violet
+    "#93C5FD", // Icy Sky Blue
+    "#F472B6", // Soft Pastel Rose
+    "#E0E7FF", // Frost Periwinkle
+    "#C7D2FE", // Soft Lavender
+    "#A7F3D0", // Mint Ice
+    "#FDE047", // Pastel Canary
+    "#CBD5E1", // Muted Silver Gray
+    "#F3E8FF", // Powder Lilac
 )
 
 /** A compact, locally persisted evidence trail. It contains measurements, never image bytes. */
