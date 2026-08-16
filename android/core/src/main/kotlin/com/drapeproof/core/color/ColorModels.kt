@@ -18,9 +18,16 @@ data class SrgbColor(
 
     companion object {
         fun fromHex(value: String): SrgbColor {
-            val normalized = value.trim().removePrefix("#")
+            var normalized = value.trim().removePrefix("#")
+            if (normalized.length == 8) {
+                // Strip alpha prefix (#AARRGGBB -> RRGGBB)
+                normalized = normalized.substring(2)
+            } else if (normalized.length == 3) {
+                // Expand 3-digit shorthand (#RGB -> RRGGBB)
+                normalized = "${normalized[0]}${normalized[0]}${normalized[1]}${normalized[1]}${normalized[2]}${normalized[2]}"
+            }
             require(normalized.length == 6 && normalized.all { it.isDigit() || it.lowercaseChar() in 'a'..'f' }) {
-                "Expected a six-digit sRGB hex value"
+                "Expected a valid sRGB hex value (e.g. #RRGGBB or #AARRGGBB), but got: $value"
             }
             return SrgbColor(
                 red = normalized.substring(0, 2).toInt(16),

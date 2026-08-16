@@ -41,12 +41,15 @@ object PhotoAvatarStore {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val jsonStr = prefs.getString(KEY_REGISTRY, null) ?: return emptyList()
         val list = mutableListOf<SavedAvatar>()
+        var hadZombies = false
         runCatching {
             val arr = JSONArray(jsonStr)
+            val cleanArr = JSONArray()
             for (i in 0 until arr.length()) {
                 val obj = arr.getJSONObject(i)
                 val file = File(obj.getString("imagePath"))
                 if (file.exists()) {
+                    cleanArr.put(obj)
                     list.add(
                         SavedAvatar(
                             id = obj.getString("id"),
@@ -57,7 +60,12 @@ object PhotoAvatarStore {
                             createdAtEpoch = obj.optLong("createdAtEpoch", System.currentTimeMillis()),
                         )
                     )
+                } else {
+                    hadZombies = true
                 }
+            }
+            if (hadZombies) {
+                prefs.edit().putString(KEY_REGISTRY, cleanArr.toString()).apply()
             }
         }
         return list

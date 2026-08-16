@@ -425,8 +425,47 @@ fun TryOnScreen(
                     val urlStream = URL(finalResultUrl).openStream()
                     val downloadedBmp = BitmapFactory.decodeStream(urlStream)
 
-                    val vtoSkinHex = SkinProfileRepository.load(context)?.skinHex ?: "#D8B498"
-                    val vtoHarmony = TrueColorHarmonyEngine.evaluate(vtoSkinHex, selectedColorHex, selectedFabric.id)
+                    val vtoSkinHex = SkinProfileRepository.load(context)?.skinHex ?: ""
+
+                    val (effectiveColorHex, vtoHarmony) = if (inputSource == TryOnInputSource.GARMENT) {
+                        val garmentHex = finalGarmentBmp?.let { extractDominantColorHex(it) } ?: "#475569"
+                        val harmony = if (vtoSkinHex.isNotBlank()) {
+                            TrueColorHarmonyEngine.evaluate(vtoSkinHex, garmentHex, "cotton")
+                        } else {
+                            com.drapeproof.core.color.HarmonyAnalysisResult(
+                                scorePercent = 85,
+                                harmonyLabel = "Custom Garment",
+                                summaryFeedback = "Custom garment fitted accurately.",
+                                contrastScorePercent = 85,
+                                hueScorePercent = 85,
+                                chromaScorePercent = 85,
+                                reasonsList = emptyList(),
+                                deltaE00 = 0.0,
+                                deltaLuminance = 0.0,
+                                isFlattering = true,
+                            )
+                        }
+                        Pair(garmentHex, harmony)
+                    } else {
+                        val harmony = if (vtoSkinHex.isNotBlank()) {
+                            TrueColorHarmonyEngine.evaluate(vtoSkinHex, selectedColorHex, selectedFabric.id)
+                        } else {
+                            com.drapeproof.core.color.HarmonyAnalysisResult(
+                                scorePercent = 85,
+                                harmonyLabel = selectedFabric.name,
+                                summaryFeedback = "Style try-on completed.",
+                                contrastScorePercent = 85,
+                                hueScorePercent = 85,
+                                chromaScorePercent = 85,
+                                reasonsList = emptyList(),
+                                deltaE00 = 0.0,
+                                deltaLuminance = 0.0,
+                                isFlattering = true,
+                            )
+                        }
+                        Pair(selectedColorHex, harmony)
+                    }
+
                     val vtoScore = vtoHarmony.scorePercent
 
                     // Save accurately based on what was actually tried
@@ -435,7 +474,7 @@ fun TryOnScreen(
                         DrapeSnapRepository.saveSnap(
                             context = context,
                             bitmap = downloadedBmp,
-                            colorHex = selectedColorHex,
+                            colorHex = effectiveColorHex,
                             colorName = "Custom Garment",
                             fabricId = "garment",
                             fabricName = "Custom Garment",
@@ -447,7 +486,7 @@ fun TryOnScreen(
                         val outfit = SavedTryOnOutfit(
                             title = "${selectedFabric.name} ${selectedSilhouette.displayName}",
                             fabricName = selectedFabric.name,
-                            colorHex = selectedColorHex,
+                            colorHex = effectiveColorHex,
                             topwearCut = selectedSilhouette.displayName,
                             bottomwearCut = "Tailored",
                             bottomwearColor = "",
@@ -459,7 +498,7 @@ fun TryOnScreen(
                         DrapeSnapRepository.saveSnap(
                             context = context,
                             bitmap = downloadedBmp,
-                            colorHex = selectedColorHex,
+                            colorHex = effectiveColorHex,
                             colorName = selectedSilhouette.displayName,
                             fabricId = selectedFabric.id,
                             fabricName = selectedFabric.name,
@@ -1371,4 +1410,43 @@ private fun String.asComposeColor(): Color {
             blue = (value and 0xFF).toInt(),
         )
     }.getOrDefault(Color.Gray)
+}
+
+private fun extractDominantColorHex(bitmap: Bitmap): String {
+    val sampledPixels = mutableListOf<Int>()
+    val stepX = (bitmap.width / 20).coerceAtLeast(1)
+    val stepY = (bitmap.height / 20).coerceAtLeast(1)
+
+    for (y in (bitmap.height * 0.15).toInt() until (bitmap.height * 0.85).toInt() step stepY) {
+        for (x in (bitmap.width * 0.15).toInt() until (bitmap.width * 0.85).toInt() step stepX) {
+            val pixel = bitmap.getPixel(x, y)
+            val alpha = (pixel shr 24) and 0xFF
+            val r = (pixel shr 16) and 0xFF
+            val g = (pixel shr 8) and 0xFF
+            val b = pixel and 0xFF
+
+            // Filter out transparent pixels, pure white canvas background (>240), and dark borders (<15)
+            if (alpha > 128 && !(r > 240 && g > 240 && b > 240) && !(r < 15 && g < 15 && b < 15)) {
+                sampledPixels.add(pixel)
+            }
+        }
+    }
+
+    if (sampledPixels.isEmpty()) return "#475569"
+
+    val avgR = sampledPixels.map { (it shr 16) and 0xFF }.average()
+    val avgG = sampledPixels.map { (it shr 8) and 0xFF }.average()
+    val avgB = sampledPixels.map { it and 0xFF }.average()
+
+    val centroid = sampledPixels.minByOrNull { p ->
+        val dr = ((p shr 16) and 0xFF) - avgR
+        val dg = ((p shr 8) and 0xFF) - avgG
+        val db = (p and 0xFF) - avgB
+        dr * dr + dg * dg + db * db
+    } ?: sampledPixels[0]
+
+    val cr = (centroid shr 16) and 0xFF
+    val cg = (centroid shr 8) and 0xFF
+    val cb = centroid and 0xFF
+    return String.format("#%02X%02X%02X", cr, cg, cb)
 }

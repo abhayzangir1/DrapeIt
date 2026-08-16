@@ -173,7 +173,7 @@ fun GarmentCropperModal(
                                 ),
                                 dstSize = androidx.compose.ui.unit.IntSize(
                                     (cropBoxW * scale).toInt(),
-                                    (cropBoxH * scale * (sourceBitmap.height.toFloat() / sourceBitmap.width.toFloat())).toInt(),
+                                    (cropBoxW * scale * (sourceBitmap.height.toFloat() / sourceBitmap.width.toFloat())).toInt(),
                                 ),
                             )
                         }
@@ -327,8 +327,8 @@ private fun processAndExportCroppedGarment(
         canvas.drawColor(AndroidColor.WHITE)
 
         val matrix = Matrix().apply {
-            // Apply scale & translation
-            val baseScale = max(targetW.toFloat() / source.width, targetH.toFloat() / source.height) * scale
+            // Apply scale & translation (min preserves entire garment in canvas)
+            val baseScale = min(targetW.toFloat() / source.width, targetH.toFloat() / source.height) * scale
             postScale(baseScale, baseScale)
             postTranslate(
                 (targetW - source.width * baseScale) / 2 + offsetX * (targetW / 400f),

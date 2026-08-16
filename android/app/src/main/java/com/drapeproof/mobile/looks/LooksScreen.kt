@@ -201,21 +201,12 @@ fun LooksScreen(
                         letterSpacing = 1.2.sp,
                     )
 
-                    if (snaps.isNotEmpty()) {
+                    if (selectedCompareIds.isNotEmpty()) {
                         Text(
-                            if (selectedCompareIds.size == snaps.size) "Deselect All" else "Select All",
+                            "Selected ${selectedCompareIds.size}/4",
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.clickable {
-                                SoundEffectManager.playTap(currentView)
-                                if (selectedCompareIds.size == snaps.size) {
-                                    selectedCompareIds.clear()
-                                } else {
-                                    selectedCompareIds.clear()
-                                    snaps.take(4).forEach { selectedCompareIds.add(it.id) }
-                                }
-                            },
+                            color = EditorialSienna,
                         )
                     }
                 }

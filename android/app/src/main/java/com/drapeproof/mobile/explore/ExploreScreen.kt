@@ -66,10 +66,51 @@ data class CuratedPaletteItem(
     val category: OccasionCategory,
 )
 
+data class OccasionStyleTemplate(
+    val title: String,
+    val fabricId: String,
+)
+
+private val WORK_TEMPLATES = listOf(
+    OccasionStyleTemplate("Tailored Wool Blazer", "wool"),
+    OccasionStyleTemplate("Crisp Oxford Poplin", "cotton"),
+    OccasionStyleTemplate("Structured Tweed Coat", "tweed"),
+    OccasionStyleTemplate("Executive Linen Trousers", "linen"),
+    OccasionStyleTemplate("Fine Merino Overcoat", "wool"),
+    OccasionStyleTemplate("Tailored Silk Blouse", "silk"),
+)
+
+private val EVENING_TEMPLATES = listOf(
+    OccasionStyleTemplate("Lustrous Silk Gown", "silk"),
+    OccasionStyleTemplate("Plush Velvet Dinner Wrap", "velvet"),
+    OccasionStyleTemplate("Imperial Satin Top", "satin"),
+    OccasionStyleTemplate("Midnight Cashmere Stole", "wool"),
+    OccasionStyleTemplate("Glossy Velvet Tuxedo", "velvet"),
+    OccasionStyleTemplate("Duchess Satin Slip", "satin"),
+)
+
+private val CASUAL_TEMPLATES = listOf(
+    OccasionStyleTemplate("Cozy Knit Sweater", "knit"),
+    OccasionStyleTemplate("Washed Denim Overshirt", "denim"),
+    OccasionStyleTemplate("Breezy Weekend Linen", "linen"),
+    OccasionStyleTemplate("Relaxed Corduroy Jacket", "corduroy"),
+    OccasionStyleTemplate("Soft Cotton Henley", "cotton"),
+    OccasionStyleTemplate("Chunky Knit Cardigan", "knit"),
+)
+
+private val EVERYDAY_TEMPLATES = listOf(
+    OccasionStyleTemplate("Signature Cotton Top", "cotton"),
+    OccasionStyleTemplate("Everyday Linen Button-Down", "linen"),
+    OccasionStyleTemplate("Lightweight Knit Pullover", "knit"),
+    OccasionStyleTemplate("Daylight Silk Blouse", "silk"),
+    OccasionStyleTemplate("Classic Jersey Tee", "cotton"),
+    OccasionStyleTemplate("Versatile Twill Overshirt", "cotton"),
+)
+
 val allCuratedPaletteItems = listOf(
     // WARM AUTUMN
     CuratedPaletteItem("wa_1", "Crimson Silk Blouse", "#831843", "silk", "Warm Autumn", OccasionCategory.EVERYDAY),
-    CuratedPaletteItem("wa_2", "Warm Cognac Blazer", "#78350F", "leather", "Warm Autumn", OccasionCategory.WORK),
+    CuratedPaletteItem("wa_2", "Warm Cognac Blazer", "#78350F", "wool", "Warm Autumn", OccasionCategory.WORK),
     CuratedPaletteItem("wa_3", "Amber Ochre Sweater", "#D97706", "knit", "Warm Autumn", OccasionCategory.CASUAL),
     CuratedPaletteItem("wa_4", "Deep Forest Velvet", "#065F46", "velvet", "Warm Autumn", OccasionCategory.EVENING),
     CuratedPaletteItem("wa_5", "Terracotta Linen Dress", "#9A3412", "linen", "Warm Autumn", OccasionCategory.CASUAL),
@@ -295,12 +336,20 @@ fun ExploreScreen(
                 Spacer(Modifier.height(14.dp))
 
                 val matchingItems = if (currentProfile != null && currentProfile.bestColors.isNotEmpty()) {
-                    currentProfile.bestColors.mapIndexed { index, colorHex ->
+                    val templates = when (selectedCategory) {
+                        OccasionCategory.WORK -> WORK_TEMPLATES
+                        OccasionCategory.EVENING -> EVENING_TEMPLATES
+                        OccasionCategory.CASUAL -> CASUAL_TEMPLATES
+                        OccasionCategory.EVERYDAY -> EVERYDAY_TEMPLATES
+                    }
+                    val palette = currentProfile.bestColors
+                    templates.mapIndexed { index, template ->
+                        val colorHex = palette[(index + selectedCategory.ordinal * 2) % palette.size]
                         CuratedPaletteItem(
-                            id = "profile_$index",
-                            title = "Color ${index + 1}",
+                            id = "${selectedCategory.name.lowercase()}_$index",
+                            title = template.title,
                             hex = colorHex,
-                            fabricId = "cotton",
+                            fabricId = template.fabricId,
                             forSeason = currentProfile.season,
                             category = selectedCategory
                         )
@@ -309,7 +358,7 @@ fun ExploreScreen(
                     allCuratedPaletteItems.filter {
                         it.forSeason.equals(currentProfile?.season, ignoreCase = true) && it.category == selectedCategory
                     }.ifEmpty {
-                        allCuratedPaletteItems.filter { it.forSeason.equals(currentProfile?.season, ignoreCase = true) }
+                        allCuratedPaletteItems.filter { it.category == selectedCategory }
                     }.ifEmpty {
                         allCuratedPaletteItems.take(6)
                     }

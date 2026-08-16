@@ -290,8 +290,8 @@ fun LiveSkinScanScreen(
                     modifier = Modifier.padding(18.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    if (isScanLocked) {
-                        val finalHex = detectedSkinHex ?: "#D8B498"
+                    if (isScanLocked && detectedSkinHex != null) {
+                        val finalHex = detectedSkinHex!!
                         val previewProfile = remember(finalHex) {
                             SkinProfileRepository.deriveProfileFromSkinHex(finalHex, source = "live_facial_scan")
                         }

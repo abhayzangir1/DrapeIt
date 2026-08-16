@@ -195,11 +195,11 @@ fun DrapeCaptureScreen(
 
     val activeColorHex = customHex ?: selectedColor.hex
     val storedProfile = remember { SkinProfileRepository.load(context) }
-    val effectiveSkinHex = detectedSkinHex ?: storedProfile?.skinHex ?: "#D8B498"
+    val effectiveSkinHex = detectedSkinHex ?: storedProfile?.skinHex ?: ""
     val liveLuminance = latestReading?.faceLuminance ?: 0.50
 
     val harmonyResult = remember(effectiveSkinHex, activeColorHex, selectedFabric.id, liveLuminance, isFaceInFrame) {
-        if (isFaceInFrame) {
+        if (isFaceInFrame && effectiveSkinHex.isNotBlank()) {
             TrueColorHarmonyEngine.evaluate(
                 skinHex = effectiveSkinHex,
                 fabricHex = activeColorHex,
@@ -210,7 +210,7 @@ fun DrapeCaptureScreen(
             com.drapeproof.core.color.HarmonyAnalysisResult(
                 scorePercent = 0,
                 harmonyLabel = "Align Face",
-                summaryFeedback = "Position your face in the oval",
+                summaryFeedback = "Position your face in the oval to compute color harmony.",
                 contrastScorePercent = 0,
                 hueScorePercent = 0,
                 chromaScorePercent = 0,

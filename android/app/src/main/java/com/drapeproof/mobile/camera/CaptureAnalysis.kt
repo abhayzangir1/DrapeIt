@@ -417,11 +417,16 @@ private fun isPlausibleHumanSkin(srgb: SrgbColor?): Boolean {
 
 private fun medianColor(colors: List<SrgbColor>): SrgbColor? {
     if (colors.isEmpty()) return null
-    val rs = colors.map { it.red }.sorted()
-    val gs = colors.map { it.green }.sorted()
-    val bs = colors.map { it.blue }.sorted()
-    val mid = colors.size / 2
-    return SrgbColor(rs[mid], gs[mid], bs[mid])
+    // Spatial Centroid Median: Select the authentic sampled pixel closest to the cluster center
+    val avgR = colors.map { it.red }.average()
+    val avgG = colors.map { it.green }.average()
+    val avgB = colors.map { it.blue }.average()
+    return colors.minByOrNull { c ->
+        val dr = c.red - avgR
+        val dg = c.green - avgG
+        val db = c.blue - avgB
+        dr * dr + dg * dg + db * db
+    }
 }
 
 private fun eyeAspectRatio(landmarks: List<com.google.mediapipe.tasks.components.containers.NormalizedLandmark>, p1: Int, p2: Int, p3: Int, p4: Int): Double {

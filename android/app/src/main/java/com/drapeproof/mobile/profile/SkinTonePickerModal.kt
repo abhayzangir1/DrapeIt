@@ -17,8 +17,10 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -26,6 +28,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -89,22 +92,31 @@ fun SkinTonePickerModal(
 
     fun samplePixelColor(normOffset: Offset): Int {
         val patchSize = 2 // radius
-        val reds = mutableListOf<Int>()
-        val greens = mutableListOf<Int>()
-        val blues = mutableListOf<Int>()
+        val pixels = mutableListOf<Int>()
+        var totalR = 0.0
+        var totalG = 0.0
+        var totalB = 0.0
         for (dy in -patchSize..patchSize) {
             for (dx in -patchSize..patchSize) {
                 val sx = (normOffset.x * bitmap.width + dx).toInt().coerceIn(0, bitmap.width - 1)
                 val sy = (normOffset.y * bitmap.height + dy).toInt().coerceIn(0, bitmap.height - 1)
                 val pixel = bitmap.getPixel(sx, sy)
-                reds.add(android.graphics.Color.red(pixel))
-                greens.add(android.graphics.Color.green(pixel))
-                blues.add(android.graphics.Color.blue(pixel))
+                pixels.add(pixel)
+                totalR += android.graphics.Color.red(pixel)
+                totalG += android.graphics.Color.green(pixel)
+                totalB += android.graphics.Color.blue(pixel)
             }
         }
-        reds.sort(); greens.sort(); blues.sort()
-        val medIdx = reds.size / 2
-        return android.graphics.Color.rgb(reds[medIdx], greens[medIdx], blues[medIdx])
+        val avgR = totalR / pixels.size
+        val avgG = totalG / pixels.size
+        val avgB = totalB / pixels.size
+        // Spatial centroid median: select genuine pixel closest to patch average
+        return pixels.minByOrNull { p ->
+            val dr = android.graphics.Color.red(p) - avgR
+            val dg = android.graphics.Color.green(p) - avgG
+            val db = android.graphics.Color.blue(p) - avgB
+            dr * dr + dg * dg + db * db
+        } ?: bitmap.getPixel((normOffset.x * bitmap.width).toInt().coerceIn(0, bitmap.width - 1), (normOffset.y * bitmap.height).toInt().coerceIn(0, bitmap.height - 1))
     }
 
     val sampledColors = pointOffsets.map { samplePixelColor(it) }
@@ -139,29 +151,32 @@ fun SkinTonePickerModal(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
+                    .statusBarsPadding()
+                    .navigationBarsPadding()
                     .padding(20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                // TOP BAR
+                // Top Bar
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column {
-                        Text("Point & Sample Colortone", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
-                        Text("Drag 3 points on forehead & cheeks to sample", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            "Manual Skin Calibration",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            "Drag pucks to your forehead & cheeks",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.surfaceVariant)
-                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.40f), CircleShape)
-                            .clickable { onDismiss() },
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text("✕", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
+                    IconButton(onClick = onDismiss) {
+                        Text("✕", fontSize = 18.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
 
@@ -207,19 +222,21 @@ fun SkinTonePickerModal(
 
                 Spacer(Modifier.height(14.dp))
 
-                // INTERACTIVE PHOTO VIEWPORT WITH DRAGGABLE COLOR SAMPLING PIN PUCKETS
+                // INTERACTIVE PHOTO VIEWPORT WITH ACCURATE TOUCH MAPPING
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f)
                         .clip(RoundedCornerShape(18.dp))
+                        .background(Color.Black)
                         .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), RoundedCornerShape(18.dp)),
+                    contentAlignment = Alignment.Center,
                 ) {
                     Image(
                         bitmap = bitmap.asImageBitmap(),
                         contentDescription = "User Headshot",
                         modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop,
+                        contentScale = ContentScale.Fit,
                     )
 
                     Canvas(
@@ -227,27 +244,58 @@ fun SkinTonePickerModal(
                             .fillMaxSize()
                             .pointerInput(Unit) {
                                 detectTapGestures { tapOffset ->
-                                    val normX = (tapOffset.x / size.width).coerceIn(0.05f, 0.95f)
-                                    val normY = (tapOffset.y / size.height).coerceIn(0.05f, 0.95f)
+                                    val wBox = size.width.toFloat()
+                                    val hBox = size.height.toFloat()
+                                    val imgW = bitmap.width.toFloat()
+                                    val imgH = bitmap.height.toFloat()
+                                    val imgAspect = imgW / imgH
+                                    val boxAspect = wBox / hBox
+
+                                    val renderW = if (imgAspect > boxAspect) wBox else hBox * imgAspect
+                                    val renderH = if (imgAspect > boxAspect) wBox / imgAspect else hBox
+                                    val leftOff = (wBox - renderW) / 2f
+                                    val topOff = (hBox - renderH) / 2f
+
+                                    val normX = ((tapOffset.x - leftOff) / renderW).coerceIn(0.02f, 0.98f)
+                                    val normY = ((tapOffset.y - topOff) / renderH).coerceIn(0.02f, 0.98f)
                                     pointOffsets[selectedPointIndex] = Offset(normX, normY)
                                 }
                             }
                             .pointerInput(Unit) {
                                 detectDragGestures { change, dragAmount ->
                                     change.consume()
+                                    val wBox = size.width.toFloat()
+                                    val hBox = size.height.toFloat()
+                                    val imgW = bitmap.width.toFloat()
+                                    val imgH = bitmap.height.toFloat()
+                                    val imgAspect = imgW / imgH
+                                    val boxAspect = wBox / hBox
+
+                                    val renderW = if (imgAspect > boxAspect) wBox else hBox * imgAspect
+                                    val renderH = if (imgAspect > boxAspect) wBox / imgAspect else hBox
+
                                     val current = pointOffsets[selectedPointIndex]
-                                    val newNormX = (current.x + dragAmount.x / size.width).coerceIn(0.05f, 0.95f)
-                                    val newNormY = (current.y + dragAmount.y / size.height).coerceIn(0.05f, 0.95f)
+                                    val newNormX = (current.x + dragAmount.x / renderW).coerceIn(0.02f, 0.98f)
+                                    val newNormY = (current.y + dragAmount.y / renderH).coerceIn(0.02f, 0.98f)
                                     pointOffsets[selectedPointIndex] = Offset(newNormX, newNormY)
                                 }
                             },
                     ) {
-                        val w = size.width
-                        val h = size.height
+                        val wBox = size.width
+                        val hBox = size.height
+                        val imgW = bitmap.width.toFloat()
+                        val imgH = bitmap.height.toFloat()
+                        val imgAspect = imgW / imgH
+                        val boxAspect = wBox / hBox
+
+                        val renderW = if (imgAspect > boxAspect) wBox else hBox * imgAspect
+                        val renderH = if (imgAspect > boxAspect) wBox / imgAspect else hBox
+                        val leftOff = (wBox - renderW) / 2f
+                        val topOff = (hBox - renderH) / 2f
 
                         pointOffsets.forEachIndexed { index, normPos ->
                             val isSelected = index == selectedPointIndex
-                            val center = Offset(normPos.x * w, normPos.y * h)
+                            val center = Offset(leftOff + normPos.x * renderW, topOff + normPos.y * renderH)
                             val pinColor = Color(sampledColors[index])
 
                             // Outer Glow Ring
