@@ -248,6 +248,11 @@ fun SettingsScreen(onBack: () -> Unit) {
                 Button(
                     onClick = {
                         YouCamLabStore.deleteAllLocalData(context)
+                        com.drapeproof.mobile.data.DrapeSnapRepository.list(context).forEach { com.drapeproof.mobile.data.DrapeSnapRepository.delete(context, it.id) }
+                        com.drapeproof.mobile.data.WardrobeRepository.clear(context)
+                        com.drapeproof.mobile.data.SuitedColorsRepository.clear(context)
+                        com.drapeproof.mobile.data.SkinProfileRepository.clear(context)
+                        com.drapeproof.mobile.avatar.PhotoAvatarStore.deleteAll(context)
                         recordCount = 0
                         showDeleteDialog = false
                         statusMessage = "All local data was permanently deleted."

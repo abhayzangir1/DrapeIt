@@ -88,9 +88,23 @@ fun SkinTonePickerModal(
     var selectedPointIndex by remember { mutableIntStateOf(0) }
 
     fun samplePixelColor(normOffset: Offset): Int {
-        val px = (normOffset.x * bitmap.width).toInt().coerceIn(0, bitmap.width - 1)
-        val py = (normOffset.y * bitmap.height).toInt().coerceIn(0, bitmap.height - 1)
-        return bitmap.getPixel(px, py)
+        val patchSize = 2 // radius
+        val reds = mutableListOf<Int>()
+        val greens = mutableListOf<Int>()
+        val blues = mutableListOf<Int>()
+        for (dy in -patchSize..patchSize) {
+            for (dx in -patchSize..patchSize) {
+                val sx = (normOffset.x * bitmap.width + dx).toInt().coerceIn(0, bitmap.width - 1)
+                val sy = (normOffset.y * bitmap.height + dy).toInt().coerceIn(0, bitmap.height - 1)
+                val pixel = bitmap.getPixel(sx, sy)
+                reds.add(android.graphics.Color.red(pixel))
+                greens.add(android.graphics.Color.green(pixel))
+                blues.add(android.graphics.Color.blue(pixel))
+            }
+        }
+        reds.sort(); greens.sort(); blues.sort()
+        val medIdx = reds.size / 2
+        return android.graphics.Color.rgb(reds[medIdx], greens[medIdx], blues[medIdx])
     }
 
     val sampledColors = pointOffsets.map { samplePixelColor(it) }

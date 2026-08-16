@@ -294,12 +294,25 @@ fun ExploreScreen(
 
                 Spacer(Modifier.height(14.dp))
 
-                val matchingItems = allCuratedPaletteItems.filter {
-                    it.forSeason.equals(currentProfile.season, ignoreCase = true) && it.category == selectedCategory
-                }.ifEmpty {
-                    allCuratedPaletteItems.filter { it.forSeason.equals(currentProfile.season, ignoreCase = true) }
-                }.ifEmpty {
-                    allCuratedPaletteItems.take(6)
+                val matchingItems = if (currentProfile != null && currentProfile.bestColors.isNotEmpty()) {
+                    currentProfile.bestColors.mapIndexed { index, colorHex ->
+                        CuratedPaletteItem(
+                            id = "profile_$index",
+                            title = "Color ${index + 1}",
+                            hex = colorHex,
+                            fabricId = "cotton",
+                            forSeason = currentProfile.season,
+                            category = selectedCategory
+                        )
+                    }
+                } else {
+                    allCuratedPaletteItems.filter {
+                        it.forSeason.equals(currentProfile?.season, ignoreCase = true) && it.category == selectedCategory
+                    }.ifEmpty {
+                        allCuratedPaletteItems.filter { it.forSeason.equals(currentProfile?.season, ignoreCase = true) }
+                    }.ifEmpty {
+                        allCuratedPaletteItems.take(6)
+                    }
                 }
 
                 // 2-COLUMN AESTHETIC LOOKBOOK GRID

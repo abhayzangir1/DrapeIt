@@ -1,6 +1,8 @@
 package com.drapeproof.mobile.tryon
 
 import android.content.Context
+import com.drapeproof.core.color.TrueColorHarmonyEngine
+import com.drapeproof.mobile.data.SkinProfileRepository
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
@@ -313,7 +315,7 @@ fun TryOnScreen(
                 sourceUri = uri,
                 name = "Headshot",
                 lighting = AvatarLighting.DAYLIGHT,
-                skinHex = "#D8B498",
+                skinHex = SkinProfileRepository.load(context)?.skinHex ?: "#D8B498",
             )
             if (saved != null) {
                 activeAvatar = saved
@@ -376,6 +378,10 @@ fun TryOnScreen(
                     withContext(Dispatchers.Main) { generationStatus = "Applying color swap…" }
                     val swapBmp = applyInstantColorSwap(avatarBmp, selectedColorHex)
 
+                    val realSkinHex = SkinProfileRepository.load(context)?.skinHex ?: "#D8B498"
+                    val swapHarmony = TrueColorHarmonyEngine.evaluate(realSkinHex, selectedColorHex, selectedFabric.id)
+                    val swapScore = swapHarmony.scorePercent
+
                     // Auto-save outfit to WardrobeRepository
                     val outfit = SavedTryOnOutfit(
                         title = "Color Swap ($selectedColorHex)",
@@ -383,9 +389,9 @@ fun TryOnScreen(
                         colorHex = selectedColorHex,
                         topwearCut = selectedSilhouette.displayName,
                         bottomwearCut = "Standard",
-                        bottomwearColor = "#1F2937",
+                        bottomwearColor = "",
                         resultImagePath = null,
-                        matchScorePercent = 95,
+                        matchScorePercent = swapScore,
                     )
                     WardrobeRepository.addOutfit(context, outfit)
 
@@ -396,8 +402,8 @@ fun TryOnScreen(
                         colorName = "Custom Swap",
                         fabricId = selectedFabric.id,
                         fabricName = selectedFabric.name,
-                        matchScorePercent = 95,
-                        skinHex = "#D8B498",
+                        matchScorePercent = swapScore,
+                        skinHex = realSkinHex,
                     )
 
                     withContext(Dispatchers.Main) {
@@ -480,6 +486,10 @@ fun TryOnScreen(
                     val urlStream = URL(finalResultUrl).openStream()
                     val downloadedBmp = BitmapFactory.decodeStream(urlStream)
 
+                    val vtoSkinHex = SkinProfileRepository.load(context)?.skinHex ?: "#D8B498"
+                    val vtoHarmony = TrueColorHarmonyEngine.evaluate(vtoSkinHex, selectedColorHex, selectedFabric.id)
+                    val vtoScore = vtoHarmony.scorePercent
+
                     // Auto-save outfit to WardrobeRepository and DrapeSnapRepository
                     val outfit = SavedTryOnOutfit(
                         title = "${selectedFabric.name} ${selectedSilhouette.displayName}",
@@ -487,9 +497,9 @@ fun TryOnScreen(
                         colorHex = selectedColorHex,
                         topwearCut = selectedSilhouette.displayName,
                         bottomwearCut = "Tailored",
-                        bottomwearColor = "#1F2937",
+                        bottomwearColor = "",
                         resultImagePath = null,
-                        matchScorePercent = 96,
+                        matchScorePercent = vtoScore,
                     )
                     WardrobeRepository.addOutfit(context, outfit)
 
@@ -500,8 +510,8 @@ fun TryOnScreen(
                         colorName = selectedSilhouette.displayName,
                         fabricId = selectedFabric.id,
                         fabricName = selectedFabric.name,
-                        matchScorePercent = 96,
-                        skinHex = "#D8B498",
+                        matchScorePercent = vtoScore,
+                        skinHex = vtoSkinHex,
                     )
 
                     withContext(Dispatchers.Main) {

@@ -53,6 +53,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.drapeproof.mobile.data.SavedSuitedColor
 import com.drapeproof.mobile.data.SavedWishlistItem
+import com.drapeproof.mobile.data.SkinProfileRepository
 import com.drapeproof.mobile.data.SuitedColorsRepository
 import com.drapeproof.mobile.data.WardrobeRepository
 import com.drapeproof.mobile.fabric.FabricCatalog
@@ -75,9 +76,13 @@ fun ShopScreen(
     val context = LocalContext.current
     var shopMode by remember { mutableStateOf(ShopMode.SHOP_SUITED_COLORS) }
     val suitedColors = remember { SuitedColorsRepository.list(context) }
+    val profile = SkinProfileRepository.load(context)
+    val fallbackColor = profile?.bestColors?.firstOrNull()
+    val primaryColorName = "Your Best Color"
+    val primaryColorHex = fallbackColor ?: profile?.skinHex ?: "#B85F45"
 
-    var selectedColorName by remember { mutableStateOf(initialColorName ?: suitedColors.firstOrNull()?.colorName ?: "Terracotta") }
-    var selectedColorHex by remember { mutableStateOf(initialColorHex ?: suitedColors.firstOrNull()?.colorHex ?: "#B85F45") }
+    var selectedColorName by remember { mutableStateOf(initialColorName ?: suitedColors.firstOrNull()?.colorName ?: primaryColorName) }
+    var selectedColorHex by remember { mutableStateOf(initialColorHex ?: suitedColors.firstOrNull()?.colorHex ?: primaryColorHex) }
     var selectedFabricName by remember { mutableStateOf(initialFabric ?: suitedColors.firstOrNull()?.fabricName ?: "Organic Cotton") }
     var selectedCutName by remember { mutableStateOf(initialCut ?: "Relaxed Casual") }
 
@@ -93,7 +98,7 @@ fun ShopScreen(
 
     val products = remember(shopMode, selectedFabricName, selectedColorName, selectedColorHex, selectedCutName, uploadedImageName) {
         if (shopMode == ShopMode.SHOP_SUITED_COLORS) {
-            ShoppingSearchEngine.generateRecommendedProducts(
+            ShoppingSearchEngine.generateStyleSuggestions(
                 fabricName = selectedFabricName,
                 colorName = selectedColorName,
                 colorHex = selectedColorHex,
@@ -254,7 +259,7 @@ fun ShopScreen(
                     Spacer(Modifier.height(10.dp))
 
                     Text(prod.title, style = MaterialTheme.typography.titleLarge)
-                    Text("${prod.retailer} • ${prod.rating}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f))
+                    Text(prod.retailer, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f))
 
                     Spacer(Modifier.height(14.dp))
 

@@ -53,32 +53,36 @@ object TrueColorHarmonyEngine {
             val effectiveDeltaL = (deltaL + lightingFactor).coerceAtLeast(0.0)
 
             val contrastRaw = when {
-                effectiveDeltaL < 6.0 && deltaChroma < 8.0 -> 30.0 // Blends severely into skin
-                effectiveDeltaL < 12.0 -> 55.0 // Low contrast
-                effectiveDeltaL in 18.0..58.0 -> 96.0 // Optimal flattering definition
-                else -> 82.0
+                deltaL < 5.0 -> 30.0 + (deltaL / 5.0) * 25.0  // 30-55 range
+                deltaL < 12.0 -> 55.0 + ((deltaL - 5.0) / 7.0) * 41.0  // 55-96 range
+                deltaL < 25.0 -> 96.0 - ((deltaL - 12.0) / 13.0) * 14.0  // 96-82 range
+                else -> 82.0 - ((deltaL - 25.0) / 25.0).coerceAtMost(1.0) * 30.0  // 82-52 range
             }
             var contrastScore = contrastRaw.toInt().coerceIn(20, 98)
 
             // 2. Chroma / Saturation Compatibility
             val chromaRaw = when {
-                fabricChroma > 78.0 && skinChroma < 25.0 -> 40.0 // Harsh neon overpowers skin
-                fabricChroma > 60.0 -> 65.0
-                fabricChroma in 15.0..55.0 -> 94.0 // Balanced harmonious saturation
-                else -> 85.0
+                deltaChroma < 8.0 -> 40.0 + (deltaChroma / 8.0) * 25.0
+                deltaChroma < 18.0 -> 65.0 + ((deltaChroma - 8.0) / 10.0) * 29.0
+                deltaChroma < 35.0 -> 94.0 - ((deltaChroma - 18.0) / 17.0) * 9.0
+                else -> 85.0 - ((deltaChroma - 35.0) / 30.0).coerceAtMost(1.0) * 35.0
             }
             var chromaScore = chromaRaw.toInt().coerceIn(25, 98)
 
             // 3. Hue & Undertone Harmony
-            val isSkinWarm = skinLab.b > 11.0
+            val isSkinWarm = skinLab.b > 7.0
             val isFabricWarm = fabricLab.b > 0.0 && (fabricHue in 10.0..110.0 || fabricHue in 340.0..360.0)
             val isFabricCool = fabricHue in 160.0..280.0
 
             val hueRaw = when {
                 // Sickly yellow-green on cool undertones
-                !isSkinWarm && fabricHue in 65.0..115.0 && fabricChroma > 30.0 -> 35.0
+                !isSkinWarm && fabricHue in 65.0..115.0 && fabricChroma > 30.0 -> {
+                    35.0 + (abs(fabricHue - 90.0) / 25.0) * 43.0
+                }
                 // Ashen muddy tones washing out warm skin
-                isSkinWarm && fabricLab.a < -10.0 && fabricLab.b in -5.0..5.0 -> 40.0
+                isSkinWarm && fabricLab.a < -10.0 && fabricLab.b in -5.0..5.0 -> {
+                    40.0 + (abs(fabricLab.b) / 5.0) * 38.0
+                }
                 // Complementary warm-on-warm or cool-on-cool alignment
                 isSkinWarm && isFabricWarm -> 96.0
                 !isSkinWarm && isFabricCool -> 96.0
@@ -187,16 +191,16 @@ object TrueColorHarmonyEngine {
             )
         }.getOrElse {
             HarmonyAnalysisResult(
-                scorePercent = 70,
-                harmonyLabel = "Neutral Compatibility",
-                summaryFeedback = "Balanced everyday pairing for your complexion.",
-                contrastScorePercent = 70,
-                hueScorePercent = 70,
-                chromaScorePercent = 70,
-                reasonsList = listOf("✓ Neutral balanced contrast"),
-                deltaE00 = 25.0,
-                deltaLuminance = 30.0,
-                isFlattering = true,
+                scorePercent = 0,
+                harmonyLabel = "Analysis Error",
+                summaryFeedback = "Could not analyze this combination",
+                contrastScorePercent = 0,
+                hueScorePercent = 0,
+                chromaScorePercent = 0,
+                reasonsList = emptyList(),
+                deltaE00 = 0.0,
+                deltaLuminance = 0.0,
+                isFlattering = false,
             )
         }
     }

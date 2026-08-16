@@ -7,7 +7,6 @@ data class ShopProduct(
     val title: String,
     val retailer: String,
     val priceEstimate: String,
-    val rating: String,
     val fabric: String,
     val colorName: String,
     val colorHex: String,
@@ -37,7 +36,7 @@ object ShoppingSearchEngine {
         return "https://www.asos.com/search/?q=${encode(query)}"
     }
 
-    fun generateRecommendedProducts(
+    fun generateStyleSuggestions(
         fabricName: String,
         colorName: String,
         colorHex: String,
@@ -49,8 +48,7 @@ object ShoppingSearchEngine {
             ShopProduct(
                 title = "$colorName $fabricName $cutName",
                 retailer = "Google Shopping Direct",
-                priceEstimate = "$38 - $75",
-                rating = "★ 4.8 (1.2k)",
+                priceEstimate = "Approx $38 - $75",
                 fabric = fabricName,
                 colorName = colorName,
                 colorHex = colorHex,
@@ -60,8 +58,7 @@ object ShoppingSearchEngine {
             ShopProduct(
                 title = "$fabricName $cutName $category",
                 retailer = "Amazon Fashion",
-                priceEstimate = "$29 - $49",
-                rating = "★ 4.6 (3.4k)",
+                priceEstimate = "Approx $29 - $49",
                 fabric = fabricName,
                 colorName = colorName,
                 colorHex = colorHex,
@@ -71,8 +68,7 @@ object ShoppingSearchEngine {
             ShopProduct(
                 title = "Minimalist $fabricName $category",
                 retailer = "Zara Collection",
-                priceEstimate = "$49 - $89",
-                rating = "★ 4.9 (850)",
+                priceEstimate = "Approx $49 - $89",
                 fabric = fabricName,
                 colorName = colorName,
                 colorHex = colorHex,
@@ -82,8 +78,7 @@ object ShoppingSearchEngine {
             ShopProduct(
                 title = "Contemporary $cutName in $colorName",
                 retailer = "ASOS Design",
-                priceEstimate = "$34 - $65",
-                rating = "★ 4.7 (920)",
+                priceEstimate = "Approx $34 - $65",
                 fabric = fabricName,
                 colorName = colorName,
                 colorHex = colorHex,
@@ -99,8 +94,7 @@ object ShoppingSearchEngine {
             ShopProduct(
                 title = "Matched $q",
                 retailer = "Google Visual Search",
-                priceEstimate = "Compare All Retailers",
-                rating = "★ 4.8",
+                priceEstimate = "Variable Pricing",
                 fabric = "Matched Fabric",
                 colorName = "Matched Color",
                 colorHex = "#2F51A2",
@@ -110,8 +104,7 @@ object ShoppingSearchEngine {
             ShopProduct(
                 title = "Similar Style $q",
                 retailer = "Amazon Marketplace",
-                priceEstimate = "$28 - $58",
-                rating = "★ 4.6",
+                priceEstimate = "Approx $28 - $58",
                 fabric = "Similar Material",
                 colorName = "Similar Color",
                 colorHex = "#B85F45",
@@ -121,8 +114,7 @@ object ShoppingSearchEngine {
             ShopProduct(
                 title = "Designer Match $q",
                 retailer = "Zara & ASOS Catalog",
-                priceEstimate = "$45 - $95",
-                rating = "★ 4.9",
+                priceEstimate = "Approx $45 - $95",
                 fabric = "Premium Quality",
                 colorName = "Trending",
                 colorHex = "#71856E",

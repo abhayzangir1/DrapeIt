@@ -269,15 +269,11 @@ fun PhotoAnalysisScreen(
                         allowApparentFaceShift = false,
                     )
                     result = PhotoResult(skin, fabric, vector, evidence)
-                    SkinProfileRepository.save(
-                        context,
-                        StoredSkinProfile(
-                            skinHex = skin.toHex(),
-                            evidenceTier = evidence,
-                            source = if (mode == PhotoMode.SAME_SCENE) "same-scene photo" else "separate face photo",
-                            capturedAtEpochMillis = System.currentTimeMillis(),
-                        ),
-                    )
+                    val finalProfile = SkinProfileRepository.deriveProfileFromSkinHex(
+                        skin.toHex(),
+                        source = if (mode == PhotoMode.SAME_SCENE) "same-scene photo" else "separate face photo"
+                    ).copy(evidenceTier = evidence)
+                    SkinProfileRepository.save(context, finalProfile)
                     saved = false
                 },
                 enabled = sourceBitmaps != null && skinPoint != null && fabricPoint != null,

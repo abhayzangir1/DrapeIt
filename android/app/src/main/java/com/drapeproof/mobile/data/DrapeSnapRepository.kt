@@ -48,7 +48,7 @@ object DrapeSnapRepository {
                             colorName = obj.getString("colorName"),
                             fabricId = obj.getString("fabricId"),
                             fabricName = obj.getString("fabricName"),
-                            matchScorePercent = obj.optInt("matchScorePercent", 90),
+                            matchScorePercent = obj.optInt("matchScorePercent", 0),
                             skinHex = obj.optString("skinHex").takeIf { it.isNotBlank() },
                             timestampEpoch = obj.optLong("timestampEpoch", System.currentTimeMillis()),
                         )

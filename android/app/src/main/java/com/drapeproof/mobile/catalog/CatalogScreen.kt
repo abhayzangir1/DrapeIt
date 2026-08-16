@@ -62,7 +62,7 @@ import kotlin.math.roundToInt
 
 private data class MatteVariant(val id: String, val name: String, val hex: String)
 
-private val demoVariants = listOf(
+private val catalogVariants = listOf(
     MatteVariant("warm-sand", "Warm Sand", "#C8A47A"),
     MatteVariant("terracotta", "Terracotta", "#B85F45"),
     MatteVariant("sage", "Quiet Sage", "#71856E"),
@@ -71,7 +71,7 @@ private val demoVariants = listOf(
     MatteVariant("charcoal", "Soft Charcoal", "#36383A"),
 )
 
-private const val DEMO_SKU = "DP-MATTE-01"
+private const val CATALOG_SKU = "DP-FABRIC-01"
 
 private sealed interface VtoAvailability {
     data object Idle : VtoAvailability
@@ -90,7 +90,7 @@ fun CatalogScreen(onBack: () -> Unit, onOpenRecords: () -> Unit) {
     var vtoAvailability by remember { mutableStateOf<VtoAvailability>(VtoAvailability.Idle) }
 
     val ranking = remember(profile, intent) { profile?.let { rankVariants(it, intent) } }
-    val top = ranking?.topVariant?.candidate?.variantId?.let { id -> demoVariants.first { it.id == id } }
+    val top = ranking?.topVariant?.candidate?.variantId?.let { id -> catalogVariants.first { it.id == id } }
     LaunchedEffect(intent) { savedVariantId = null }
 
     Column(Modifier.fillMaxSize()) {
@@ -159,7 +159,7 @@ fun CatalogScreen(onBack: () -> Unit, onOpenRecords: () -> Unit) {
                 }
             }
             Spacer(Modifier.height(9.dp))
-            demoVariants.forEach { variant ->
+            catalogVariants.forEach { variant ->
                 val ranked = ranking?.rankedVariants?.firstOrNull { it.candidate.variantId == variant.id }
                 VariantRow(variant, ranked?.rank, ranked?.separationPercentile, ranked?.candidate?.separationDeltaE00)
                 Spacer(Modifier.height(8.dp))
@@ -168,7 +168,7 @@ fun CatalogScreen(onBack: () -> Unit, onOpenRecords: () -> Unit) {
             if (showCompareDialog && ranking != null) {
                 CompareVariantsDialog(
                     ranking = ranking,
-                    variants = demoVariants,
+                    variants = catalogVariants,
                     intent = intent,
                     onDismiss = { showCompareDialog = false },
                 )
@@ -272,7 +272,7 @@ private fun TopChoiceCard(variant: MatteVariant, ranking: IntentRankingResult, p
             Text("${ranking.intent.label().uppercase()} PICK", style = MaterialTheme.typography.labelSmall, color = foreground.copy(alpha = 0.78f))
             Spacer(Modifier.height(20.dp))
             Text(variant.name, style = MaterialTheme.typography.headlineLarge, color = foreground, fontWeight = FontWeight.Bold)
-            Text("$DEMO_SKU • ${variant.hex}", style = MaterialTheme.typography.bodySmall, color = foreground.copy(alpha = 0.82f))
+            Text("$CATALOG_SKU • ${variant.hex}", style = MaterialTheme.typography.bodySmall, color = foreground.copy(alpha = 0.82f))
             Spacer(Modifier.height(16.dp))
             Text(
                 String.format(
@@ -303,7 +303,7 @@ private fun VariantRow(variant: MatteVariant, rank: Int?, percentile: Double?, d
             Box(Modifier.size(48.dp).background(variant.hex.asComposeColor(), RoundedCornerShape(13.dp)))
             Column(Modifier.padding(start = 12.dp).weight(1f)) {
                 Text(variant.name, style = MaterialTheme.typography.titleSmall)
-                Text("${variant.hex} • $DEMO_SKU", style = MaterialTheme.typography.bodySmall)
+                Text("${variant.hex} • $CATALOG_SKU", style = MaterialTheme.typography.bodySmall)
             }
             if (rank != null && percentile != null && deltaE != null) {
                 Column(horizontalAlignment = Alignment.End) {
@@ -373,9 +373,9 @@ private fun rankVariants(profile: StoredSkinProfile, intent: ContrastIntent): In
         EvidenceTier.PREVIEW_ONLY -> 8.0
     }
     return IntentRanker.rank(
-        candidates = demoVariants.map { variant ->
+        candidates = catalogVariants.map { variant ->
             VariantContrastCandidate(
-                sku = DEMO_SKU,
+                sku = CATALOG_SKU,
                 variantId = variant.id,
                 separationDeltaE00 = ColorDifference.ciede2000(skin, ColorConversions.hexToLab(variant.hex)),
                 uncertaintyDeltaE00 = uncertainty,
@@ -403,7 +403,7 @@ private fun saveCatalogRecord(
             source = "exact-SKU catalog ranking from ${profile.source}",
             evidenceTier = profile.evidenceTier,
             intent = intent,
-            sku = DEMO_SKU,
+            sku = CATALOG_SKU,
             variantId = variant.id,
             variantName = variant.name,
             skinHex = profile.skinHex,
@@ -412,7 +412,7 @@ private fun saveCatalogRecord(
             deltaLStar = fabricLab.l - skinLab.l,
             limitations = listOf(
                 "Catalog hex is a screen specification, not a measured physical fabric swatch.",
-                "Recommendation is a percentile within six solid-matte variants of $DEMO_SKU only.",
+                "Recommendation is a percentile within six solid-matte variants of $CATALOG_SKU only.",
                 "Virtual try-on, if used, is preview evidence and never changes this rank.",
             ),
         ),

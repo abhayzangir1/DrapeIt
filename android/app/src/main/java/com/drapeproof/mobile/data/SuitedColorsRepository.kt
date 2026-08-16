@@ -11,7 +11,7 @@ data class SavedSuitedColor(
     val colorName: String,
     val fabricId: String? = null,
     val fabricName: String? = null,
-    val matchScorePercent: Int = 95,
+    val matchScorePercent: Int = 0,
     val contrastLabel: String = "Natural Balance",
     val createdAtEpoch: Long = System.currentTimeMillis(),
 )
@@ -35,7 +35,7 @@ object SuitedColorsRepository {
                         colorName = obj.getString("colorName"),
                         fabricId = obj.optString("fabricId").takeIf { it.isNotBlank() },
                         fabricName = obj.optString("fabricName").takeIf { it.isNotBlank() },
-                        matchScorePercent = obj.optInt("matchScorePercent", 95),
+                        matchScorePercent = obj.optInt("matchScorePercent", 0),
                         contrastLabel = obj.optString("contrastLabel", "Natural Balance"),
                         createdAtEpoch = obj.optLong("createdAtEpoch", System.currentTimeMillis()),
                     )

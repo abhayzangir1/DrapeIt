@@ -216,27 +216,8 @@ fun MarketplaceUploadScreen(
 
                 Button(
                     onClick = {
-                        isProcessing = true
-                        statusText = "AI Segmenting Garment from Screenshot…"
-                        scope.launch {
-                            delay(1400)
-                            statusText = "Draping on Your Silhouette via YouCam…"
-                            delay(1200)
-                            val sample = Bitmap.createBitmap(400, 500, Bitmap.Config.ARGB_8888)
-                            val canvas = android.graphics.Canvas(sample)
-                            canvas.drawColor(android.graphics.Color.parseColor("#2F51A2"))
-                            val paint = android.graphics.Paint().apply {
-                                color = android.graphics.Color.WHITE
-                                textSize = 28f
-                                textAlign = android.graphics.Paint.Align.CENTER
-                            }
-                            canvas.drawText("AI Screenshot Try-On", 200f, 250f, paint)
-                            resultBitmap = sample
-                            isProcessing = false
-                            statusText = null
-                        }
                     },
-                    enabled = !isProcessing && screenshotUri != null,
+                    enabled = false,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(54.dp),
@@ -244,7 +225,7 @@ fun MarketplaceUploadScreen(
                     colors = ButtonDefaults.buttonColors(containerColor = DrapeCoral),
                 ) {
                     Text(
-                        if (isProcessing) "Rendering Try-On…" else "Try It On Now ✨",
+                        "Coming Soon — Virtual try-on integration in progress",
                         style = MaterialTheme.typography.labelLarge,
                         color = Color.White,
                     )

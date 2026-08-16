@@ -115,6 +115,7 @@ fun WardrobeScreen(
                 sourceUri = it,
                 name = "Daylight Photo (${avatars.size + 1})",
                 lighting = AvatarLighting.DAYLIGHT,
+                skinHex = SkinProfileRepository.load(context)?.skinHex,
             )
             if (saved != null) {
                 avatars = PhotoAvatarStore.listAvatars(context)

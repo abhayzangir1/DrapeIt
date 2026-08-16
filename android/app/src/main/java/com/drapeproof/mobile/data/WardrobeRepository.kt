@@ -15,7 +15,7 @@ data class SavedTryOnOutfit(
     val bottomwearCut: String,
     val bottomwearColor: String,
     val resultImagePath: String? = null,
-    val matchScorePercent: Int = 96,
+    val matchScorePercent: Int = 0,
     val createdAtEpoch: Long = System.currentTimeMillis(),
 )
 
@@ -55,7 +55,7 @@ object WardrobeRepository {
                         bottomwearCut = obj.getString("bottomwearCut"),
                         bottomwearColor = obj.getString("bottomwearColor"),
                         resultImagePath = obj.optString("resultImagePath").takeIf { it.isNotBlank() },
-                        matchScorePercent = obj.optInt("matchScorePercent", 96),
+                        matchScorePercent = obj.optInt("matchScorePercent", 0),
                         createdAtEpoch = obj.optLong("createdAtEpoch", System.currentTimeMillis()),
                     )
                 )
