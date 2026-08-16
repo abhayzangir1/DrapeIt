@@ -65,6 +65,9 @@ class FaceFrameAnalyzer(
     private val onFailure: (String) -> Unit,
 ) : ImageAnalysis.Analyzer, AutoCloseable {
     private val busy = AtomicBoolean(false)
+    private val isClosed = AtomicBoolean(false)
+    private val nativeLock = Any()
+
     private val faceLandmarker = FaceLandmarker.createFromOptions(
         context,
         FaceLandmarker.FaceLandmarkerOptions.builder()
@@ -82,31 +85,44 @@ class FaceFrameAnalyzer(
     )
 
     override fun analyze(image: ImageProxy) {
-        if (!busy.compareAndSet(false, true)) {
+        if (isClosed.get() || !busy.compareAndSet(false, true)) {
             image.close()
             return
         }
         try {
+            if (isClosed.get()) return
             val source = image.toBitmap()
             val oriented = source.oriented(image.imageInfo.rotationDegrees)
             val mpImage = BitmapImageBuilder(oriented).build()
             try {
-                val result = faceLandmarker.detect(mpImage)
-                onReading(analyzeFrame(oriented, result, image.imageInfo.timestamp))
+                val result = synchronized(nativeLock) {
+                    if (!isClosed.get()) faceLandmarker.detect(mpImage) else null
+                }
+                if (result != null && !isClosed.get()) {
+                    onReading(analyzeFrame(oriented, result, image.imageInfo.timestamp))
+                }
             } finally {
                 mpImage.close()
                 if (oriented !== source) oriented.recycle()
                 source.recycle()
             }
         } catch (error: Throwable) {
-            onFailure(error.message ?: "On-device face analysis failed")
+            if (!isClosed.get()) {
+                onFailure(error.message ?: "On-device face analysis failed")
+            }
         } finally {
             busy.set(false)
             image.close()
         }
     }
 
-    override fun close() = faceLandmarker.close()
+    override fun close() {
+        if (isClosed.compareAndSet(false, true)) {
+            synchronized(nativeLock) {
+                runCatching { faceLandmarker.close() }
+            }
+        }
+    }
 
     private fun analyzeFrame(bitmap: Bitmap, result: FaceLandmarkerResult, timestamp: Long): FrameReading {
         val landmarks = result.faceLandmarks().firstOrNull()

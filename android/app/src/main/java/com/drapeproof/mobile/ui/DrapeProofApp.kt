@@ -59,7 +59,6 @@ import com.drapeproof.mobile.profile.ProfileScreen
 import com.drapeproof.mobile.silhouette.UserProfileStore
 import com.drapeproof.mobile.tryon.TryOnScreen
 import com.drapeproof.mobile.ui.theme.EditorialGold
-import com.drapeproof.mobile.ui.welcome.DrapeWelcomeScreen
 import com.drapeproof.mobile.youcam.YouCamLabScreen
 
 enum class AppTab(val title: String, val icon: String) {
@@ -83,9 +82,6 @@ fun DrapeProofApp(
     onThemeChanged: (AppThemeMode) -> Unit = {},
 ) {
     val context = LocalContext.current
-    var showWelcome by remember { mutableStateOf(true) }
-    val mainEntranceWhiteAlpha = remember { Animatable(1f) }
-
     var isOnboarded by remember { mutableStateOf(UserProfileStore.isOnboarded(context)) }
     var currentTab by remember { mutableStateOf(AppTab.TRY_ON) }
     var subFlow by remember { mutableStateOf(SubFlow.NONE) }
@@ -107,22 +103,6 @@ fun DrapeProofApp(
             tryOnGarmentUri = sharedImageUri
             currentTab = AppTab.TRY_ON
             onSharedImageConsumed()
-        }
-    }
-
-    if (showWelcome) {
-        DrapeWelcomeScreen(
-            onWelcomeFinished = {
-                showWelcome = false
-            },
-        )
-        return
-    }
-
-    LaunchedEffect(showWelcome) {
-        if (!showWelcome) {
-            mainEntranceWhiteAlpha.snapTo(1f)
-            mainEntranceWhiteAlpha.animateTo(0f, tween(450, easing = FastOutSlowInEasing))
         }
     }
 
@@ -371,15 +351,6 @@ fun DrapeProofApp(
                     }
                 }
             }
-        }
-
-        // WHITE DISSOLVE ENTRANCE TRANSITION OVERLAY
-        if (mainEntranceWhiteAlpha.value > 0.001f) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.White.copy(alpha = mainEntranceWhiteAlpha.value)),
-            )
         }
     }
 }

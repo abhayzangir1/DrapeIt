@@ -35,6 +35,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -730,12 +731,17 @@ fun TryOnScreen(
                         TryOnInputSource.GARMENT -> {
                             val garmentBmp = customGarmentBitmap
                             if (garmentBmp != null) {
-                                Box(modifier = Modifier.fillMaxSize()) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                                    contentAlignment = Alignment.Center,
+                                ) {
                                     Image(
                                         bitmap = garmentBmp.asImageBitmap(),
                                         contentDescription = "Uploaded Dress",
                                         modifier = Modifier.fillMaxSize(),
-                                        contentScale = ContentScale.Crop,
+                                        contentScale = ContentScale.Fit,
                                     )
                                     Row(
                                         modifier = Modifier
@@ -972,10 +978,12 @@ fun TryOnScreen(
                         }
                         Spacer(Modifier.height(12.dp))
 
+                        val fabricScrollState = rememberScrollState()
+
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .horizontalScroll(rememberScrollState()),
+                                .horizontalScroll(fabricScrollState),
                             horizontalArrangement = Arrangement.spacedBy(10.dp),
                         ) {
                             FabricCatalog.allFabrics.forEach { fab ->
@@ -1021,6 +1029,29 @@ fun TryOnScreen(
                                 }
                             }
                         }
+
+                        Spacer(Modifier.height(10.dp))
+
+                        // Horizontal Scroll Progress Indicator
+                        val maxScroll = (fabricScrollState.maxValue).coerceAtLeast(1)
+                        val scrollFraction = (fabricScrollState.value.toFloat() / maxScroll).coerceIn(0f, 1f)
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.CenterHorizontally)
+                                .width(56.dp)
+                                .height(3.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.20f)),
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .offset(x = (34.dp * scrollFraction))
+                                    .width(22.dp)
+                                    .height(3.dp)
+                                    .clip(CircleShape)
+                                    .background(EditorialSienna),
+                            )
+                        }
                     }
                 }
             }
@@ -1063,27 +1094,16 @@ fun TryOnScreen(
                             contentScale = ContentScale.Crop,
                         )
                     } else {
-                        val activeAvatarFile = activeAvatar?.imagePath?.let { File(it) }
-                        val avatarBmp = if (activeAvatarFile?.exists() == true) BitmapFactory.decodeFile(activeAvatarFile.absolutePath) else null
-
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(260.dp)
+                                .height(220.dp)
                                 .clip(RoundedCornerShape(18.dp))
-                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.50f))
+                                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(18.dp))
                                 .graphicsLayer { if (isGenerating) alpha = pulseGlow },
                             contentAlignment = Alignment.Center,
                         ) {
-                            if (avatarBmp != null) {
-                                Image(
-                                    bitmap = avatarBmp.asImageBitmap(),
-                                    contentDescription = "Avatar Preview",
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentScale = ContentScale.Crop,
-                                )
-                            }
-
                             if (isGenerating) {
                                 Box(
                                     modifier = Modifier
@@ -1102,11 +1122,26 @@ fun TryOnScreen(
                                         )
                                     }
                                 }
-                            } else if (avatarBmp == null) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text("👔", fontSize = 42.sp)
+                            } else {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    modifier = Modifier.padding(20.dp),
+                                ) {
+                                    Text("✨", fontSize = 38.sp)
                                     Spacer(Modifier.height(8.dp))
-                                    Text("Upload photo to begin", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Medium)
+                                    Text(
+                                        "Virtual Try-On Studio",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        fontWeight = FontWeight.Bold,
+                                    )
+                                    Spacer(Modifier.height(4.dp))
+                                    Text(
+                                        if (inputSource == TryOnInputSource.GARMENT) "Tap 'Generate Try-On' to fit your uploaded garment onto your model" else "Tap 'Try On' to drape selected fabric and silhouette onto your model",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        textAlign = TextAlign.Center,
+                                    )
                                 }
                             }
                         }

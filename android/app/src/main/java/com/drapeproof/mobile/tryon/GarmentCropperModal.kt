@@ -85,6 +85,8 @@ fun GarmentCropperModal(
     var offsetY by remember { mutableFloatStateOf(0f) }
     var rotationDegrees by remember { mutableFloatStateOf(0f) }
     var isProcessing by remember { mutableStateOf(false) }
+    var lastCropBoxW by remember { mutableFloatStateOf(300f) }
+    var lastCropBoxH by remember { mutableFloatStateOf(400f) }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -161,6 +163,9 @@ fun GarmentCropperModal(
                         val cropBoxH = cropBoxW * (4.0f / 3.0f).coerceAtMost(viewportH * 0.88f / cropBoxW)
                         val cropBoxLeft = (viewportW - cropBoxW) / 2
                         val cropBoxTop = (viewportH - cropBoxH) / 2
+
+                        lastCropBoxW = cropBoxW
+                        lastCropBoxH = cropBoxH
 
                         // Draw image with transformations & rotation
                         val cropCenter = Offset(cropBoxLeft + cropBoxW / 2f, cropBoxTop + cropBoxH / 2f)
@@ -282,6 +287,8 @@ fun GarmentCropperModal(
                                 offsetX = offsetX,
                                 offsetY = offsetY,
                                 rotationDeg = rotationDegrees,
+                                cropBoxW = lastCropBoxW,
+                                cropBoxH = lastCropBoxH,
                             )
                             isProcessing = false
                             if (croppedFile != null) {
@@ -305,8 +312,8 @@ fun GarmentCropperModal(
 }
 
 /**
- * Normalizes, crops, and flattens garment onto clean white background (sRGB JPEG max 1280px)
- * optimized specifically for YouCam Cloud Clothes V3 VTO engine.
+ * Normalizes, crops, and flattens garment onto clean white background (sRGB JPEG 1024x1365)
+ * matching the exact viewport crop window for YouCam Cloud Clothes V3 VTO engine.
  */
 private fun processAndExportCroppedGarment(
     context: Context,
@@ -315,25 +322,30 @@ private fun processAndExportCroppedGarment(
     offsetX: Float,
     offsetY: Float,
     rotationDeg: Float,
+    cropBoxW: Float,
+    cropBoxH: Float,
 ): File? {
     return runCatching {
-        // Target high-res canvas (1024 x 1280)
+        // Target high-res canvas (1024 x 1365 - 3:4 aspect ratio)
         val targetW = 1024
-        val targetH = 1280
+        val targetH = 1365
         val cleanCanvasBitmap = Bitmap.createBitmap(targetW, targetH, Bitmap.Config.ARGB_8888)
         val canvas = AndroidCanvas(cleanCanvasBitmap)
 
         // Solid White Studio Background (Optimal for YouCam VTO edge extraction)
         canvas.drawColor(AndroidColor.WHITE)
 
+        val factor = if (cropBoxW > 10f) targetW.toFloat() / cropBoxW else (targetW / 300f)
+
         val matrix = Matrix().apply {
-            // Apply scale & translation (min preserves entire garment in canvas)
-            val baseScale = min(targetW.toFloat() / source.width, targetH.toFloat() / source.height) * scale
-            postScale(baseScale, baseScale)
-            postTranslate(
-                (targetW - source.width * baseScale) / 2 + offsetX * (targetW / 400f),
-                (targetH - source.height * baseScale) / 2 + offsetY * (targetH / 500f),
-            )
+            // 1. Scale image so rendered width on target canvas matches preview cropBox scaling
+            val s = (targetW.toFloat() * scale) / source.width.toFloat()
+            postScale(s, s)
+
+            // 2. Translate to align with the crop window
+            postTranslate(offsetX * factor, offsetY * factor)
+
+            // 3. Rotate around the center of the crop canvas
             if (rotationDeg != 0f) {
                 postRotate(rotationDeg, targetW / 2f, targetH / 2f)
             }
@@ -351,7 +363,7 @@ private fun processAndExportCroppedGarment(
         val dir = File(context.cacheDir, "garment_crops").apply { mkdirs() }
         val outputFile = File(dir, "garment_prep_${System.currentTimeMillis()}.jpg")
         FileOutputStream(outputFile).use { out ->
-            cleanCanvasBitmap.compress(Bitmap.CompressFormat.JPEG, 88, out)
+            cleanCanvasBitmap.compress(Bitmap.CompressFormat.JPEG, 92, out)
         }
         outputFile
     }.getOrNull()
