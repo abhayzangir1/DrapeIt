@@ -314,9 +314,6 @@ fun DrapeProofApp(
                                         onNavigateToLooks = {
                                             currentTab = AppTab.LOOKS
                                         },
-                                        onNavigateToShop = { _, _, _, _ ->
-                                            currentTab = AppTab.LOOKS
-                                        },
                                     )
                                 }
 

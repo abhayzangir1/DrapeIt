@@ -43,6 +43,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.drapeproof.core.color.ColorConversions
+import com.drapeproof.core.color.ColorDifference
+import com.drapeproof.core.color.SrgbColor
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -91,6 +94,7 @@ fun LiveSkinScanScreen(
     var detectedSkinHex by remember { mutableStateOf<String?>(null) }
     var calibrationProgress by remember { mutableFloatStateOf(0f) }
     var isScanLocked by remember { mutableStateOf(false) }
+    val skinBuffer = remember { mutableListOf<SrgbColor>() }
 
     val animatedProgress by animateFloatAsState(
         targetValue = calibrationProgress,
@@ -98,25 +102,47 @@ fun LiveSkinScanScreen(
         label = "progressAnim",
     )
 
-    // Progressive Skin Tone Accumulator
+    // Progressive Skin Tone Colorimetric Stability Accumulator (15-frame sliding window <= 1.2 DeltaE00)
     LaunchedEffect(latestReading) {
         if (isScanLocked) return@LaunchedEffect
 
         val reading = latestReading
-        if (reading != null && reading.hasFace && reading.basicCaptureReady && (reading.skinSrgb != null)) {
-            val hex = reading.skinSrgb.toHex()
-            detectedSkinHex = hex
+        if (reading != null && reading.hasFace && reading.basicCaptureReady && reading.skinSrgb != null) {
+            skinBuffer.add(reading.skinSrgb)
+            if (skinBuffer.size > 15) {
+                skinBuffer.removeAt(0)
+            }
 
-            if (calibrationProgress < 1.0f) {
-                calibrationProgress = (calibrationProgress + 0.07f).coerceAtMost(1.0f)
+            // Calculate mean color across current buffer
+            val avgR = skinBuffer.map { it.red }.average().toInt().coerceIn(0, 255)
+            val avgG = skinBuffer.map { it.green }.average().toInt().coerceIn(0, 255)
+            val avgB = skinBuffer.map { it.blue }.average().toInt().coerceIn(0, 255)
+            val meanSrgb = SrgbColor(avgR, avgG, avgB)
+            val meanLab = ColorConversions.srgbToLab(meanSrgb)
+
+            // Compute maximum deltaE00 variance against mean in current sliding window
+            val maxDeltaE = skinBuffer.map { ColorDifference.ciede2000(ColorConversions.srgbToLab(it), meanLab) }.maxOrNull() ?: 0.0
+
+            val currentHex = meanSrgb.toHex()
+            detectedSkinHex = currentHex
+
+            // If variation is low (<= 1.4 DeltaE) and face is still, advance progress genuinely
+            if (maxDeltaE <= 1.4) {
+                val fraction = (skinBuffer.size.toFloat() / 15f).coerceIn(0f, 1f)
+                calibrationProgress = fraction
+
+                if (skinBuffer.size >= 15 && maxDeltaE <= 1.2) {
+                    isScanLocked = true
+                    SoundEffectManager.playSuccess(currentView)
+                }
             } else {
-                isScanLocked = true
-                SoundEffectManager.playSuccess(currentView)
+                // If lighting is fluctuating, trim buffer
+                if (skinBuffer.size > 3) skinBuffer.removeAt(0)
+                calibrationProgress = (skinBuffer.size.toFloat() / 15f).coerceIn(0f, 1f)
             }
         } else {
-            if (calibrationProgress > 0.05f) {
-                calibrationProgress = (calibrationProgress - 0.03f).coerceAtLeast(0f)
-            }
+            if (skinBuffer.isNotEmpty()) skinBuffer.removeAt(0)
+            calibrationProgress = (skinBuffer.size.toFloat() / 15f).coerceIn(0f, 1f)
         }
     }
 

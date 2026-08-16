@@ -242,7 +242,6 @@ fun TryOnScreen(
     initialGarmentUri: Uri? = null,
     initialSnapId: String? = null,
     onNavigateToLooks: () -> Unit = {},
-    onNavigateToShop: (fabricName: String, colorName: String, colorHex: String, cut: String) -> Unit = { _, _, _, _ -> },
 ) {
     val context = LocalContext.current
     val currentView = LocalView.current

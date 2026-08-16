@@ -184,53 +184,6 @@ object PhotoAvatarStore {
             .apply()
     }
 
-    fun createStudioModelAvatar(context: Context): SavedAvatar {
-        val avatarsDir = getAvatarsDir(context)
-        val targetFile = File(avatarsDir, "avatar_studio_model.jpg")
-        if (!targetFile.exists()) {
-            val width = 720
-            val height = 960
-            val bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-            val canvas = android.graphics.Canvas(bmp)
-            val bgPaint = android.graphics.Paint().apply { color = android.graphics.Color.parseColor("#EAE6E1") }
-            canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), bgPaint)
-
-            val skinPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.parseColor("#D8A47F") }
-            canvas.drawRect(width * 0.40f, height * 0.35f, width * 0.60f, height * 0.55f, skinPaint)
-            canvas.drawOval(android.graphics.RectF(width * 0.33f, height * 0.15f, width * 0.67f, height * 0.45f), skinPaint)
-
-            val shoulderPath = android.graphics.Path().apply {
-                moveTo(0f, height * 0.60f)
-                quadTo(width * 0.35f, height * 0.48f, width * 0.40f, height * 0.48f)
-                lineTo(width * 0.60f, height * 0.48f)
-                quadTo(width * 0.65f, height * 0.48f, width.toFloat(), height * 0.60f)
-                lineTo(width.toFloat(), height.toFloat())
-                lineTo(0f, height.toFloat())
-                close()
-            }
-            val shirtPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.parseColor("#FFFFFF") }
-            canvas.drawPath(shoulderPath, shirtPaint)
-
-            FileOutputStream(targetFile).use { out ->
-                bmp.compress(Bitmap.CompressFormat.JPEG, 92, out)
-            }
-        }
-        val avatar = SavedAvatar(
-            id = "studio_model_preset",
-            name = "AI Fit Model",
-            lighting = AvatarLighting.STUDIO,
-            imagePath = targetFile.absolutePath,
-            skinHex = "#D8A47F",
-        )
-        val existing = listAvatars(context).toMutableList()
-        if (existing.none { it.id == avatar.id }) {
-            existing.add(avatar)
-            saveRegistry(context, existing)
-        }
-        setActiveAvatarId(context, avatar.id)
-        return avatar
-    }
-
     fun deleteAll(context: Context) {
         runCatching {
             getAvatarsDir(context).deleteRecursively()

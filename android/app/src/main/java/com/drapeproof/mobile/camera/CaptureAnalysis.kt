@@ -123,94 +123,97 @@ class FaceFrameAnalyzer(
             }
         }
     }
+}
 
-    private fun analyzeFrame(bitmap: Bitmap, result: FaceLandmarkerResult, timestamp: Long): FrameReading {
-        val landmarks = result.faceLandmarks().firstOrNull()
-        if (landmarks == null || landmarks.size < 455) {
-            return FrameReading(
-                face = null,
-                fabric = null,
-                skinSrgb = null,
-                fabricSrgb = null,
-                yawDegrees = 0.0,
-                pitchDegrees = 0.0,
-                rollDegrees = 0.0,
-                faceScale = 0.0,
-                clippedPixelFraction = 1.0,
-                fabricClippedPixelFraction = 1.0,
-                faceLuminance = 0.0,
-                sharpEnough = false,
-                neutralExpression = false,
-                eyesOpen = false,
-                occlusionFree = false,
-                fabricRegionValid = false,
-                captureConfidencePercent = 20,
-                lightingStatusLabel = "Align Face in Oval",
-                timestampNanos = timestamp,
-            )
-        }
+fun analyzeFrame(bitmap: Bitmap, result: FaceLandmarkerResult, timestamp: Long = System.currentTimeMillis()): FrameReading {
+    val landmarks = result.faceLandmarks().firstOrNull()
+    if (landmarks == null || landmarks.size < 455) {
+        return FrameReading(
+            face = null,
+            fabric = null,
+            skinSrgb = null,
+            fabricSrgb = null,
+            yawDegrees = 0.0,
+            pitchDegrees = 0.0,
+            rollDegrees = 0.0,
+            faceScale = 0.0,
+            clippedPixelFraction = 1.0,
+            fabricClippedPixelFraction = 1.0,
+            faceLuminance = 0.0,
+            sharpEnough = false,
+            neutralExpression = false,
+            eyesOpen = false,
+            occlusionFree = false,
+            fabricRegionValid = false,
+            captureConfidencePercent = 20,
+            lightingStatusLabel = "Align Face in Oval",
+            timestampNanos = timestamp,
+        )
+    }
 
-        fun point(index: Int): Pair<Double, Double> =
-            landmarks[index].x().toDouble() to landmarks[index].y().toDouble()
+    fun point(index: Int): Pair<Double, Double> =
+        landmarks[index].x().toDouble() to landmarks[index].y().toDouble()
 
-        val xs = landmarks.map { it.x().toDouble() }
-        val ys = landmarks.map { it.y().toDouble() }
-        val minX = xs.minOrNull()!!.coerceIn(0.0, 1.0)
-        val maxX = xs.maxOrNull()!!.coerceIn(0.0, 1.0)
-        val minY = ys.minOrNull()!!.coerceIn(0.0, 1.0)
-        val maxY = ys.maxOrNull()!!.coerceIn(0.0, 1.0)
+    val xs = landmarks.map { it.x().toDouble() }
+    val ys = landmarks.map { it.y().toDouble() }
+    val minX = xs.minOrNull()!!.coerceIn(0.0, 1.0)
+    val maxX = xs.maxOrNull()!!.coerceIn(0.0, 1.0)
+    val minY = ys.minOrNull()!!.coerceIn(0.0, 1.0)
+    val maxY = ys.maxOrNull()!!.coerceIn(0.0, 1.0)
 
-        // 1. BEARD & FACIAL HAIR-RESILIENT MULTI-ZONE SKIN SAMPLING
-        // Sample exclusively from upper hair-free zones:
-        val forehead1 = bitmap.samplePatchStats(point(10), 0.016)
-        val forehead2 = bitmap.samplePatchStats(point(151), 0.016)
-        val forehead3 = bitmap.samplePatchStats(point(9), 0.016)
-        val leftHighCheek = bitmap.samplePatchStats(point(118), 0.015) // Sub-orbital, above beard line
-        val rightHighCheek = bitmap.samplePatchStats(point(347), 0.015) // Sub-orbital, above beard line
-        val nasalBridge = bitmap.samplePatchStats(point(6), 0.012)
+    // 1. BEARD & FACIAL HAIR-RESILIENT MULTI-ZONE SKIN SAMPLING
+    // Sample exclusively from upper hair-free zones:
+    val forehead1 = bitmap.samplePatchStats(point(10), 0.016)
+    val forehead2 = bitmap.samplePatchStats(point(151), 0.016)
+    val forehead3 = bitmap.samplePatchStats(point(9), 0.016)
+    val leftHighCheek = bitmap.samplePatchStats(point(118), 0.015) // Sub-orbital, above beard line
+    val rightHighCheek = bitmap.samplePatchStats(point(347), 0.015) // Sub-orbital, above beard line
+    val nasalBridge = bitmap.samplePatchStats(point(6), 0.012)
 
-        val candidatePatches = listOf(forehead1, forehead2, forehead3, leftHighCheek, rightHighCheek, nasalBridge)
+    val candidatePatches = listOf(forehead1, forehead2, forehead3, leftHighCheek, rightHighCheek, nasalBridge)
 
-        // Texture variance check: discard patches with high micro-contrast (hair, stubble, fabric edges)
-        val smoothPatches = candidatePatches.filter { it.color != null && it.channelDeviation < 34.0 }
+    // Texture variance check: discard patches with high micro-contrast (hair, stubble, fabric edges)
+    val smoothPatches = candidatePatches.filter { it.color != null && it.channelDeviation < 34.0 }
 
-        // Luminance outlier trimming: discard patches significantly darker than forehead reference
-        val refLuminance = (forehead1.color ?: forehead2.color)?.relativeLuminance() ?: 0.50
-        val validSkinPatches = smoothPatches.mapNotNull { it.color }.filter { color ->
-            abs(color.relativeLuminance() - refLuminance) < 0.22 && isPlausibleHumanSkin(color)
-        }
+    // Luminance outlier trimming: derive dynamically from valid smooth patches if forehead is covered
+    val refLuminance = (forehead1.color ?: forehead2.color)?.relativeLuminance()
+        ?: smoothPatches.mapNotNull { it.color?.relativeLuminance() }.average().takeIf { !it.isNaN() }
+        ?: 0.50
+    val validSkinPatches = smoothPatches.mapNotNull { it.color }.filter { color ->
+        abs(color.relativeLuminance() - refLuminance) < 0.22 && isPlausibleHumanSkin(color)
+    }
 
-        val skin = if (validSkinPatches.isNotEmpty()) {
-            medianColor(validSkinPatches)
-        } else {
-            smoothPatches.mapNotNull { it.color }.firstOrNull()?.takeIf { isPlausibleHumanSkin(it) }
-        }
+    val skin = if (validSkinPatches.isNotEmpty()) {
+        medianColor(validSkinPatches)
+    } else {
+        smoothPatches.mapNotNull { it.color }.firstOrNull()?.takeIf { isPlausibleHumanSkin(it) }
+    }
 
-        val cheek = skin
-        val underChin = bitmap.samplePatchStats(point(152).let { it.first to (it.second - 0.035) }, 0.014).color
+    val cheek = skin
+    val underChin = bitmap.samplePatchStats(point(152).let { it.first to (it.second - 0.035) }, 0.014).color
 
-        val eye = if (landmarks.size > 473) {
-            medianColor(
-                listOfNotNull(
-                    bitmap.samplePatchStats(point(468), 0.0045).color,
-                    bitmap.samplePatchStats(point(473), 0.0045).color,
-                ),
-            )
-        } else {
-            null
-        }
-        val eyebrow = medianColor(
+    val eye = if (landmarks.size > 473) {
+        medianColor(
             listOfNotNull(
-                bitmap.samplePatchStats(point(105), 0.010).color,
-                bitmap.samplePatchStats(point(334), 0.010).color,
+                bitmap.samplePatchStats(point(468), 0.0045).color,
+                bitmap.samplePatchStats(point(473), 0.0045).color,
             ),
         )
-        val lip = medianColor(
-            listOfNotNull(
-                bitmap.samplePatchStats(point(13), 0.011).color,
-                bitmap.samplePatchStats(point(14), 0.011).color,
-            ),
-        )
+    } else {
+        null
+    }
+    val eyebrow = medianColor(
+        listOfNotNull(
+            bitmap.samplePatchStats(point(105), 0.010).color,
+            bitmap.samplePatchStats(point(334), 0.010).color,
+        ),
+    )
+    val lip = medianColor(
+        listOfNotNull(
+            bitmap.samplePatchStats(point(13), 0.011).color,
+            bitmap.samplePatchStats(point(14), 0.011).color,
+        ),
+    )
 
         val chinY = point(152).second
         val fabricStartY = max(0.70, chinY + 0.055).coerceAtMost(0.86)
@@ -304,7 +307,6 @@ class FaceFrameAnalyzer(
             timestampNanos = timestamp,
         )
     }
-}
 
 private data class RegionStats(
     val color: SrgbColor?,
@@ -317,21 +319,27 @@ private data class RegionStats(
 }
 
 private fun Bitmap.samplePatchStats(center: Pair<Double, Double>, radiusFraction: Double): RegionStats {
-    val cx = (center.first * width).roundToInt()
-    val cy = (center.second * height).roundToInt()
+    val cx = (center.first * width).roundToInt().coerceIn(0, width - 1)
+    val cy = (center.second * height).roundToInt().coerceIn(0, height - 1)
     val r = max(2, (radiusFraction * min(width, height)).roundToInt())
-    val left = max(0, cx - r)
-    val right = min(width - 1, cx + r)
-    val top = max(0, cy - r)
-    val bottom = min(height - 1, cy + r)
+    val left = (cx - r).coerceIn(0, width - 1)
+    val right = (cx + r).coerceIn(0, width - 1)
+    val top = (cy - r).coerceIn(0, height - 1)
+    val bottom = (cy + r).coerceIn(0, height - 1)
+
+    val spanW = right - left + 1
+    val spanH = bottom - top + 1
+    if (spanW <= 0 || spanH <= 0) {
+        return RegionStats(null, 0, 0, 0.0)
+    }
 
     var sumR = 0L
     var sumG = 0L
     var sumB = 0L
     var count = 0
     var clipped = 0
-    val pixels = IntArray((right - left + 1) * (bottom - top + 1))
-    getPixels(pixels, 0, right - left + 1, left, top, right - left + 1, bottom - top + 1)
+    val pixels = IntArray(spanW * spanH)
+    getPixels(pixels, 0, spanW, left, top, spanW, spanH)
 
     for (pixel in pixels) {
         val red = Color.red(pixel)

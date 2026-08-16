@@ -92,6 +92,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.drapeproof.core.color.TrueColorHarmonyEngine
+import com.google.mediapipe.framework.image.BitmapImageBuilder
+import com.google.mediapipe.tasks.core.BaseOptions
+import com.google.mediapipe.tasks.vision.core.RunningMode
+import com.google.mediapipe.tasks.vision.facelandmarker.FaceLandmarker
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.drapeproof.mobile.avatar.AvatarLighting
 import com.drapeproof.mobile.avatar.PhotoAvatarStore
 import com.drapeproof.mobile.data.DrapeSnapRepository
@@ -181,6 +187,44 @@ fun DrapeCaptureScreen(
     var latestReading by remember { mutableStateOf<FrameReading?>(null) }
     var detectedSkinHex by remember { mutableStateOf<String?>(null) }
     var activePreviewView by remember { mutableStateOf<PreviewView?>(null) }
+
+    // Run real one-shot face and skin tone analysis on static photo when uploaded from gallery
+    LaunchedEffect(photoBitmap) {
+        val bmp = photoBitmap ?: return@LaunchedEffect
+        withContext(Dispatchers.Default) {
+            runCatching {
+                val landmarker = FaceLandmarker.createFromOptions(
+                    context,
+                    FaceLandmarker.FaceLandmarkerOptions.builder()
+                        .setBaseOptions(
+                            BaseOptions.builder()
+                                .setModelAssetPath("face_landmarker.task")
+                                .build(),
+                        )
+                        .setRunningMode(RunningMode.IMAGE)
+                        .setNumFaces(1)
+                        .setMinFaceDetectionConfidence(0.50f)
+                        .setMinFacePresenceConfidence(0.50f)
+                        .setMinTrackingConfidence(0.50f)
+                        .build(),
+                )
+                val mpImage = BitmapImageBuilder(bmp).build()
+                try {
+                    val result = landmarker.detect(mpImage)
+                    val reading = analyzeFrame(bmp, result)
+                    withContext(Dispatchers.Main) {
+                        latestReading = reading
+                        if (reading.skinSrgb != null) {
+                            detectedSkinHex = reading.skinSrgb.toHex()
+                        }
+                    }
+                } finally {
+                    mpImage.close()
+                    landmarker.close()
+                }
+            }
+        }
+    }
 
     var selectedFabric by remember {
         mutableStateOf(if (initialFabricId != null) FabricCatalog.findById(initialFabricId) else FabricCatalog.defaultFabric)
