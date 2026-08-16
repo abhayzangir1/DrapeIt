@@ -4,14 +4,13 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
-import android.graphics.Paint
-import android.graphics.Path
-import android.graphics.BitmapShader
-import android.graphics.Shader
-import android.graphics.PorterDuff
-import android.graphics.PorterDuffXfermode
 import android.graphics.ColorMatrix
 import android.graphics.ColorMatrixColorFilter
+import android.graphics.Paint
+import android.graphics.Path
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffXfermode
+import android.graphics.Rect
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -38,8 +37,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -72,6 +69,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -88,16 +86,13 @@ import com.drapeproof.mobile.fabric.FabricTextureShader
 import com.drapeproof.mobile.network.DrapeProofApiClient
 import com.drapeproof.mobile.network.RemoteTaskResult
 import com.drapeproof.mobile.network.UploadInput
-import com.drapeproof.mobile.ui.components.FullScreenImageViewerModal
+import com.drapeproof.mobile.profile.ProfileSettingsModal
 import com.drapeproof.mobile.ui.UniversalColorPickerDialog
-import com.drapeproof.mobile.ui.theme.EditorialCream
-import com.drapeproof.mobile.ui.theme.EditorialInk
-import com.drapeproof.mobile.ui.theme.EditorialMuted
+import com.drapeproof.mobile.ui.components.FullScreenImageViewerModal
+import com.drapeproof.mobile.ui.sound.SoundEffectManager
+import com.drapeproof.mobile.ui.theme.EditorialGold
 import com.drapeproof.mobile.ui.theme.EditorialPositive
-import com.drapeproof.mobile.ui.theme.EditorialSand
 import com.drapeproof.mobile.ui.theme.EditorialSienna
-import com.drapeproof.mobile.ui.theme.EditorialStone
-import com.drapeproof.mobile.ui.theme.EditorialWarning
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -159,184 +154,169 @@ fun generateReferenceGarmentBitmap(
     val height = 800
     val bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bmp)
+
+    // Base background clean off-white canvas
     canvas.drawColor(android.graphics.Color.WHITE)
 
-    val garmentPath = Path()
-    val basePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+    val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = android.graphics.Color.parseColor(colorHex)
         style = Paint.Style.FILL
     }
 
+    val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = android.graphics.Color.DKGRAY
+        style = Paint.Style.STROKE
+        strokeWidth = 4f
+    }
+
+    val path = Path()
+
     when (silhouette.category) {
         GarmentCategory.FULL_BODY -> {
-            garmentPath.moveTo(width * 0.35f, height * 0.12f)
-            garmentPath.lineTo(width * 0.20f, height * 0.16f)
-            garmentPath.lineTo(width * 0.12f, height * 0.38f)
-            garmentPath.lineTo(width * 0.24f, height * 0.40f)
-            garmentPath.lineTo(width * 0.28f, height * 0.32f)
-            garmentPath.lineTo(width * 0.22f, height * 0.88f)
-            garmentPath.lineTo(width * 0.78f, height * 0.88f)
-            garmentPath.lineTo(width * 0.72f, height * 0.32f)
-            garmentPath.lineTo(width * 0.76f, height * 0.40f)
-            garmentPath.lineTo(width * 0.88f, height * 0.38f)
-            garmentPath.lineTo(width * 0.80f, height * 0.16f)
-            garmentPath.lineTo(width * 0.65f, height * 0.12f)
-            garmentPath.cubicTo(width * 0.58f, height * 0.22f, width * 0.42f, height * 0.22f, width * 0.35f, height * 0.12f)
-            garmentPath.close()
-        }
-        GarmentCategory.UPPER_BODY -> {
-            garmentPath.moveTo(width * 0.34f, height * 0.14f)
-            garmentPath.lineTo(width * 0.18f, height * 0.20f)
-            garmentPath.lineTo(width * 0.08f, height * 0.42f)
-            garmentPath.lineTo(width * 0.22f, height * 0.46f)
-            garmentPath.lineTo(width * 0.26f, height * 0.35f)
-            garmentPath.lineTo(width * 0.24f, height * 0.76f)
-            garmentPath.lineTo(width * 0.76f, height * 0.76f)
-            garmentPath.lineTo(width * 0.74f, height * 0.35f)
-            garmentPath.lineTo(width * 0.78f, height * 0.46f)
-            garmentPath.lineTo(width * 0.92f, height * 0.42f)
-            garmentPath.lineTo(width * 0.82f, height * 0.20f)
-            garmentPath.lineTo(width * 0.66f, height * 0.14f)
-            garmentPath.cubicTo(width * 0.58f, height * 0.24f, width * 0.42f, height * 0.24f, width * 0.34f, height * 0.14f)
-            garmentPath.close()
+            // Dress silhouette
+            path.moveTo(width * 0.35f, height * 0.15f)
+            path.lineTo(width * 0.20f, height * 0.22f)
+            path.lineTo(width * 0.25f, height * 0.30f)
+            path.lineTo(width * 0.35f, height * 0.28f)
+            path.lineTo(width * 0.32f, height * 0.45f) // Waist
+            path.lineTo(width * 0.15f, height * 0.85f) // Flare bottom left
+            path.lineTo(width * 0.85f, height * 0.85f) // Flare bottom right
+            path.lineTo(width * 0.68f, height * 0.45f) // Waist right
+            path.lineTo(width * 0.65f, height * 0.28f)
+            path.lineTo(width * 0.75f, height * 0.30f)
+            path.lineTo(width * 0.80f, height * 0.22f)
+            path.lineTo(width * 0.65f, height * 0.15f)
+            path.quadTo(width * 0.50f, height * 0.22f, width * 0.35f, height * 0.15f) // Collar neckline
+            path.close()
         }
         GarmentCategory.LOWER_BODY -> {
-            garmentPath.moveTo(width * 0.28f, height * 0.22f)
-            garmentPath.lineTo(width * 0.72f, height * 0.22f)
-            garmentPath.lineTo(width * 0.76f, height * 0.86f)
-            garmentPath.lineTo(width * 0.56f, height * 0.86f)
-            garmentPath.lineTo(width * 0.50f, height * 0.45f)
-            garmentPath.lineTo(width * 0.44f, height * 0.86f)
-            garmentPath.lineTo(width * 0.24f, height * 0.86f)
-            garmentPath.close()
+            // Pants/Trousers silhouette
+            path.moveTo(width * 0.25f, height * 0.15f)
+            path.lineTo(width * 0.75f, height * 0.15f)
+            path.lineTo(width * 0.80f, height * 0.88f)
+            path.lineTo(width * 0.58f, height * 0.88f)
+            path.lineTo(width * 0.50f, height * 0.42f) // Crotch
+            path.lineTo(width * 0.42f, height * 0.88f)
+            path.lineTo(width * 0.20f, height * 0.88f)
+            path.close()
+        }
+        GarmentCategory.UPPER_BODY -> {
+            // Shirts / Blazer / Tops
+            path.moveTo(width * 0.33f, height * 0.15f)
+            path.lineTo(width * 0.12f, height * 0.25f)
+            path.lineTo(width * 0.18f, height * 0.38f)
+            path.lineTo(width * 0.28f, height * 0.32f)
+            path.lineTo(width * 0.26f, height * 0.85f)
+            path.lineTo(width * 0.74f, height * 0.85f)
+            path.lineTo(width * 0.72f, height * 0.32f)
+            path.lineTo(width * 0.82f, height * 0.38f)
+            path.lineTo(width * 0.88f, height * 0.25f)
+            path.lineTo(width * 0.67f, height * 0.15f)
+            path.quadTo(width * 0.50f, height * 0.24f, width * 0.33f, height * 0.15f)
+            path.close()
         }
     }
 
-    canvas.drawPath(garmentPath, basePaint)
+    canvas.drawPath(path, paint)
+    canvas.drawPath(path, strokePaint)
 
-    val rawTile = FabricTextureShader.getOrLoadRawBitmap(context, fabric.id)
-    rawTile?.let { tile ->
-        val tileShader = BitmapShader(tile, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
-        val tilePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            shader = tileShader
-            alpha = (fabric.textureAlpha * 0.35f * 255).toInt().coerceIn(25, 95)
+    // Apply procedural textile texture overlay
+    val textureBmp = FabricTextureShader.getOrLoadRawBitmap(context, fabric.id)
+    if (textureBmp != null) {
+        val blendPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             xfermode = PorterDuffXfermode(PorterDuff.Mode.MULTIPLY)
+            alpha = 140
         }
-        canvas.drawPath(garmentPath, tilePaint)
+        canvas.drawBitmap(textureBmp, null, Rect(0, 0, width, height), blendPaint)
     }
-
-    val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        style = Paint.Style.STROKE
-        strokeWidth = 3f
-        color = android.graphics.Color.argb(80, 0, 0, 0)
-    }
-    canvas.drawPath(garmentPath, shadowPaint)
 
     return bmp
 }
 
 fun applyInstantColorSwap(sourceBitmap: Bitmap, targetHex: String): Bitmap {
-    val result = Bitmap.createBitmap(sourceBitmap.width, sourceBitmap.height, Bitmap.Config.ARGB_8888)
-    val canvas = Canvas(result)
+    val width = sourceBitmap.width
+    val height = sourceBitmap.height
+    val resultBmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(resultBmp)
+
+    // Draw base image
     canvas.drawBitmap(sourceBitmap, 0f, 0f, null)
 
-    val targetColor = android.graphics.Color.parseColor(targetHex)
-    val tr = android.graphics.Color.red(targetColor) / 255f
-    val tg = android.graphics.Color.green(targetColor) / 255f
-    val tb = android.graphics.Color.blue(targetColor) / 255f
-
-    val colorMatrix = ColorMatrix(
-        floatArrayOf(
-            tr * 1.5f, 0f, 0f, 0f, 0f,
-            0f, tg * 1.5f, 0f, 0f, 0f,
-            0f, 0f, tb * 1.5f, 0f, 0f,
-            0f, 0f, 0f, 1f, 0f,
-        ),
-    )
-
-    val w = sourceBitmap.width.toFloat()
-    val h = sourceBitmap.height.toFloat()
-
-    val torsoPath = Path().apply {
-        moveTo(w * 0.15f, h * 0.42f)
-        cubicTo(w * 0.25f, h * 0.38f, w * 0.75f, h * 0.38f, w * 0.85f, h * 0.42f)
-        lineTo(w * 0.90f, h * 0.85f)
-        lineTo(w * 0.10f, h * 0.85f)
-        close()
+    // Create upper body color overlay with soft-light blending
+    val overlayPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = android.graphics.Color.parseColor(targetHex)
+        xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_ATOP)
+        alpha = 140
     }
 
-    val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        colorFilter = ColorMatrixColorFilter(colorMatrix)
-        xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_ATOP)
+    // Mask upper chest area (y: 28% to 75%, x: 18% to 82%)
+    val chestPath = Path().apply {
+        addOval(
+            width * 0.18f,
+            height * 0.30f,
+            width * 0.82f,
+            height * 0.76f,
+            Path.Direction.CW,
+        )
     }
 
     canvas.save()
-    canvas.clipPath(torsoPath)
-    canvas.drawBitmap(sourceBitmap, 0f, 0f, paint)
+    canvas.clipPath(chestPath)
+    canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), overlayPaint)
     canvas.restore()
 
-    return result
+    return resultBmp
 }
 
 @Composable
 fun TryOnScreen(
-    initialFabricId: String? = null,
-    initialColorHex: String? = null,
+    initialFabricId: String = "silk",
+    initialColorHex: String = "#831843",
     initialGarmentUri: Uri? = null,
+    initialSnapId: String? = null,
     onNavigateToLooks: () -> Unit = {},
-    onNavigateToShop: (fabricName: String, colorName: String, colorHex: String, category: String) -> Unit = { _, _, _, _ -> },
+    onNavigateToShop: (fabricName: String, colorName: String, colorHex: String, cut: String) -> Unit = { _, _, _, _ -> },
 ) {
     val context = LocalContext.current
+    val currentView = LocalView.current
     val scope = rememberCoroutineScope()
 
     var inputSource by remember {
-        mutableStateOf(
-            if (initialGarmentUri != null) TryOnInputSource.GARMENT else if (initialFabricId != null) TryOnInputSource.STYLE else TryOnInputSource.GARMENT,
-        )
+        mutableStateOf(if (initialGarmentUri != null) TryOnInputSource.GARMENT else TryOnInputSource.GARMENT)
     }
+    var selectedFabric by remember { mutableStateOf(FabricCatalog.findById(initialFabricId)) }
+    var selectedColorHex by remember { mutableStateOf(initialColorHex) }
+    var selectedSilhouette by remember { mutableStateOf(GarmentSilhouette.BLOUSE) }
 
-    // Avatar starts null so user can upload directly
-    var activeAvatar by remember { mutableStateOf<SavedAvatar?>(null) }
-    var customGarmentUri by remember { mutableStateOf(initialGarmentUri) }
+    var customGarmentUri by remember { mutableStateOf<Uri?>(initialGarmentUri) }
+    var rawGarmentBitmapToCrop by remember { mutableStateOf<Bitmap?>(null) }
+    var isCropperOpen by remember { mutableStateOf(false) }
 
-    var selectedSilhouette by remember { mutableStateOf(GarmentSilhouette.SHIRT) }
+    var activeAvatar by remember { mutableStateOf<SavedAvatar?>(PhotoAvatarStore.getActiveAvatar(context)) }
     var isSilhouetteModalOpen by remember { mutableStateOf(false) }
-
-    var selectedFabric by remember {
-        mutableStateOf(if (initialFabricId != null) FabricCatalog.findById(initialFabricId) else FabricCatalog.defaultFabric)
-    }
-    var selectedColorHex by remember { mutableStateOf(initialColorHex ?: "#831843") }
     var isColorPickerOpen by remember { mutableStateOf(false) }
+    var isSettingsOpen by remember { mutableStateOf(false) }
 
     var isGenerating by remember { mutableStateOf(false) }
     var generationStatus by remember { mutableStateOf<String?>(null) }
     var tryOnResultBitmap by remember { mutableStateOf<Bitmap?>(null) }
-    var fullScreenPreviewBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var savedOutfitId by remember { mutableStateOf<String?>(null) }
+    var fullScreenPreviewBitmap by remember { mutableStateOf<Bitmap?>(null) }
 
     var showAvatarPromptDialog by remember { mutableStateOf(false) }
     var showGarmentPromptDialog by remember { mutableStateOf(false) }
 
-    // Cropper modal state
-    var isCropperOpen by remember { mutableStateOf(false) }
-    var rawGarmentBitmapToCrop by remember { mutableStateOf<Bitmap?>(null) }
-
     val avatarPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         if (uri != null) {
-            runCatching {
-                context.contentResolver.openInputStream(uri)?.use { stream ->
-                    val bmp = BitmapFactory.decodeStream(stream)
-                    if (bmp != null) {
-                        val saved = PhotoAvatarStore.saveAvatarFromBitmap(
-                            context = context,
-                            bitmap = bmp,
-                            name = "My Portrait",
-                            lighting = AvatarLighting.DAYLIGHT,
-                            skinHex = "#D8B498",
-                        )
-                        activeAvatar = saved
-                    }
-                }
+            val saved = PhotoAvatarStore.saveAvatarFromUri(
+                context = context,
+                sourceUri = uri,
+                name = "Headshot",
+                lighting = AvatarLighting.DAYLIGHT,
+                skinHex = "#D8B498",
+            )
+            if (saved != null) {
+                activeAvatar = saved
             }
         }
     }
@@ -496,7 +476,7 @@ fun TryOnScreen(
                 }
 
                 if (finalResultUrl != null) {
-                    withContext(Dispatchers.Main) { generationStatus = "Downloading fitted photo…" }
+                    withContext(Dispatchers.Main) { generationStatus = "Downloading photorealistic look…" }
                     val urlStream = URL(finalResultUrl).openStream()
                     val downloadedBmp = BitmapFactory.decodeStream(urlStream)
 
@@ -541,19 +521,57 @@ fun TryOnScreen(
         }
     }
 
-    Surface(modifier = Modifier.fillMaxSize(), color = EditorialCream) {
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = MaterialTheme.colorScheme.background,
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
-                .padding(horizontal = 18.dp)
+                .padding(horizontal = 20.dp)
                 .verticalScroll(rememberScrollState()),
         ) {
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(18.dp))
 
-            Text("Try-On", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = EditorialInk)
+            // TOP HEADER BAR WITH SETTINGS ICON
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column {
+                    Text(
+                        "Try-On",
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground,
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        "Virtual photorealistic wardrobe studio",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
 
-            Spacer(Modifier.height(14.dp))
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.40f), CircleShape)
+                        .clickable {
+                            SoundEffectManager.playTap(currentView)
+                            isSettingsOpen = true
+                        },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("⚙️", fontSize = 18.sp)
+                }
+            }
+
+            Spacer(Modifier.height(18.dp))
 
             // MODE SWITCHER TABS: [ Garment ] [ Style ] [ Swap ]
             SecondaryTabRow(
@@ -573,12 +591,15 @@ fun TryOnScreen(
                     val isSelected = inputSource == tab
                     Tab(
                         selected = isSelected,
-                        onClick = { inputSource = tab },
+                        onClick = {
+                            SoundEffectManager.playTap(currentView)
+                            inputSource = tab
+                        },
                         text = {
                             Text(
                                 tab.title,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                color = if (isSelected) EditorialSienna else EditorialInk,
+                                color = if (isSelected) EditorialSienna else MaterialTheme.colorScheme.onSurface,
                                 fontSize = 13.sp,
                             )
                         },
@@ -586,22 +607,22 @@ fun TryOnScreen(
                 }
             }
 
-            Spacer(Modifier.height(18.dp))
+            Spacer(Modifier.height(22.dp))
 
             // TWO PROMINENT LARGE SELECTION BOXES
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 // BOX 1: PERSON IMAGE
                 Card(
                     shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
                     modifier = Modifier
                         .weight(1f)
-                        .height(175.dp)
-                        .border(1.dp, EditorialStone.copy(alpha = 0.40f), RoundedCornerShape(20.dp)),
+                        .height(185.dp)
+                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.40f), RoundedCornerShape(20.dp)),
                 ) {
                     val activeAvatarFile = activeAvatar?.imagePath?.let { File(it) }
                     val avatarBmp = if (activeAvatarFile?.exists() == true) BitmapFactory.decodeFile(activeAvatarFile.absolutePath) else null
@@ -628,6 +649,7 @@ fun TryOnScreen(
                                     fontWeight = FontWeight.Bold,
                                     color = Color.White,
                                     modifier = Modifier.clickable {
+                                        SoundEffectManager.playTap(currentView)
                                         val rotated = com.drapeproof.mobile.util.ImageExportUtils.rotateBitmap(avatarBmp)
                                         activeAvatarFile?.let { f ->
                                             java.io.FileOutputStream(f).use { rotated.compress(Bitmap.CompressFormat.JPEG, 95, it) }
@@ -640,14 +662,20 @@ fun TryOnScreen(
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color.White,
-                                    modifier = Modifier.clickable { avatarPicker.launch("image/*") },
+                                    modifier = Modifier.clickable {
+                                        SoundEffectManager.playTap(currentView)
+                                        avatarPicker.launch("image/*")
+                                    },
                                 )
                                 Text(
                                     "✕",
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color(0xFFF87171),
-                                    modifier = Modifier.clickable { activeAvatar = null },
+                                    modifier = Modifier.clickable {
+                                        SoundEffectManager.playTap(currentView)
+                                        activeAvatar = null
+                                    },
                                 )
                             }
                         }
@@ -655,19 +683,22 @@ fun TryOnScreen(
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .clickable { avatarPicker.launch("image/*") }
+                                .clickable {
+                                    SoundEffectManager.playTap(currentView)
+                                    avatarPicker.launch("image/*")
+                                }
                                 .padding(14.dp),
                             contentAlignment = Alignment.Center,
                         ) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text("📤", fontSize = 30.sp)
+                                Text("📤", fontSize = 32.sp)
                                 Spacer(Modifier.height(6.dp))
                                 Text(
                                     "Upload Person",
                                     textAlign = TextAlign.Center,
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = EditorialInk,
+                                    color = MaterialTheme.colorScheme.onSurface,
                                 )
                             }
                         }
@@ -677,12 +708,12 @@ fun TryOnScreen(
                 // BOX 2: GARMENT / SILHOUETTE / INTEGRATED COLOR CARD
                 Card(
                     shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
                     modifier = Modifier
                         .weight(1f)
                         .height(185.dp)
-                        .border(1.5.dp, EditorialStone.copy(alpha = 0.40f), RoundedCornerShape(20.dp)),
+                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.40f), RoundedCornerShape(20.dp)),
                 ) {
                     when (inputSource) {
                         TryOnInputSource.GARMENT -> {
@@ -712,6 +743,7 @@ fun TryOnScreen(
                                             fontWeight = FontWeight.Bold,
                                             color = Color.White,
                                             modifier = Modifier.clickable {
+                                                SoundEffectManager.playTap(currentView)
                                                 val rotated = com.drapeproof.mobile.util.ImageExportUtils.rotateBitmap(garmentBmp)
                                                 val tempFile = java.io.File(context.cacheDir, "garment_rot_${System.currentTimeMillis()}.jpg")
                                                 java.io.FileOutputStream(tempFile).use { rotated.compress(Bitmap.CompressFormat.JPEG, 95, it) }
@@ -724,6 +756,7 @@ fun TryOnScreen(
                                             fontWeight = FontWeight.Bold,
                                             color = Color.White,
                                             modifier = Modifier.clickable {
+                                                SoundEffectManager.playTap(currentView)
                                                 rawGarmentBitmapToCrop = garmentBmp
                                                 isCropperOpen = true
                                             },
@@ -733,14 +766,20 @@ fun TryOnScreen(
                                             fontSize = 11.sp,
                                             fontWeight = FontWeight.Bold,
                                             color = Color.White,
-                                            modifier = Modifier.clickable { garmentPicker.launch("image/*") },
+                                            modifier = Modifier.clickable {
+                                                SoundEffectManager.playTap(currentView)
+                                                garmentPicker.launch("image/*")
+                                            },
                                         )
                                         Text(
                                             "✕",
                                             fontSize = 11.sp,
                                             fontWeight = FontWeight.Bold,
                                             color = Color(0xFFF87171),
-                                            modifier = Modifier.clickable { customGarmentUri = null },
+                                            modifier = Modifier.clickable {
+                                                SoundEffectManager.playTap(currentView)
+                                                customGarmentUri = null
+                                            },
                                         )
                                     }
                                 }
@@ -748,7 +787,10 @@ fun TryOnScreen(
                                 Box(
                                     modifier = Modifier
                                         .fillMaxSize()
-                                        .clickable { garmentPicker.launch("image/*") }
+                                        .clickable {
+                                            SoundEffectManager.playTap(currentView)
+                                            garmentPicker.launch("image/*")
+                                        }
                                         .padding(14.dp),
                                     contentAlignment = Alignment.Center,
                                 ) {
@@ -764,9 +806,9 @@ fun TryOnScreen(
                                             textAlign = TextAlign.Center,
                                             fontSize = 12.sp,
                                             fontWeight = FontWeight.Bold,
-                                            color = EditorialInk,
+                                            color = MaterialTheme.colorScheme.onSurface,
                                         )
-                                        Text("Prompts to crop", fontSize = 10.sp, color = EditorialMuted)
+                                        Text("Prompts to crop", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
                                 }
                             }
@@ -776,7 +818,10 @@ fun TryOnScreen(
                             Box(
                                 modifier = Modifier
                                     .fillMaxSize()
-                                    .clickable { isSilhouetteModalOpen = true }
+                                    .clickable {
+                                        SoundEffectManager.playTap(currentView)
+                                        isSilhouetteModalOpen = true
+                                    }
                                     .padding(14.dp),
                                 contentAlignment = Alignment.Center,
                             ) {
@@ -788,7 +833,7 @@ fun TryOnScreen(
                                         textAlign = TextAlign.Center,
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = EditorialInk,
+                                        color = MaterialTheme.colorScheme.onSurface,
                                     )
                                     Text(selectedSilhouette.displayName, fontSize = 11.sp, color = EditorialSienna, fontWeight = FontWeight.Bold)
                                 }
@@ -804,7 +849,10 @@ fun TryOnScreen(
                                         .fillMaxWidth()
                                         .weight(0.38f)
                                         .background(selectedColorHex.asComposeColor())
-                                        .clickable { isColorPickerOpen = true }
+                                        .clickable {
+                                            SoundEffectManager.playTap(currentView)
+                                            isColorPickerOpen = true
+                                        }
                                         .padding(horizontal = 10.dp, vertical = 6.dp),
                                     contentAlignment = Alignment.Center,
                                 ) {
@@ -828,9 +876,12 @@ fun TryOnScreen(
                                         modifier = Modifier
                                             .size(34.dp)
                                             .clip(CircleShape)
-                                            .background(EditorialSand)
-                                            .border(1.5.dp, EditorialSienna, CircleShape)
-                                            .clickable { isColorPickerOpen = true },
+                                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.40f), CircleShape)
+                                            .clickable {
+                                                SoundEffectManager.playTap(currentView)
+                                                isColorPickerOpen = true
+                                            },
                                         contentAlignment = Alignment.Center,
                                     ) {
                                         Text("🎨", fontSize = 16.sp)
@@ -852,8 +903,11 @@ fun TryOnScreen(
                                                     .size(28.dp)
                                                     .clip(CircleShape)
                                                     .background(hex.asComposeColor())
-                                                    .border(if (isSel) 2.5.dp else 1.dp, if (isSel) EditorialSienna else Color.LightGray, CircleShape)
-                                                .clickable { selectedColorHex = hex },
+                                                    .border(if (isSel) 2.5.dp else 1.dp, if (isSel) EditorialSienna else MaterialTheme.colorScheme.outline.copy(alpha = 0.35f), CircleShape)
+                                                    .clickable {
+                                                        SoundEffectManager.playTap(currentView)
+                                                        selectedColorHex = hex
+                                                    },
                                             )
                                         }
                                     }
@@ -864,7 +918,7 @@ fun TryOnScreen(
                 }
             }
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(20.dp))
 
             // DETAIL CONTROLS ONLY FOR STYLE (COLOR & FABRIC) TAB
             if (inputSource == TryOnInputSource.STYLE) {
@@ -875,7 +929,7 @@ fun TryOnScreen(
                     elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), RoundedCornerShape(20.dp)),
+                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.40f), RoundedCornerShape(20.dp)),
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Row(
@@ -893,7 +947,7 @@ fun TryOnScreen(
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(8.dp))
-                                    .background(EditorialSienna.copy(alpha = 0.10f))
+                                    .background(EditorialSienna.copy(alpha = 0.12f))
                                     .padding(horizontal = 8.dp, vertical = 2.dp),
                             ) {
                                 Text(
@@ -904,7 +958,7 @@ fun TryOnScreen(
                                 )
                             }
                         }
-                        Spacer(Modifier.height(10.dp))
+                        Spacer(Modifier.height(12.dp))
 
                         Row(
                             modifier = Modifier
@@ -919,7 +973,10 @@ fun TryOnScreen(
                                     .clip(CircleShape)
                                     .background(MaterialTheme.colorScheme.surfaceVariant)
                                     .border(1.5.dp, EditorialSienna, CircleShape)
-                                    .clickable { isColorPickerOpen = true },
+                                    .clickable {
+                                        SoundEffectManager.playTap(currentView)
+                                        isColorPickerOpen = true
+                                    },
                                 contentAlignment = Alignment.Center,
                             ) {
                                 Text("🎨", fontSize = 18.sp)
@@ -932,15 +989,18 @@ fun TryOnScreen(
                                         .size(38.dp)
                                         .clip(CircleShape)
                                         .background(hex.asComposeColor())
-                                        .border(if (isSel) 3.dp else 1.dp, if (isSel) EditorialSienna else MaterialTheme.colorScheme.outline, CircleShape)
-                                        .clickable { selectedColorHex = hex },
+                                        .border(if (isSel) 3.dp else 1.dp, if (isSel) EditorialSienna else MaterialTheme.colorScheme.outline.copy(alpha = 0.35f), CircleShape)
+                                        .clickable {
+                                            SoundEffectManager.playTap(currentView)
+                                            selectedColorHex = hex
+                                        },
                                 )
                             }
                         }
                     }
                 }
 
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(16.dp))
 
                 // 2. FABRIC MATERIAL TEXTURE CARD
                 Card(
@@ -949,7 +1009,7 @@ fun TryOnScreen(
                     elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), RoundedCornerShape(20.dp)),
+                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.40f), RoundedCornerShape(20.dp)),
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Row(
@@ -982,21 +1042,24 @@ fun TryOnScreen(
                             FabricCatalog.allFabrics.forEach { fab ->
                                 val isSel = selectedFabric.id == fab.id
                                 Card(
-                                    shape = RoundedCornerShape(14.dp),
+                                    shape = RoundedCornerShape(16.dp),
                                     colors = CardDefaults.cardColors(
-                                        containerColor = if (isSel) EditorialSienna.copy(alpha = 0.08f) else MaterialTheme.colorScheme.surfaceVariant,
+                                        containerColor = if (isSel) EditorialSienna.copy(alpha = 0.10f) else MaterialTheme.colorScheme.surfaceVariant,
                                     ),
                                     modifier = Modifier
                                         .width(115.dp)
                                         .border(
                                             width = if (isSel) 2.dp else 1.dp,
-                                            color = if (isSel) EditorialSienna else MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
-                                            shape = RoundedCornerShape(14.dp),
+                                            color = if (isSel) EditorialSienna else MaterialTheme.colorScheme.outline.copy(alpha = 0.35f),
+                                            shape = RoundedCornerShape(16.dp),
                                         )
-                                        .clickable { selectedFabric = fab },
+                                        .clickable {
+                                            SoundEffectManager.playTap(currentView)
+                                            selectedFabric = fab
+                                        },
                                 ) {
                                     Column(
-                                        modifier = Modifier.padding(10.dp),
+                                        modifier = Modifier.padding(12.dp),
                                         horizontalAlignment = Alignment.CenterHorizontally,
                                     ) {
                                         Text(fab.icon, fontSize = 24.sp)
@@ -1023,19 +1086,19 @@ fun TryOnScreen(
                 }
             }
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(20.dp))
 
             // RESULT CARD & TRY-ON CTA
             Card(
                 shape = RoundedCornerShape(22.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), RoundedCornerShape(22.dp)),
+                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.40f), RoundedCornerShape(22.dp)),
             ) {
                 Column(
-                    modifier = Modifier.padding(16.dp),
+                    modifier = Modifier.padding(18.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     if (tryOnResultBitmap != null) {
@@ -1046,15 +1109,18 @@ fun TryOnScreen(
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 1.2.sp,
                         )
-                        Spacer(Modifier.height(10.dp))
+                        Spacer(Modifier.height(12.dp))
                         Image(
                             bitmap = tryOnResultBitmap!!.asImageBitmap(),
                             contentDescription = "Try-On Result",
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(380.dp)
-                                .clip(RoundedCornerShape(16.dp))
-                                .clickable { fullScreenPreviewBitmap = tryOnResultBitmap },
+                                .clip(RoundedCornerShape(18.dp))
+                                .clickable {
+                                    SoundEffectManager.playTap(currentView)
+                                    fullScreenPreviewBitmap = tryOnResultBitmap
+                                },
                             contentScale = ContentScale.Crop,
                         )
                     } else {
@@ -1065,8 +1131,8 @@ fun TryOnScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(260.dp)
-                                .clip(RoundedCornerShape(16.dp))
-                                .background(EditorialSand.copy(alpha = 0.40f))
+                                .clip(RoundedCornerShape(18.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
                                 .graphicsLayer { if (isGenerating) alpha = pulseGlow },
                             contentAlignment = Alignment.Center,
                         ) {
@@ -1101,13 +1167,13 @@ fun TryOnScreen(
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                     Text("👔", fontSize = 42.sp)
                                     Spacer(Modifier.height(8.dp))
-                                    Text("Upload photo to begin", style = MaterialTheme.typography.bodyMedium, color = EditorialInk, fontWeight = FontWeight.Medium)
+                                    Text("Upload photo to begin", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Medium)
                                 }
                             }
                         }
                     }
 
-                    Spacer(Modifier.height(14.dp))
+                    Spacer(Modifier.height(16.dp))
 
                     val needsGarment = inputSource == TryOnInputSource.GARMENT && customGarmentUri == null
                     val needsAvatar = activeAvatar == null
@@ -1124,35 +1190,39 @@ fun TryOnScreen(
                     Button(
                         onClick = {
                             if (needsAvatar) {
+                                SoundEffectManager.playTap(currentView)
                                 showAvatarPromptDialog = true
                                 return@Button
                             }
                             if (needsGarment) {
+                                SoundEffectManager.playTap(currentView)
                                 showGarmentPromptDialog = true
                                 return@Button
                             }
+                            SoundEffectManager.playTap(currentView)
                             executeGeneration()
                         },
                         enabled = !isGenerating,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(48.dp),
-                        shape = RoundedCornerShape(12.dp),
+                            .height(50.dp),
+                        shape = RoundedCornerShape(14.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = EditorialSienna),
                     ) {
                         Text(ctaText, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color.White)
                     }
 
                     if (tryOnResultBitmap != null) {
-                        Spacer(Modifier.height(10.dp))
+                        Spacer(Modifier.height(12.dp))
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
                         ) {
                             // DOWNLOAD / SAVE TO GALLERY BUTTON
                             OutlinedButton(
                                 onClick = {
                                     tryOnResultBitmap?.let { bmp ->
+                                        SoundEffectManager.playTap(currentView)
                                         com.drapeproof.mobile.util.ImageExportUtils.saveImageToGallery(
                                             context = context,
                                             bitmap = bmp,
@@ -1163,40 +1233,53 @@ fun TryOnScreen(
                                 shape = RoundedCornerShape(12.dp),
                                 modifier = Modifier.weight(1f),
                             ) {
-                                Text("💾 Save", color = EditorialInk, fontWeight = FontWeight.SemiBold)
+                                Text("💾 Save", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold)
                             }
 
                             // RESET / TRY ANOTHER BUTTON
                             OutlinedButton(
-                                onClick = { resetState() },
+                                onClick = {
+                                    SoundEffectManager.playTap(currentView)
+                                    resetState()
+                                },
                                 shape = RoundedCornerShape(12.dp),
                                 modifier = Modifier.weight(1f),
                             ) {
-                                Text("Try Another", color = EditorialInk, fontWeight = FontWeight.SemiBold)
+                                Text("Try Another", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold)
                             }
 
                             // VIEW IN LOOKS BUTTON
                             Button(
-                                onClick = onNavigateToLooks,
+                                onClick = {
+                                    SoundEffectManager.playTap(currentView)
+                                    onNavigateToLooks()
+                                },
                                 shape = RoundedCornerShape(12.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = EditorialInk),
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                                 modifier = Modifier.weight(1.1f),
                             ) {
-                                Text("View Looks", color = Color.White, fontWeight = FontWeight.SemiBold)
+                                Text("View Looks", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold)
                             }
                         }
                     }
                 }
             }
 
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(36.dp))
+        }
+
+        // SETTINGS MODAL
+        if (isSettingsOpen) {
+            ProfileSettingsModal(
+                onDismiss = { isSettingsOpen = false },
+            )
         }
 
         // SILHOUETTE & CUT SELECTION MODAL
         if (isSilhouetteModalOpen) {
             AlertDialog(
                 onDismissRequest = { isSilhouetteModalOpen = false },
-                containerColor = Color.White,
+                containerColor = MaterialTheme.colorScheme.surface,
                 shape = RoundedCornerShape(24.dp),
                 title = {
                     Row(
@@ -1204,16 +1287,16 @@ fun TryOnScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text("Choose Silhouette & Cut", fontWeight = FontWeight.Bold, color = EditorialInk, style = MaterialTheme.typography.titleMedium)
+                        Text("Choose Silhouette & Cut", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.titleMedium)
                         Box(
                             modifier = Modifier
                                 .size(30.dp)
                                 .clip(CircleShape)
-                                .background(EditorialSand)
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
                                 .clickable { isSilhouetteModalOpen = false },
                             contentAlignment = Alignment.Center,
                         ) {
-                            Text("✕", fontSize = 12.sp, color = EditorialInk, fontWeight = FontWeight.Bold)
+                            Text("✕", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Bold)
                         }
                     }
                 },
@@ -1235,8 +1318,9 @@ fun TryOnScreen(
                                     .fillMaxWidth()
                                     .padding(vertical = 4.dp)
                                     .clip(RoundedCornerShape(12.dp))
-                                    .background(if (isSel) EditorialSienna else EditorialCream)
+                                    .background(if (isSel) EditorialSienna else MaterialTheme.colorScheme.surfaceVariant)
                                     .clickable {
+                                        SoundEffectManager.playTap(currentView)
                                         selectedSilhouette = sil
                                         isSilhouetteModalOpen = false
                                     }
@@ -1246,8 +1330,8 @@ fun TryOnScreen(
                                 Text(sil.icon, fontSize = 20.sp)
                                 Spacer(Modifier.width(10.dp))
                                 Column {
-                                    Text(sil.displayName, fontWeight = FontWeight.Bold, color = if (isSel) Color.White else EditorialInk, fontSize = 13.sp)
-                                    Text(sil.category.title, style = MaterialTheme.typography.labelSmall, color = if (isSel) Color.White.copy(alpha = 0.8f) else EditorialMuted, fontSize = 10.sp)
+                                    Text(sil.displayName, fontWeight = FontWeight.Bold, color = if (isSel) Color.White else MaterialTheme.colorScheme.onSurface, fontSize = 13.sp)
+                                    Text(sil.category.title, style = MaterialTheme.typography.labelSmall, color = if (isSel) Color.White.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp)
                                 }
                             }
                         }
@@ -1266,8 +1350,9 @@ fun TryOnScreen(
                                     .fillMaxWidth()
                                     .padding(vertical = 4.dp)
                                     .clip(RoundedCornerShape(12.dp))
-                                    .background(if (isSel) EditorialSienna else EditorialCream)
+                                    .background(if (isSel) EditorialSienna else MaterialTheme.colorScheme.surfaceVariant)
                                     .clickable {
+                                        SoundEffectManager.playTap(currentView)
                                         selectedSilhouette = sil
                                         isSilhouetteModalOpen = false
                                     }
@@ -1277,8 +1362,8 @@ fun TryOnScreen(
                                 Text(sil.icon, fontSize = 20.sp)
                                 Spacer(Modifier.width(10.dp))
                                 Column {
-                                    Text(sil.displayName, fontWeight = FontWeight.Bold, color = if (isSel) Color.White else EditorialInk, fontSize = 13.sp)
-                                    Text(sil.category.title, style = MaterialTheme.typography.labelSmall, color = if (isSel) Color.White.copy(alpha = 0.8f) else EditorialMuted, fontSize = 10.sp)
+                                    Text(sil.displayName, fontWeight = FontWeight.Bold, color = if (isSel) Color.White else MaterialTheme.colorScheme.onSurface, fontSize = 13.sp)
+                                    Text(sil.category.title, style = MaterialTheme.typography.labelSmall, color = if (isSel) Color.White.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp)
                                 }
                             }
                         }
@@ -1318,8 +1403,9 @@ fun TryOnScreen(
         if (showAvatarPromptDialog) {
             AlertDialog(
                 onDismissRequest = { showAvatarPromptDialog = false },
-                title = { Text("Upload Person Photo", fontWeight = FontWeight.Bold, color = EditorialInk) },
-                text = { Text("Please select a clear photo of yourself to begin virtual try-on.", color = EditorialMuted) },
+                containerColor = MaterialTheme.colorScheme.surface,
+                title = { Text("Upload Person Photo", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface) },
+                text = { Text("Please select a clear photo of yourself to begin virtual try-on.", color = MaterialTheme.colorScheme.onSurfaceVariant) },
                 confirmButton = {
                     Button(
                         onClick = {
@@ -1333,7 +1419,7 @@ fun TryOnScreen(
                 },
                 dismissButton = {
                     OutlinedButton(onClick = { showAvatarPromptDialog = false }) {
-                        Text("Cancel", color = EditorialInk)
+                        Text("Cancel", color = MaterialTheme.colorScheme.onSurface)
                     }
                 },
             )
@@ -1342,8 +1428,9 @@ fun TryOnScreen(
         if (showGarmentPromptDialog) {
             AlertDialog(
                 onDismissRequest = { showGarmentPromptDialog = false },
-                title = { Text("Upload Garment", fontWeight = FontWeight.Bold, color = EditorialInk) },
-                text = { Text("Please upload a photo of the clothing item you want to try on.", color = EditorialMuted) },
+                containerColor = MaterialTheme.colorScheme.surface,
+                title = { Text("Upload Garment", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface) },
+                text = { Text("Please upload a photo of the clothing item you want to try on.", color = MaterialTheme.colorScheme.onSurfaceVariant) },
                 confirmButton = {
                     Button(
                         onClick = {
@@ -1357,7 +1444,7 @@ fun TryOnScreen(
                 },
                 dismissButton = {
                     OutlinedButton(onClick = { showGarmentPromptDialog = false }) {
-                        Text("Cancel", color = EditorialInk)
+                        Text("Cancel", color = MaterialTheme.colorScheme.onSurface)
                     }
                 },
             )

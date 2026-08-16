@@ -10,7 +10,6 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -32,6 +31,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -41,6 +42,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -50,60 +52,61 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.drapeproof.mobile.data.SkinProfileRepository
-import com.drapeproof.mobile.ui.theme.EditorialCream
-import com.drapeproof.mobile.ui.theme.EditorialInk
-import com.drapeproof.mobile.ui.theme.EditorialMuted
-import com.drapeproof.mobile.ui.theme.EditorialSand
+import com.drapeproof.mobile.ui.theme.EditorialGold
 import com.drapeproof.mobile.ui.theme.EditorialSienna
-import com.drapeproof.mobile.ui.theme.EditorialStone
 
-private data class SamplerPoint(
-    val id: String,
+data class SamplingPoint(
     val label: String,
-    val normalizedX: Float,
-    val normalizedY: Float,
+    val initialNormX: Float,
+    val initialNormY: Float,
 )
 
 @Composable
 fun SkinTonePickerModal(
     bitmap: Bitmap,
     onDismiss: () -> Unit,
-    onSaved: (skinHex: String) -> Unit,
+    onSaved: (averagedHex: String) -> Unit,
 ) {
     val context = LocalContext.current
 
-    var points by remember {
-        mutableStateOf(
-            listOf(
-                SamplerPoint("forehead", "Forehead", 0.50f, 0.36f),
-                SamplerPoint("leftCheek", "Left Cheek", 0.38f, 0.52f),
-                SamplerPoint("rightCheek", "Right Cheek", 0.62f, 0.52f),
-            ),
+    val points = remember {
+        listOf(
+            SamplingPoint("Forehead", 0.50f, 0.32f),
+            SamplingPoint("Left Cheek", 0.38f, 0.48f),
+            SamplingPoint("Right Cheek", 0.62f, 0.48f),
         )
     }
 
-    var selectedPointIndex by remember { mutableStateOf(0) }
+    val pointOffsets = remember {
+        mutableStateListOf(
+            Offset(points[0].initialNormX, points[0].initialNormY),
+            Offset(points[1].initialNormX, points[1].initialNormY),
+            Offset(points[2].initialNormX, points[2].initialNormY),
+        )
+    }
 
-    fun sampleColorAt(normX: Float, normY: Float): Int {
-        val px = (normX * bitmap.width).toInt().coerceIn(0, bitmap.width - 1)
-        val py = (normY * bitmap.height).toInt().coerceIn(0, bitmap.height - 1)
+    var selectedPointIndex by remember { mutableIntStateOf(0) }
+
+    fun samplePixelColor(normOffset: Offset): Int {
+        val px = (normOffset.x * bitmap.width).toInt().coerceIn(0, bitmap.width - 1)
+        val py = (normOffset.y * bitmap.height).toInt().coerceIn(0, bitmap.height - 1)
         return bitmap.getPixel(px, py)
     }
 
-    val sampledColors = points.map { sampleColorAt(it.normalizedX, it.normalizedY) }
+    val sampledColors = pointOffsets.map { samplePixelColor(it) }
 
-    val averagedHex = remember(points) {
-        var rSum = 0
-        var gSum = 0
-        var bSum = 0
+    val averagedHex = remember(pointOffsets[0], pointOffsets[1], pointOffsets[2]) {
+        var totalR = 0
+        var totalG = 0
+        var totalB = 0
         sampledColors.forEach { c ->
-            rSum += android.graphics.Color.red(c)
-            gSum += android.graphics.Color.green(c)
-            bSum += android.graphics.Color.blue(c)
+            totalR += (c shr 16) and 0xFF
+            totalG += (c shr 8) and 0xFF
+            totalB += c and 0xFF
         }
-        val avgR = (rSum / sampledColors.size).coerceIn(0, 255)
-        val avgG = (gSum / sampledColors.size).coerceIn(0, 255)
-        val avgB = (bSum / sampledColors.size).coerceIn(0, 255)
+        val avgR = totalR / sampledColors.size
+        val avgG = totalG / sampledColors.size
+        val avgB = totalB / sampledColors.size
         String.format("#%02X%02X%02X", avgR, avgG, avgB)
     }
 
@@ -116,15 +119,13 @@ fun SkinTonePickerModal(
         properties = DialogProperties(usePlatformDefaultWidth = false),
     ) {
         Surface(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(EditorialCream),
-            color = EditorialCream,
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.background,
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(18.dp),
+                    .padding(20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 // TOP BAR
@@ -134,174 +135,156 @@ fun SkinTonePickerModal(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column {
-                        Text("Point & Sample Colortone", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = EditorialInk)
-                        Text("Drag 3 points on forehead & cheeks to sample", style = MaterialTheme.typography.bodySmall, color = EditorialMuted)
+                        Text("Point & Sample Colortone", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
+                        Text("Drag 3 points on forehead & cheeks to sample", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     Box(
                         modifier = Modifier
                             .size(36.dp)
                             .clip(CircleShape)
-                            .background(EditorialSand)
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.40f), CircleShape)
                             .clickable { onDismiss() },
                         contentAlignment = Alignment.Center,
                     ) {
-                        Text("✕", fontSize = 16.sp, color = EditorialInk, fontWeight = FontWeight.Bold)
+                        Text("✕", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
                     }
                 }
 
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(14.dp))
 
                 // LIVE SAMPLED COLOR & DERIVED SEASON PREVIEW CARD
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .border(1.dp, EditorialStone.copy(alpha = 0.4f), RoundedCornerShape(16.dp)),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), RoundedCornerShape(18.dp)),
+                    shape = RoundedCornerShape(18.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 ) {
                     Row(
-                        modifier = Modifier.padding(12.dp),
+                        modifier = Modifier.padding(14.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(50.dp)
+                                .size(52.dp)
                                 .clip(CircleShape)
                                 .background(Color(android.graphics.Color.parseColor(averagedHex)))
-                                .border(2.5.dp, EditorialSienna, CircleShape),
+                                .border(2.dp, EditorialGold, CircleShape),
                         )
                         Spacer(Modifier.width(14.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                "SAMPLED COLORTONE: $averagedHex",
-                                style = MaterialTheme.typography.labelSmall,
+                                "Derived Archetype: ${derivedProfile.season}",
+                                style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                            Spacer(Modifier.height(2.dp))
+                            Text(
+                                "${derivedProfile.undertone} • $averagedHex",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.SemiBold,
                                 color = EditorialSienna,
-                                fontSize = 11.sp,
-                            )
-                            Text(
-                                "${derivedProfile.season} • ${derivedProfile.undertone}",
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = EditorialInk,
-                            )
-                        }
-                    }
-                }
-
-                Spacer(Modifier.height(12.dp))
-
-                // INTERACTIVE IMAGE WITH MOVABLE TARGET PINS
-                BoxWithConstraints(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(Color.Black),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    val containerW = maxWidth
-                    val containerH = maxHeight
-
-                    Image(
-                        bitmap = bitmap.asImageBitmap(),
-                        contentDescription = "User Portrait for Sampling",
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .pointerInput(Unit) {
-                                detectTapGestures { offset ->
-                                    val nx = (offset.x / size.width.toFloat()).coerceIn(0.05f, 0.95f)
-                                    val ny = (offset.y / size.height.toFloat()).coerceIn(0.05f, 0.95f)
-                                    points = points.toMutableList().also { list ->
-                                        list[selectedPointIndex] = list[selectedPointIndex].copy(
-                                            normalizedX = nx,
-                                            normalizedY = ny,
-                                        )
-                                    }
-                                }
-                            },
-                        contentScale = ContentScale.Fit,
-                    )
-
-                    // RENDER 3 SAMPLING PINS
-                    Canvas(modifier = Modifier.fillMaxSize()) {
-                        val w = size.width
-                        val h = size.height
-
-                        points.forEachIndexed { index, pt ->
-                            val isSel = index == selectedPointIndex
-                            val cx = pt.normalizedX * w
-                            val cy = pt.normalizedY * h
-
-                            // Outer Pulse Circle
-                            drawCircle(
-                                color = if (isSel) EditorialSienna else Color.White,
-                                radius = if (isSel) 18.dp.toPx() else 14.dp.toPx(),
-                                center = Offset(cx, cy),
-                            )
-                            // Inner Sample Color Circle
-                            val ptColor = sampledColors.getOrNull(index) ?: android.graphics.Color.GRAY
-                            drawCircle(
-                                color = Color(ptColor),
-                                radius = if (isSel) 13.dp.toPx() else 10.dp.toPx(),
-                                center = Offset(cx, cy),
-                            )
-                        }
-                    }
-
-                    // POINTER DRAG GESTURE OVERLAY
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .pointerInput(Unit) {
-                                detectDragGestures { change, dragAmount ->
-                                    change.consume()
-                                    val currentX = points[selectedPointIndex].normalizedX * size.width
-                                    val currentY = points[selectedPointIndex].normalizedY * size.height
-                                    val newX = (currentX + dragAmount.x).coerceIn(0f, size.width.toFloat())
-                                    val newY = (currentY + dragAmount.y).coerceIn(0f, size.height.toFloat())
-                                    points = points.toMutableList().also { list ->
-                                        list[selectedPointIndex] = list[selectedPointIndex].copy(
-                                            normalizedX = newX / size.width,
-                                            normalizedY = newY / size.height,
-                                        )
-                                    }
-                                }
-                            },
-                    )
-                }
-
-                Spacer(Modifier.height(10.dp))
-
-                // POINT SELECTOR BUTTONS: [ Forehead ] [ Left Cheek ] [ Right Cheek ]
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    points.forEachIndexed { index, pt ->
-                        val isSel = index == selectedPointIndex
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(if (isSel) EditorialSienna else Color.White)
-                                .border(1.dp, if (isSel) EditorialSienna else EditorialStone.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
-                                .clickable { selectedPointIndex = index }
-                                .padding(vertical = 10.dp),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Text(
-                                pt.label,
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = if (isSel) Color.White else EditorialInk,
-                                fontSize = 11.sp,
                             )
                         }
                     }
                 }
 
                 Spacer(Modifier.height(14.dp))
+
+                // INTERACTIVE PHOTO VIEWPORT WITH DRAGGABLE COLOR SAMPLING PIN PUCKETS
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .clip(RoundedCornerShape(18.dp))
+                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), RoundedCornerShape(18.dp)),
+                ) {
+                    Image(
+                        bitmap = bitmap.asImageBitmap(),
+                        contentDescription = "User Headshot",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop,
+                    )
+
+                    Canvas(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .pointerInput(Unit) {
+                                detectTapGestures { tapOffset ->
+                                    val normX = (tapOffset.x / size.width).coerceIn(0.05f, 0.95f)
+                                    val normY = (tapOffset.y / size.height).coerceIn(0.05f, 0.95f)
+                                    pointOffsets[selectedPointIndex] = Offset(normX, normY)
+                                }
+                            }
+                            .pointerInput(Unit) {
+                                detectDragGestures { change, dragAmount ->
+                                    change.consume()
+                                    val current = pointOffsets[selectedPointIndex]
+                                    val newNormX = (current.x + dragAmount.x / size.width).coerceIn(0.05f, 0.95f)
+                                    val newNormY = (current.y + dragAmount.y / size.height).coerceIn(0.05f, 0.95f)
+                                    pointOffsets[selectedPointIndex] = Offset(newNormX, newNormY)
+                                }
+                            },
+                    ) {
+                        val w = size.width
+                        val h = size.height
+
+                        pointOffsets.forEachIndexed { index, normPos ->
+                            val isSelected = index == selectedPointIndex
+                            val center = Offset(normPos.x * w, normPos.y * h)
+                            val pinColor = Color(sampledColors[index])
+
+                            // Outer Glow Ring
+                            drawCircle(
+                                color = if (isSelected) EditorialSienna else Color.White,
+                                radius = if (isSelected) 22.dp.toPx() else 16.dp.toPx(),
+                                center = center,
+                                style = Stroke(width = if (isSelected) 3.5.dp.toPx() else 2.dp.toPx()),
+                            )
+
+                            // Inner Swatch Disc
+                            drawCircle(
+                                color = pinColor,
+                                radius = if (isSelected) 18.dp.toPx() else 12.dp.toPx(),
+                                center = center,
+                            )
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(14.dp))
+
+                // POINT SELECTOR BUTTONS: [ Forehead ] [ Left Cheek ] [ Right Cheek ]
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    points.forEachIndexed { index, pt ->
+                        val isSel = index == selectedPointIndex
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(if (isSel) EditorialSienna else MaterialTheme.colorScheme.surfaceVariant)
+                                .border(1.dp, if (isSel) EditorialGold.copy(alpha = 0.85f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
+                                .clickable { selectedPointIndex = index }
+                                .padding(vertical = 11.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                pt.label,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isSel) Color.White else MaterialTheme.colorScheme.onSurface,
+                                fontSize = 11.sp,
+                            )
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(16.dp))
 
                 // SAVE COLORTONE CTA
                 Button(

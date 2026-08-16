@@ -12,6 +12,7 @@ import androidx.compose.runtime.setValue
 import com.drapeproof.mobile.data.AppSettingsRepository
 import com.drapeproof.mobile.data.AppThemeMode
 import com.drapeproof.mobile.ui.DrapeProofApp
+import com.drapeproof.mobile.ui.sound.SoundEffectManager
 import com.drapeproof.mobile.ui.theme.DrapeProofTheme
 
 class MainActivity : ComponentActivity() {
@@ -21,6 +22,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        SoundEffectManager.init(this)
         currentThemeMode = AppSettingsRepository.getThemeMode(this)
         sharedImageUri = intent.sharedImage()
         setContent {

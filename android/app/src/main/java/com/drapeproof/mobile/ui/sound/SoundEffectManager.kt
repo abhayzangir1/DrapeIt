@@ -1,9 +1,13 @@
 package com.drapeproof.mobile.ui.sound
 
+import android.content.Context
 import android.media.AudioAttributes
 import android.media.AudioFormat
-import android.media.AudioManager
 import android.media.AudioTrack
+import android.os.Build
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import android.view.HapticFeedbackConstants
 import android.view.View
 import kotlinx.coroutines.CoroutineScope
@@ -13,17 +17,28 @@ import kotlin.math.sin
 
 /**
  * Lightweight soft-gain luxury sound and tactile haptic manager.
- * Plays ultra-soft, subtle feedback sounds (volume ~18%) that feel premium rather than abrasive.
+ * Plays ultra-soft, subtle feedback sounds (volume ~10-15%) that feel premium and minimal.
  */
 object SoundEffectManager {
     private val scope = CoroutineScope(Dispatchers.Default)
+    private var vibrator: Vibrator? = null
 
-    fun init() {
-        // Pre-warm audio subsystem
+    fun init(context: Context? = null) {
+        if (context != null) {
+            runCatching {
+                vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    val vm = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
+                    vm?.defaultVibrator
+                } else {
+                    @Suppress("DEPRECATION")
+                    context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+                }
+            }
+        }
     }
 
     /**
-     * Plays an ultra-soft mechanical camera shutter click (attenuated to 18% volume).
+     * Plays an ultra-soft mechanical camera shutter click (attenuated to 16% volume) with tactile feedback.
      */
     fun playShutter(view: View? = null) {
         scope.launch {
@@ -31,9 +46,19 @@ object SoundEffectManager {
                 playPcmClick(frequencyHz = 950f, durationMs = 28, volume = 0.16f)
             }
         }
-        runCatching {
-            view?.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+        triggerHaptic(view, durationMs = 35, hapticConstant = HapticFeedbackConstants.KEYBOARD_TAP)
+    }
+
+    /**
+     * Plays a delicate tactile tap / swatch switch tick.
+     */
+    fun playTap(view: View? = null) {
+        scope.launch {
+            runCatching {
+                playPcmClick(frequencyHz = 1200f, durationMs = 15, volume = 0.10f)
+            }
         }
+        triggerHaptic(view, durationMs = 12, hapticConstant = HapticFeedbackConstants.CLOCK_TICK)
     }
 
     /**
@@ -45,13 +70,11 @@ object SoundEffectManager {
                 playPcmClick(frequencyHz = 1400f, durationMs = 18, volume = 0.12f)
             }
         }
-        runCatching {
-            view?.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-        }
+        triggerHaptic(view, durationMs = 15, hapticConstant = HapticFeedbackConstants.CLOCK_TICK)
     }
 
     /**
-     * Plays a warm luxury confirmation chime.
+     * Plays a warm luxury confirmation chime with confirm haptic pulse.
      */
     fun playSuccess(view: View? = null) {
         scope.launch {
@@ -59,8 +82,30 @@ object SoundEffectManager {
                 playPcmClick(frequencyHz = 880f, durationMs = 35, volume = 0.14f)
             }
         }
-        runCatching {
-            view?.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+        val constant = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            HapticFeedbackConstants.CONFIRM
+        } else {
+            HapticFeedbackConstants.KEYBOARD_TAP
+        }
+        triggerHaptic(view, durationMs = 30, hapticConstant = constant)
+    }
+
+    private fun triggerHaptic(view: View?, durationMs: Long, hapticConstant: Int) {
+        var performed = false
+        if (view != null) {
+            runCatching {
+                performed = view.performHapticFeedback(hapticConstant)
+            }
+        }
+        if (!performed && vibrator?.hasVibrator() == true) {
+            runCatching {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    vibrator?.vibrate(VibrationEffect.createOneShot(durationMs, VibrationEffect.DEFAULT_AMPLITUDE))
+                } else {
+                    @Suppress("DEPRECATION")
+                    vibrator?.vibrate(durationMs)
+                }
+            }
         }
     }
 

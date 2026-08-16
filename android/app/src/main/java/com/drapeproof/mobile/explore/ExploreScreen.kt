@@ -37,6 +37,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -44,25 +45,21 @@ import androidx.compose.ui.unit.sp
 import com.drapeproof.core.color.TrueColorHarmonyEngine
 import com.drapeproof.mobile.data.SkinProfileRepository
 import com.drapeproof.mobile.fabric.FabricCatalog
-import com.drapeproof.mobile.ui.theme.EditorialCream
+import com.drapeproof.mobile.profile.ProfileSettingsModal
+import com.drapeproof.mobile.ui.sound.SoundEffectManager
 import com.drapeproof.mobile.ui.theme.EditorialGold
-import com.drapeproof.mobile.ui.theme.EditorialInk
-import com.drapeproof.mobile.ui.theme.EditorialMuted
-import com.drapeproof.mobile.ui.theme.EditorialPositive
-import com.drapeproof.mobile.ui.theme.EditorialSand
 import com.drapeproof.mobile.ui.theme.EditorialSienna
-import com.drapeproof.mobile.ui.theme.EditorialStone
 
 enum class OccasionCategory(val label: String, val icon: String) {
-    EVERYDAY("Everyday", "☀️"),
-    WORK("Work", "💼"),
-    EVENING("Evening", "🥂"),
-    CASUAL("Casual", "🌿"),
+    EVERYDAY("Daily Wear", "👕"),
+    WORK("Formal Work", "💼"),
+    EVENING("Evening Gala", "✨"),
+    CASUAL("Weekend Casual", "☕"),
 }
 
 data class CuratedPaletteItem(
     val id: String,
-    val name: String,
+    val title: String,
     val hex: String,
     val fabricId: String,
     val forSeason: String,
@@ -71,20 +68,18 @@ data class CuratedPaletteItem(
 
 val allCuratedPaletteItems = listOf(
     // WARM AUTUMN
-    CuratedPaletteItem("wa_1", "Terracotta Cashmere", "#9A3412", "wool", "Warm Autumn", OccasionCategory.EVERYDAY),
-    CuratedPaletteItem("wa_2", "Amber Silk Blouse", "#D97706", "silk", "Warm Autumn", OccasionCategory.WORK),
-    CuratedPaletteItem("wa_3", "Cognac Leather Jacket", "#78350F", "leather", "Warm Autumn", OccasionCategory.CASUAL),
-    CuratedPaletteItem("wa_4", "Spiced Ochre Velvet", "#B45309", "velvet", "Warm Autumn", OccasionCategory.EVENING),
-    CuratedPaletteItem("wa_5", "Deep Olive Trench", "#166534", "cotton", "Warm Autumn", OccasionCategory.WORK),
-    CuratedPaletteItem("wa_6", "Warm Saffron Linen", "#CA8A04", "linen", "Warm Autumn", OccasionCategory.CASUAL),
+    CuratedPaletteItem("wa_1", "Crimson Silk Blouse", "#831843", "silk", "Warm Autumn", OccasionCategory.EVERYDAY),
+    CuratedPaletteItem("wa_2", "Warm Cognac Blazer", "#78350F", "leather", "Warm Autumn", OccasionCategory.WORK),
+    CuratedPaletteItem("wa_3", "Amber Ochre Sweater", "#D97706", "knit", "Warm Autumn", OccasionCategory.CASUAL),
+    CuratedPaletteItem("wa_4", "Deep Forest Velvet", "#065F46", "velvet", "Warm Autumn", OccasionCategory.EVENING),
+    CuratedPaletteItem("wa_5", "Terracotta Linen Dress", "#9A3412", "linen", "Warm Autumn", OccasionCategory.CASUAL),
 
-    // COOL WINTER
-    CuratedPaletteItem("cw_1", "Royal Burgundy Satin", "#831843", "satin", "Cool Winter", OccasionCategory.EVENING),
-    CuratedPaletteItem("cw_2", "Midnight Plum Silk", "#4C1D95", "silk", "Cool Winter", OccasionCategory.EVENING),
-    CuratedPaletteItem("cw_3", "Cobalt Navy Blazer", "#1E3A8A", "wool", "Cool Winter", OccasionCategory.WORK),
-    CuratedPaletteItem("cw_4", "Deep Emerald Velvet", "#065F46", "velvet", "Cool Winter", OccasionCategory.EVENING),
-    CuratedPaletteItem("cw_5", "Anthracite Wool Coat", "#0F172A", "wool", "Cool Winter", OccasionCategory.WORK),
-    CuratedPaletteItem("cw_6", "Ruby Rose Blouse", "#E11D48", "silk", "Cool Winter", OccasionCategory.EVERYDAY),
+    // DEEP WINTER
+    CuratedPaletteItem("dw_1", "Midnight Navy Tuxedo", "#0F172A", "wool", "Deep Winter", OccasionCategory.WORK),
+    CuratedPaletteItem("dw_2", "Imperial Ruby Satin", "#E11D48", "satin", "Deep Winter", OccasionCategory.EVENING),
+    CuratedPaletteItem("dw_3", "Cobalt Tweed Coat", "#1E3A8A", "tweed", "Deep Winter", OccasionCategory.WORK),
+    CuratedPaletteItem("dw_4", "Plum Corduroy Jacket", "#4C1D95", "corduroy", "Deep Winter", OccasionCategory.CASUAL),
+    CuratedPaletteItem("dw_5", "Charcoal Plain Knit", "#334155", "knit", "Deep Winter", OccasionCategory.EVERYDAY),
 
     // COOL SUMMER
     CuratedPaletteItem("cs_1", "Classic Slate Linen", "#475569", "linen", "Cool Summer", OccasionCategory.EVERYDAY),
@@ -107,9 +102,11 @@ fun ExploreScreen(
     onNavigateToProfile: () -> Unit,
 ) {
     val context = LocalContext.current
+    val currentView = LocalView.current
     var selectedCategory by remember { mutableStateOf(OccasionCategory.EVERYDAY) }
     val storedProfile = remember { SkinProfileRepository.load(context) }
     var revealedHexItemId by remember { mutableStateOf<String?>(null) }
+    var isSettingsOpen by remember { mutableStateOf(false) }
 
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -119,40 +116,64 @@ fun ExploreScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
-                .padding(horizontal = 18.dp)
+                .padding(horizontal = 20.dp)
                 .verticalScroll(rememberScrollState()),
         ) {
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(18.dp))
 
-            Text(
-                "Explore",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onBackground,
-            )
-            Spacer(Modifier.height(4.dp))
-            Text(
-                "Curated seasonal wardrobe palettes & textures",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            // TOP HEADER BAR WITH SETTINGS ICON
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column {
+                    Text(
+                        "Explore",
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground,
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        "Curated seasonal wardrobe palettes & textures",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
 
-            Spacer(Modifier.height(20.dp))
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.40f), CircleShape)
+                        .clickable {
+                            SoundEffectManager.playTap(currentView)
+                            isSettingsOpen = true
+                        },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("⚙️", fontSize = 18.sp)
+                }
+            }
+
+            Spacer(Modifier.height(22.dp))
 
             val currentProfile = storedProfile
 
             if (currentProfile == null || !currentProfile.isCalibrated) {
                 // MINIMAL EMPTY STATE
                 Card(
-                    shape = RoundedCornerShape(18.dp),
+                    shape = RoundedCornerShape(22.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.40f), RoundedCornerShape(18.dp)),
+                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.40f), RoundedCornerShape(22.dp)),
                 ) {
                     Column(
-                        modifier = Modifier.padding(20.dp),
+                        modifier = Modifier.padding(22.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         Text("✨", fontSize = 36.sp)
@@ -170,12 +191,15 @@ fun ExploreScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center,
                         )
-                        Spacer(Modifier.height(14.dp))
+                        Spacer(Modifier.height(16.dp))
                         Button(
-                            onClick = onNavigateToProfile,
+                            onClick = {
+                                SoundEffectManager.playTap(currentView)
+                                onNavigateToProfile()
+                            },
                             shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = EditorialSienna),
-                            modifier = Modifier.fillMaxWidth().height(46.dp),
+                            modifier = Modifier.fillMaxWidth().height(48.dp),
                         ) {
                             Text("Setup Profile", color = Color.White, fontWeight = FontWeight.SemiBold)
                         }
@@ -186,25 +210,25 @@ fun ExploreScreen(
             } else {
                 // COMPACT SEASON PROFILE CHIP
                 Card(
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(20.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.40f), RoundedCornerShape(16.dp)),
+                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.40f), RoundedCornerShape(20.dp)),
                 ) {
                     Row(
-                        modifier = Modifier.padding(14.dp),
+                        modifier = Modifier.padding(16.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(38.dp)
+                                .size(42.dp)
                                 .clip(CircleShape)
                                 .background(currentProfile.skinHex.asComposeColor())
-                                .border(1.5.dp, EditorialGold, CircleShape),
+                                .border(2.dp, EditorialGold, CircleShape),
                         )
-                        Spacer(Modifier.width(12.dp))
+                        Spacer(Modifier.width(14.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 currentProfile.season,
@@ -222,28 +246,31 @@ fun ExploreScreen(
                     }
                 }
 
-                Spacer(Modifier.height(24.dp))
+                Spacer(Modifier.height(22.dp))
 
                 // OCCASION CATEGORY SELECTOR
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     OccasionCategory.values().forEach { cat ->
                         val isSel = selectedCategory == cat
                         Box(
                             modifier = Modifier
-                                .clip(RoundedCornerShape(12.dp))
+                                .clip(RoundedCornerShape(14.dp))
                                 .background(if (isSel) EditorialSienna else MaterialTheme.colorScheme.surface)
                                 .border(
                                     1.dp,
-                                    if (isSel) EditorialSienna else MaterialTheme.colorScheme.outline.copy(alpha = 0.50f),
-                                    RoundedCornerShape(12.dp),
+                                    if (isSel) EditorialGold.copy(alpha = 0.85f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.45f),
+                                    RoundedCornerShape(14.dp),
                                 )
-                                .clickable { selectedCategory = cat }
-                                .padding(horizontal = 14.dp, vertical = 8.dp),
+                                .clickable {
+                                    SoundEffectManager.playTap(currentView)
+                                    selectedCategory = cat
+                                }
+                                .padding(horizontal = 14.dp, vertical = 9.dp),
                         ) {
                             Text(
                                 "${cat.icon} ${cat.label}",
@@ -255,7 +282,7 @@ fun ExploreScreen(
                     }
                 }
 
-                Spacer(Modifier.height(26.dp))
+                Spacer(Modifier.height(24.dp))
 
                 Text(
                     "CURATED LOOKBOOK GRID",
@@ -293,22 +320,23 @@ fun ExploreScreen(
                                 val isHexRevealed = revealedHexItemId == item.id
 
                                 Card(
-                                    shape = RoundedCornerShape(18.dp),
+                                    shape = RoundedCornerShape(20.dp),
                                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                                     elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
                                     modifier = Modifier
                                         .weight(1f)
-                                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.40f), RoundedCornerShape(18.dp)),
+                                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.40f), RoundedCornerShape(20.dp)),
                                 ) {
-                                    Column(modifier = Modifier.padding(12.dp)) {
+                                    Column(modifier = Modifier.padding(14.dp)) {
                                         // TOP SWATCH CARD WITH MATCH BADGE
                                         Box(
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .height(90.dp)
+                                                .height(95.dp)
                                                 .clip(RoundedCornerShape(14.dp))
                                                 .background(item.hex.asComposeColor())
                                                 .clickable {
+                                                    SoundEffectManager.playTap(currentView)
                                                     revealedHexItemId = if (isHexRevealed) null else item.id
                                                 }
                                                 .padding(8.dp),
@@ -348,25 +376,27 @@ fun ExploreScreen(
                                             }
                                         }
 
-                                        Spacer(Modifier.height(8.dp))
+                                        Spacer(Modifier.height(10.dp))
 
+                                        // TITLE & FABRIC
                                         Text(
-                                            item.name,
-                                            style = MaterialTheme.typography.titleSmall,
+                                            item.title,
                                             fontWeight = FontWeight.Bold,
+                                            style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurface,
                                             maxLines = 1,
                                         )
+                                        Spacer(Modifier.height(2.dp))
                                         Text(
-                                            "${fabric?.name ?: "Silk"} • ${item.category.label}",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            "${fabric.icon} ${fabric.name}",
                                             fontSize = 11.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            maxLines = 1,
                                         )
 
-                                        Spacer(Modifier.height(10.dp))
+                                        Spacer(Modifier.height(12.dp))
 
-                                        // ACTION BUTTONS (DRAPE & TRY-ON)
+                                        // ACTION BUTTONS: [ Drape ] [ Try On ]
                                         Row(
                                             modifier = Modifier.fillMaxWidth(),
                                             horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -376,37 +406,61 @@ fun ExploreScreen(
                                                     .weight(1f)
                                                     .clip(RoundedCornerShape(8.dp))
                                                     .background(MaterialTheme.colorScheme.surfaceVariant)
-                                                    .clickable { onNavigateToDrape(item.fabricId, item.hex) }
-                                                    .padding(vertical = 5.dp),
+                                                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                                                    .clickable {
+                                                        SoundEffectManager.playTap(currentView)
+                                                        onNavigateToDrape(item.fabricId, item.hex)
+                                                    }
+                                                    .padding(vertical = 6.dp),
                                                 contentAlignment = Alignment.Center,
                                             ) {
-                                                Text("🪞 Drape", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface, fontSize = 10.sp)
+                                                Text(
+                                                    "Drape",
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = MaterialTheme.colorScheme.onSurface,
+                                                )
                                             }
 
                                             Box(
                                                 modifier = Modifier
                                                     .weight(1f)
                                                     .clip(RoundedCornerShape(8.dp))
-                                                    .background(EditorialSienna.copy(alpha = 0.12f))
-                                                    .clickable { onNavigateToTryOn(item.fabricId, item.hex) }
-                                                    .padding(vertical = 5.dp),
+                                                    .background(EditorialSienna)
+                                                    .clickable {
+                                                        SoundEffectManager.playTap(currentView)
+                                                        onNavigateToTryOn(item.fabricId, item.hex)
+                                                    }
+                                                    .padding(vertical = 6.dp),
                                                 contentAlignment = Alignment.Center,
                                             ) {
-                                                Text("✨ Try-On", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = EditorialSienna, fontSize = 10.sp)
+                                                Text(
+                                                    "Try On",
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color.White,
+                                                )
                                             }
                                         }
                                     }
                                 }
                             }
                             if (pair.size == 1) {
-                                Spacer(Modifier.weight(1f))
+                                Spacer(modifier = Modifier.weight(1f))
                             }
                         }
                     }
                 }
-
-                Spacer(Modifier.height(28.dp))
             }
+
+            Spacer(Modifier.height(36.dp))
+        }
+
+        // SETTINGS MODAL
+        if (isSettingsOpen) {
+            ProfileSettingsModal(
+                onDismiss = { isSettingsOpen = false },
+            )
         }
     }
 }

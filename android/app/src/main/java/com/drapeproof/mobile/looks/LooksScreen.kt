@@ -33,6 +33,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -46,18 +47,19 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.drapeproof.mobile.data.DrapeSnap
 import com.drapeproof.mobile.data.DrapeSnapRepository
+import com.drapeproof.mobile.data.SavedTryOnOutfit
 import com.drapeproof.mobile.data.WardrobeRepository
+import com.drapeproof.mobile.profile.ProfileSettingsModal
 import com.drapeproof.mobile.ui.components.FullScreenImageViewerModal
-import com.drapeproof.mobile.ui.theme.EditorialGold
-import com.drapeproof.mobile.ui.theme.EditorialInk
-import com.drapeproof.mobile.ui.theme.EditorialMuted
-import com.drapeproof.mobile.ui.theme.EditorialPositive
+import com.drapeproof.mobile.ui.sound.SoundEffectManager
 import com.drapeproof.mobile.ui.theme.EditorialSienna
 import com.drapeproof.mobile.util.ImageExportUtils
 import kotlinx.coroutines.delay
@@ -71,24 +73,32 @@ fun LooksScreen(
     onNavigateToCompare: (selectedSnapIds: List<String>) -> Unit,
 ) {
     val context = LocalContext.current
+    val currentView = LocalView.current
     val scope = rememberCoroutineScope()
 
     var snaps by remember { mutableStateOf(DrapeSnapRepository.list(context)) }
     var savedOutfits by remember { mutableStateOf(WardrobeRepository.listOutfits(context)) }
     val selectedCompareIds = remember { mutableStateListOf<String>() }
 
+    var fullScreenImageBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    var fullScreenTitle by remember { mutableStateOf("Drape Look") }
+
     var snapToDeleteId by remember { mutableStateOf<String?>(null) }
     var outfitToDeleteId by remember { mutableStateOf<String?>(null) }
     var alertMessage by remember { mutableStateOf<String?>(null) }
-    var fullScreenImageBitmap by remember { mutableStateOf<Bitmap?>(null) }
-    var fullScreenTitle by remember { mutableStateOf("Look Preview") }
+    var isSettingsOpen by remember { mutableStateOf(false) }
 
     fun refreshData() {
         snaps = DrapeSnapRepository.list(context)
         savedOutfits = WardrobeRepository.listOutfits(context)
     }
 
+    LaunchedEffect(Unit) {
+        refreshData()
+    }
+
     fun toggleSelection(snapId: String) {
+        SoundEffectManager.playTap(currentView)
         if (snapId in selectedCompareIds) {
             selectedCompareIds.remove(snapId)
         } else {
@@ -113,13 +123,13 @@ fun LooksScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .statusBarsPadding()
-                    .padding(horizontal = 18.dp)
+                    .padding(horizontal = 20.dp)
                     .verticalScroll(rememberScrollState())
                     .padding(bottom = 90.dp),
             ) {
-                Spacer(Modifier.height(14.dp))
+                Spacer(Modifier.height(18.dp))
 
-                // TOP HEADER BAR
+                // TOP HEADER BAR WITH SETTINGS ICON
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -140,21 +150,42 @@ fun LooksScreen(
                         )
                     }
 
-                    if (selectedCompareIds.isNotEmpty()) {
-                        Text(
-                            "Clear (${selectedCompareIds.size})",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = EditorialSienna,
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (selectedCompareIds.isNotEmpty()) {
+                            Text(
+                                "Clear (${selectedCompareIds.size})",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = EditorialSienna,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable {
+                                        SoundEffectManager.playTap(currentView)
+                                        selectedCompareIds.clear()
+                                    }
+                                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                            )
+                            Spacer(Modifier.width(8.dp))
+                        }
+
+                        Box(
                             modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .clickable { selectedCompareIds.clear() }
-                                .padding(horizontal = 8.dp, vertical = 4.dp),
-                        )
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.40f), CircleShape)
+                                .clickable {
+                                    SoundEffectManager.playTap(currentView)
+                                    isSettingsOpen = true
+                                },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text("⚙️", fontSize = 18.sp)
+                        }
                     }
                 }
 
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(22.dp))
 
                 // SAVED DRAPE PICTURES SECTION
                 Row(
@@ -177,6 +208,7 @@ fun LooksScreen(
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.clickable {
+                                SoundEffectManager.playTap(currentView)
                                 if (selectedCompareIds.size == snaps.size) {
                                     selectedCompareIds.clear()
                                 } else {
@@ -188,15 +220,15 @@ fun LooksScreen(
                     }
                 }
 
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(14.dp))
 
                 if (snaps.isEmpty()) {
                     Card(
-                        shape = RoundedCornerShape(18.dp),
+                        shape = RoundedCornerShape(22.dp),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f), RoundedCornerShape(18.dp)),
+                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.40f), RoundedCornerShape(22.dp)),
                     ) {
                         Column(
                             modifier = Modifier.padding(24.dp),
@@ -217,9 +249,12 @@ fun LooksScreen(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 textAlign = TextAlign.Center,
                             )
-                            Spacer(Modifier.height(14.dp))
+                            Spacer(Modifier.height(16.dp))
                             Button(
-                                onClick = { onNavigateToDrape("silk", "#831843") },
+                                onClick = {
+                                    SoundEffectManager.playTap(currentView)
+                                    onNavigateToDrape("silk", "#831843")
+                                },
                                 shape = RoundedCornerShape(12.dp),
                                 colors = ButtonDefaults.buttonColors(containerColor = EditorialSienna),
                             ) {
@@ -230,11 +265,11 @@ fun LooksScreen(
                 } else {
                     // 2-COLUMN WARDROBE DRAPES GRID
                     val chunkedSnaps = snaps.chunked(2)
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                         chunkedSnaps.forEach { pair ->
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                horizontalArrangement = Arrangement.spacedBy(14.dp),
                             ) {
                                 pair.forEach { snap ->
                                     val file = File(snap.imagePath)
@@ -242,9 +277,9 @@ fun LooksScreen(
                                     val isSelected = snap.id in selectedCompareIds
 
                                     Card(
-                                        shape = RoundedCornerShape(18.dp),
+                                        shape = RoundedCornerShape(20.dp),
                                         colors = CardDefaults.cardColors(
-                                            containerColor = if (isSelected) EditorialSienna.copy(alpha = 0.08f) else MaterialTheme.colorScheme.surface,
+                                            containerColor = if (isSelected) EditorialSienna.copy(alpha = 0.10f) else MaterialTheme.colorScheme.surface,
                                         ),
                                         elevation = CardDefaults.cardElevation(defaultElevation = if (isSelected) 3.dp else 1.dp),
                                         modifier = Modifier
@@ -252,19 +287,20 @@ fun LooksScreen(
                                             .border(
                                                 width = if (isSelected) 2.dp else 1.dp,
                                                 color = if (isSelected) EditorialSienna else MaterialTheme.colorScheme.outline.copy(alpha = 0.40f),
-                                                shape = RoundedCornerShape(18.dp),
+                                                shape = RoundedCornerShape(20.dp),
                                             ),
                                     ) {
-                                        Column(modifier = Modifier.padding(10.dp)) {
+                                        Column(modifier = Modifier.padding(12.dp)) {
                                             // THUMBNAIL WITH TAP-TO-FULLSCREEN & ACTIONS
                                             Box(
                                                 modifier = Modifier
                                                     .fillMaxWidth()
-                                                    .height(130.dp)
-                                                    .clip(RoundedCornerShape(12.dp))
+                                                    .height(135.dp)
+                                                    .clip(RoundedCornerShape(14.dp))
                                                     .background(snap.colorHex.asComposeColor())
                                                     .clickable {
                                                         if (bmp != null) {
+                                                            SoundEffectManager.playTap(currentView)
                                                             fullScreenImageBitmap = bmp
                                                             fullScreenTitle = "${snap.fabricName} • ${snap.colorName}"
                                                         }
@@ -285,7 +321,7 @@ fun LooksScreen(
                                                         .align(Alignment.TopStart)
                                                         .padding(6.dp)
                                                         .clip(RoundedCornerShape(6.dp))
-                                                        .background(Color.Black.copy(alpha = 0.65f))
+                                                        .background(Color.Black.copy(alpha = 0.70f))
                                                         .padding(horizontal = 6.dp, vertical = 2.dp),
                                                 ) {
                                                     Text(
@@ -303,9 +339,10 @@ fun LooksScreen(
                                                         .padding(6.dp)
                                                         .size(28.dp)
                                                         .clip(CircleShape)
-                                                        .background(Color.Black.copy(alpha = 0.65f))
+                                                        .background(Color.Black.copy(alpha = 0.70f))
                                                         .clickable {
                                                             bmp?.let { snapBmp ->
+                                                                SoundEffectManager.playTap(currentView)
                                                                 ImageExportUtils.saveImageToGallery(
                                                                     context = context,
                                                                     bitmap = snapBmp,
@@ -319,7 +356,7 @@ fun LooksScreen(
                                                 }
                                             }
 
-                                            Spacer(Modifier.height(8.dp))
+                                            Spacer(Modifier.height(10.dp))
 
                                             Text(
                                                 "${snap.fabricName} • ${snap.colorName}",
@@ -330,7 +367,7 @@ fun LooksScreen(
                                                 overflow = TextOverflow.Ellipsis,
                                             )
 
-                                            Spacer(Modifier.height(6.dp))
+                                            Spacer(Modifier.height(8.dp))
 
                                             // COMPARE & DELETE BUTTONS
                                             Row(
@@ -359,7 +396,10 @@ fun LooksScreen(
                                                         .size(28.dp)
                                                         .clip(CircleShape)
                                                         .background(MaterialTheme.colorScheme.surfaceVariant)
-                                                        .clickable { snapToDeleteId = snap.id },
+                                                        .clickable {
+                                                            SoundEffectManager.playTap(currentView)
+                                                            snapToDeleteId = snap.id
+                                                        },
                                                     contentAlignment = Alignment.Center,
                                                 ) {
                                                     Text("🗑️", fontSize = 12.sp)
@@ -376,7 +416,7 @@ fun LooksScreen(
                     }
                 }
 
-                Spacer(Modifier.height(24.dp))
+                Spacer(Modifier.height(26.dp))
 
                 // SAVED VIRTUAL TRY-ON OUTFITS
                 if (savedOutfits.isNotEmpty()) {
@@ -387,37 +427,37 @@ fun LooksScreen(
                         color = EditorialSienna,
                         letterSpacing = 1.2.sp,
                     )
-                    Spacer(Modifier.height(10.dp))
+                    Spacer(Modifier.height(12.dp))
 
                     val chunkedOutfits = savedOutfits.chunked(2)
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                         chunkedOutfits.forEach { pair ->
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                horizontalArrangement = Arrangement.spacedBy(14.dp),
                             ) {
                                 pair.forEach { outfit ->
                                     Card(
-                                        shape = RoundedCornerShape(18.dp),
+                                        shape = RoundedCornerShape(20.dp),
                                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                                         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
                                         modifier = Modifier
                                             .weight(1f)
-                                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f), RoundedCornerShape(18.dp)),
+                                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.40f), RoundedCornerShape(20.dp)),
                                     ) {
-                                        Column(modifier = Modifier.padding(10.dp)) {
+                                        Column(modifier = Modifier.padding(12.dp)) {
                                             Box(
                                                 modifier = Modifier
                                                     .fillMaxWidth()
-                                                    .height(80.dp)
-                                                    .clip(RoundedCornerShape(12.dp))
+                                                    .height(85.dp)
+                                                    .clip(RoundedCornerShape(14.dp))
                                                     .background(outfit.colorHex.asComposeColor()),
                                                 contentAlignment = Alignment.Center,
                                             ) {
-                                                Text("👔", fontSize = 28.sp)
+                                                Text("👔", fontSize = 30.sp)
                                             }
 
-                                            Spacer(Modifier.height(8.dp))
+                                            Spacer(Modifier.height(10.dp))
 
                                             Text(
                                                 outfit.title,
@@ -435,7 +475,7 @@ fun LooksScreen(
                                                 maxLines = 1,
                                             )
 
-                                            Spacer(Modifier.height(8.dp))
+                                            Spacer(Modifier.height(10.dp))
 
                                             Row(
                                                 modifier = Modifier.fillMaxWidth(),
@@ -445,11 +485,12 @@ fun LooksScreen(
                                                 Box(
                                                     modifier = Modifier
                                                         .clip(RoundedCornerShape(8.dp))
-                                                        .background(EditorialSienna.copy(alpha = 0.10f))
+                                                        .background(EditorialSienna.copy(alpha = 0.12f))
                                                         .clickable {
+                                                            SoundEffectManager.playTap(currentView)
                                                             onNavigateToTryOn("silk", outfit.colorHex, null)
                                                         }
-                                                        .padding(horizontal = 6.dp, vertical = 3.dp),
+                                                        .padding(horizontal = 8.dp, vertical = 4.dp),
                                                 ) {
                                                     Text("Try-On →", color = EditorialSienna, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                                                 }
@@ -459,7 +500,10 @@ fun LooksScreen(
                                                         .size(28.dp)
                                                         .clip(CircleShape)
                                                         .background(MaterialTheme.colorScheme.surfaceVariant)
-                                                        .clickable { outfitToDeleteId = outfit.id },
+                                                        .clickable {
+                                                            SoundEffectManager.playTap(currentView)
+                                                            outfitToDeleteId = outfit.id
+                                                        },
                                                     contentAlignment = Alignment.Center,
                                                 ) {
                                                     Text("🗑️", fontSize = 12.sp)
@@ -479,7 +523,7 @@ fun LooksScreen(
                 Spacer(Modifier.height(20.dp))
             }
 
-            // FLOATING ALERT MESSAGE (When <2 items selected)
+            // FLOATING ALERT MESSAGE
             if (alertMessage != null) {
                 Box(
                     modifier = Modifier
@@ -506,7 +550,7 @@ fun LooksScreen(
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
                     .navigationBarsPadding()
-                    .padding(horizontal = 18.dp, vertical = 12.dp),
+                    .padding(horizontal = 20.dp, vertical = 12.dp),
             ) {
                 Button(
                     onClick = {
@@ -517,6 +561,7 @@ fun LooksScreen(
                                 alertMessage = null
                             }
                         } else {
+                            SoundEffectManager.playTap(currentView)
                             val itemsToCompare = selectedCompareIds.toList()
                             selectedCompareIds.clear()
                             onNavigateToCompare(itemsToCompare)
@@ -528,7 +573,7 @@ fun LooksScreen(
                     ),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(50.dp),
+                        .height(52.dp),
                 ) {
                     Text(
                         if (selectedCompareIds.size >= 2) {
@@ -541,6 +586,13 @@ fun LooksScreen(
                     )
                 }
             }
+        }
+
+        // SETTINGS MODAL
+        if (isSettingsOpen) {
+            ProfileSettingsModal(
+                onDismiss = { isSettingsOpen = false },
+            )
         }
 
         // FULL SCREEN IMAGE LIGHTBOX
@@ -556,6 +608,7 @@ fun LooksScreen(
         if (snapToDeleteId != null) {
             AlertDialog(
                 onDismissRequest = { snapToDeleteId = null },
+                containerColor = MaterialTheme.colorScheme.surface,
                 title = { Text("Delete Look?", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface) },
                 text = { Text("This captured drape photo will be permanently removed from your private wardrobe.", color = MaterialTheme.colorScheme.onSurfaceVariant) },
                 confirmButton = {
@@ -583,6 +636,7 @@ fun LooksScreen(
         if (outfitToDeleteId != null) {
             AlertDialog(
                 onDismissRequest = { outfitToDeleteId = null },
+                containerColor = MaterialTheme.colorScheme.surface,
                 title = { Text("Delete Outfit?", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface) },
                 text = { Text("This saved try-on outfit will be removed from your collection.", color = MaterialTheme.colorScheme.onSurfaceVariant) },
                 confirmButton = {

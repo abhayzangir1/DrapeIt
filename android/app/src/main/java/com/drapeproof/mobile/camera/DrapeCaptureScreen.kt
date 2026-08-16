@@ -289,7 +289,7 @@ fun DrapeCaptureScreen(
     var isControlsCollapsed by remember { mutableStateOf(false) }
 
     if (!permissionGranted && photoBitmap == null) {
-        Surface(modifier = Modifier.fillMaxSize(), color = EditorialCream) {
+        Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -299,13 +299,13 @@ fun DrapeCaptureScreen(
             ) {
                 Text("📷", fontSize = 48.sp)
                 Spacer(Modifier.height(16.dp))
-                Text("Camera Access Required", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = EditorialInk)
+                Text("Camera Access Required", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
                 Spacer(Modifier.height(8.dp))
                 Text(
                     "DrapeIt projects virtual fabrics and measures live facial colorimetry in real time.",
                     style = MaterialTheme.typography.bodyMedium,
                     textAlign = TextAlign.Center,
-                    color = EditorialMuted,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(Modifier.height(20.dp))
                 Button(
@@ -317,7 +317,7 @@ fun DrapeCaptureScreen(
                 }
                 Spacer(Modifier.height(8.dp))
                 OutlinedButton(onClick = { photoPickerLauncher.launch("image/*") }, shape = RoundedCornerShape(14.dp)) {
-                    Text("Upload Photo Instead", color = EditorialInk)
+                    Text("Upload Photo Instead", color = MaterialTheme.colorScheme.onSurface)
                 }
             }
         }
@@ -832,7 +832,8 @@ fun DrapeCaptureScreen(
                         .padding(12.dp)
                         .clickable(enabled = false) {},
                     shape = RoundedCornerShape(24.dp),
-                    colors = CardDefaults.cardColors(containerColor = EditorialCream),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.40f)),
                 ) {
                     Column(
                         modifier = Modifier
@@ -844,16 +845,16 @@ fun DrapeCaptureScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Text("Choose Fabric Texture", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = EditorialInk)
+                            Text("Choose Fabric Texture", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                             Box(
                                 modifier = Modifier
                                     .size(30.dp)
                                     .clip(CircleShape)
-                                    .background(Color.LightGray.copy(alpha = 0.5f))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant)
                                     .clickable { isFabricListExpanded = false },
                                 contentAlignment = Alignment.Center,
                             ) {
-                                Text("✕", fontSize = 12.sp, color = EditorialInk, fontWeight = FontWeight.Bold)
+                                Text("✕", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Bold)
                             }
                         }
                         Spacer(Modifier.height(14.dp))
@@ -870,8 +871,8 @@ fun DrapeCaptureScreen(
                                         modifier = Modifier
                                             .weight(1f)
                                             .clip(RoundedCornerShape(14.dp))
-                                            .background(if (isSel) EditorialSienna else Color.White)
-                                            .border(1.dp, if (isSel) EditorialSienna else Color.LightGray.copy(alpha = 0.4f), RoundedCornerShape(14.dp))
+                                            .background(if (isSel) EditorialSienna else MaterialTheme.colorScheme.surfaceVariant)
+                                            .border(1.dp, if (isSel) EditorialGold.copy(alpha = 0.85f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
                                             .clickable {
                                                 selectedFabric = fab
                                                 isFabricListExpanded = false
@@ -886,7 +887,7 @@ fun DrapeCaptureScreen(
                                                 fab.name,
                                                 style = MaterialTheme.typography.labelSmall,
                                                 fontWeight = FontWeight.Bold,
-                                                color = if (isSel) Color.White else EditorialInk,
+                                                color = if (isSel) Color.White else MaterialTheme.colorScheme.onSurface,
                                             )
                                         }
                                     }
