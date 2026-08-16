@@ -83,12 +83,10 @@ object PhotoAvatarStore {
             val avatarsDir = getAvatarsDir(context)
             val targetFile = File(avatarsDir, "avatar_$id.jpg")
 
-            context.contentResolver.openInputStream(sourceUri)?.use { input ->
-                val bitmap = BitmapFactory.decodeStream(input) ?: return null
-                FileOutputStream(targetFile).use { output ->
-                    bitmap.compress(Bitmap.CompressFormat.JPEG, 90, output)
-                }
-            } ?: return null
+            val bitmap = decodeSafeBitmap(context, sourceUri) ?: return null
+            FileOutputStream(targetFile).use { output ->
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 90, output)
+            }
 
             val avatar = SavedAvatar(
                 id = id,
@@ -189,5 +187,35 @@ object PhotoAvatarStore {
             getAvatarsDir(context).deleteRecursively()
         }
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().clear().apply()
+    }
+
+    private fun decodeSafeBitmap(context: Context, uri: Uri): Bitmap? {
+        return runCatching {
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            context.contentResolver.openInputStream(uri)?.use {
+                BitmapFactory.decodeStream(it, null, bounds)
+            }
+            val maxDim = maxOf(bounds.outWidth, bounds.outHeight)
+            if (maxDim <= 0) return null
+
+            var sample = 1
+            while (maxDim / (sample * 2) >= 1280) {
+                sample *= 2
+            }
+            val options = BitmapFactory.Options().apply {
+                inSampleSize = sample
+                inPreferredConfig = Bitmap.Config.ARGB_8888
+                inMutable = true
+            }
+            val decoded = context.contentResolver.openInputStream(uri)?.use {
+                BitmapFactory.decodeStream(it, null, options)
+            } ?: return null
+
+            if (decoded.config != Bitmap.Config.ARGB_8888) {
+                decoded.copy(Bitmap.Config.ARGB_8888, true)
+            } else {
+                decoded
+            }
+        }.getOrNull()
     }
 }

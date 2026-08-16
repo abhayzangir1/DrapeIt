@@ -272,9 +272,7 @@ fun TryOnScreen(
 
     var customGarmentBitmap by remember(customGarmentUri) {
         mutableStateOf(
-            customGarmentUri?.let { uri ->
-                runCatching { context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it) } }.getOrNull()
-            }
+            customGarmentUri?.let { uri -> decodeSafeBitmapFromUri(context, uri) }
         )
     }
 
@@ -310,14 +308,10 @@ fun TryOnScreen(
 
     val garmentPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         if (uri != null) {
-            runCatching {
-                context.contentResolver.openInputStream(uri)?.use { stream ->
-                    val bmp = BitmapFactory.decodeStream(stream)
-                    if (bmp != null) {
-                        rawGarmentBitmapToCrop = bmp
-                        isCropperOpen = true
-                    }
-                }
+            val bmp = decodeSafeBitmapFromUri(context, uri)
+            if (bmp != null) {
+                rawGarmentBitmapToCrop = bmp
+                isCropperOpen = true
             }
         }
     }
@@ -1488,4 +1482,34 @@ private fun extractDominantColorHex(bitmap: Bitmap): String {
     val cg = (centroid shr 8) and 0xFF
     val cb = centroid and 0xFF
     return String.format("#%02X%02X%02X", cr, cg, cb)
+}
+
+private fun decodeSafeBitmapFromUri(context: android.content.Context, uri: Uri): Bitmap? {
+    return runCatching {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        context.contentResolver.openInputStream(uri)?.use {
+            BitmapFactory.decodeStream(it, null, bounds)
+        }
+        val maxDim = maxOf(bounds.outWidth, bounds.outHeight)
+        if (maxDim <= 0) return null
+
+        var sample = 1
+        while (maxDim / (sample * 2) >= 1280) {
+            sample *= 2
+        }
+        val options = BitmapFactory.Options().apply {
+            inSampleSize = sample
+            inPreferredConfig = Bitmap.Config.ARGB_8888
+            inMutable = true
+        }
+        val decoded = context.contentResolver.openInputStream(uri)?.use {
+            BitmapFactory.decodeStream(it, null, options)
+        } ?: return null
+
+        if (decoded.config != Bitmap.Config.ARGB_8888) {
+            decoded.copy(Bitmap.Config.ARGB_8888, true)
+        } else {
+            decoded
+        }
+    }.getOrNull()
 }

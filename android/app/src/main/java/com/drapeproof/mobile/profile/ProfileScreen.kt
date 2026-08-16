@@ -75,13 +75,9 @@ fun ProfileScreen(
 
     val photoPickerLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         if (uri != null) {
-            runCatching {
-                context.contentResolver.openInputStream(uri)?.use { stream ->
-                    val bmp = BitmapFactory.decodeStream(stream)
-                    if (bmp != null) {
-                        selectedPickerBitmap = bmp
-                    }
-                }
+            val bmp = loadSafeProfileBitmap(context, uri)
+            if (bmp != null) {
+                selectedPickerBitmap = bmp
             }
         }
     }
@@ -594,4 +590,34 @@ private fun String.asComposeColor(): Color {
             blue = (value and 0xFF).toInt(),
         )
     }.getOrDefault(Color.Gray)
+}
+
+private fun loadSafeProfileBitmap(context: android.content.Context, uri: Uri): Bitmap? {
+    return runCatching {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        context.contentResolver.openInputStream(uri)?.use { 
+            BitmapFactory.decodeStream(it, null, bounds) 
+        }
+        val maxDim = maxOf(bounds.outWidth, bounds.outHeight)
+        if (maxDim <= 0) return null
+
+        var sample = 1
+        while (maxDim / (sample * 2) >= 1280) {
+            sample *= 2
+        }
+        val options = BitmapFactory.Options().apply {
+            inSampleSize = sample
+            inPreferredConfig = Bitmap.Config.ARGB_8888
+            inMutable = true
+        }
+        val decoded = context.contentResolver.openInputStream(uri)?.use { 
+            BitmapFactory.decodeStream(it, null, options) 
+        } ?: return null
+
+        if (decoded.config != Bitmap.Config.ARGB_8888) {
+            decoded.copy(Bitmap.Config.ARGB_8888, true)
+        } else {
+            decoded
+        }
+    }.getOrNull()
 }
