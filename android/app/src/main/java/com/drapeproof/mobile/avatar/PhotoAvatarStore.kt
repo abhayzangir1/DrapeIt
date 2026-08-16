@@ -141,13 +141,20 @@ object PhotoAvatarStore {
         val avatars = listAvatars(context)
         if (avatars.isEmpty()) return null
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val activeId = prefs.getString(KEY_ACTIVE_ID, null)
-        return avatars.firstOrNull { it.id == activeId } ?: avatars.first()
+        val activeId = prefs.getString(KEY_ACTIVE_ID, null) ?: return null
+        if (activeId.isBlank()) return null
+        return avatars.firstOrNull { it.id == activeId }
     }
 
     fun setActiveAvatarId(context: Context, id: String) {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
             .putString(KEY_ACTIVE_ID, id)
+            .apply()
+    }
+
+    fun clearActiveAvatar(context: Context) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .remove(KEY_ACTIVE_ID)
             .apply()
     }
 

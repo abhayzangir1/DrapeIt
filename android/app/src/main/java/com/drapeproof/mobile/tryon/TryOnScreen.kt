@@ -674,6 +674,10 @@ fun TryOnScreen(
                                     color = Color(0xFFF87171),
                                     modifier = Modifier.clickable {
                                         SoundEffectManager.playTap(currentView)
+                                        activeAvatar?.let { av ->
+                                            PhotoAvatarStore.deleteAvatar(context, av.id)
+                                        }
+                                        PhotoAvatarStore.clearActiveAvatar(context)
                                         activeAvatar = null
                                     },
                                 )
