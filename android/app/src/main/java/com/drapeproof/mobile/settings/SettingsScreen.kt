@@ -252,7 +252,9 @@ fun SettingsScreen(onBack: () -> Unit) {
                         com.drapeproof.mobile.data.WardrobeRepository.clear(context)
                         com.drapeproof.mobile.data.SuitedColorsRepository.clear(context)
                         com.drapeproof.mobile.data.SkinProfileRepository.clear(context)
+                        com.drapeproof.mobile.data.DrapeRecordRepository.deleteAll(context)
                         com.drapeproof.mobile.avatar.PhotoAvatarStore.deleteAll(context)
+                        com.drapeproof.mobile.silhouette.UserProfileStore.clear(context)
                         recordCount = 0
                         showDeleteDialog = false
                         statusMessage = "All local data was permanently deleted."

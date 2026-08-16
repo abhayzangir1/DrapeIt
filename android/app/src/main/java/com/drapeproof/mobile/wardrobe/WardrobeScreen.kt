@@ -556,6 +556,7 @@ fun WardrobeScreen(
                             UserProfileStore.clear(context)
                             SkinProfileRepository.clear(context)
                             DrapeRecordRepository.deleteAll(context)
+                            com.drapeproof.mobile.data.DrapeSnapRepository.list(context).forEach { com.drapeproof.mobile.data.DrapeSnapRepository.delete(context, it.id) }
                             YouCamLabStore.deleteAllLocalData(context)
 
                             avatars = emptyList()

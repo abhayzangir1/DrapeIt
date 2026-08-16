@@ -488,7 +488,7 @@ fun LooksScreen(
                                                         .background(EditorialSienna.copy(alpha = 0.12f))
                                                         .clickable {
                                                             SoundEffectManager.playTap(currentView)
-                                                            onNavigateToTryOn("silk", outfit.colorHex, null)
+                                                            onNavigateToTryOn(outfit.fabricName.lowercase().replace(" ", "_"), outfit.colorHex, null)
                                                         }
                                                         .padding(horizontal = 8.dp, vertical = 4.dp),
                                                 ) {

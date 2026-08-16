@@ -84,9 +84,19 @@ object TrueColorHarmonyEngine {
                     40.0 + (abs(fabricLab.b) / 5.0) * 38.0
                 }
                 // Complementary warm-on-warm or cool-on-cool alignment
-                isSkinWarm && isFabricWarm -> 96.0
-                !isSkinWarm && isFabricCool -> 96.0
-                else -> 78.0
+                isSkinWarm && isFabricWarm -> {
+                    val warmAlignment = 1.0 - (abs(fabricHue - 30.0).coerceAtMost(80.0) / 80.0)
+                    82.0 + warmAlignment * 16.0  // 82-98 range based on hue proximity
+                }
+                !isSkinWarm && isFabricCool -> {
+                    val coolAlignment = 1.0 - (abs(fabricHue - 220.0).coerceAtMost(60.0) / 60.0)
+                    82.0 + coolAlignment * 16.0  // 82-98 range based on hue proximity
+                }
+                else -> {
+                    // Cross-temperature: penalize based on chroma intensity
+                    val crossPenalty = (fabricChroma / 60.0).coerceAtMost(1.0)
+                    78.0 - crossPenalty * 20.0  // 78-58 range
+                }
             }
             val hueScore = hueRaw.toInt().coerceIn(20, 98)
 

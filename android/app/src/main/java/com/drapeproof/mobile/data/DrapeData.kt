@@ -15,13 +15,13 @@ data class StoredSkinProfile(
     val source: String,
     val capturedAtEpochMillis: Long,
     val isCalibrated: Boolean = true,
-    val undertone: String = "Warm Golden",
-    val season: String = "Deep Autumn",
-    val seasonDescription: String = "Rich, deep earth tones and warm burnished jewel shades.",
-    val itaScore: Float = 35.0f,
-    val bestMetals: String = "Yellow Gold, Brass & Warm Bronze",
-    val bestColors: List<String> = listOf("#831843", "#78350F", "#3F6212", "#0F172A", "#D97706", "#B45309"),
-    val worstColors: List<String> = listOf("#93C5FD", "#F472B6", "#A7F3D0"),
+    val undertone: String = "",
+    val season: String = "",
+    val seasonDescription: String = "",
+    val itaScore: Float = 0.0f,
+    val bestMetals: String = "",
+    val bestColors: List<String> = emptyList(),
+    val worstColors: List<String> = emptyList(),
 )
 
 object SkinProfileRepository {
@@ -57,9 +57,9 @@ object SkinProfileRepository {
         val season = preferences.getString("season", null)
 
         val bestColors = preferences.getString("best_colors", null)?.split(",")?.filter { it.isNotBlank() }
-            ?: listOf("#831843", "#78350F", "#3F6212", "#0F172A", "#D97706", "#B45309")
+            ?: emptyList()
         val worstColors = preferences.getString("worst_colors", null)?.split(",")?.filter { it.isNotBlank() }
-            ?: listOf("#93C5FD", "#F472B6", "#A7F3D0")
+            ?: emptyList()
 
         return StoredSkinProfile(
             skinHex = skinHex,
@@ -69,9 +69,9 @@ object SkinProfileRepository {
             isCalibrated = isCalibrated,
             undertone = undertone ?: "",
             season = season ?: "",
-            seasonDescription = preferences.getString("season_desc", "Rich, deep earth tones and warm burnished jewel shades.") ?: "Rich, deep earth tones and warm burnished jewel shades.",
+            seasonDescription = preferences.getString("season_desc", "") ?: "",
             itaScore = preferences.getFloat("ita_score", 0.0f),
-            bestMetals = preferences.getString("best_metals", "Yellow Gold, Brass & Warm Bronze") ?: "Yellow Gold, Brass & Warm Bronze",
+            bestMetals = preferences.getString("best_metals", "") ?: "",
             bestColors = bestColors,
             worstColors = worstColors,
         )

@@ -238,36 +238,20 @@ fun MarketplaceUploadScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         Button(
-                            onClick = {
-                                val outfit = SavedTryOnOutfit(
-                                    title = "Marketplace Screenshot Look",
-                                    fabricName = "Matched Material",
-                                    colorHex = "#2F51A2",
-                                    topwearCut = "Contemporary Fit",
-                                    bottomwearCut = "Straight Leg Slacks",
-                                    bottomwearColor = "Dark Charcoal",
-                                )
-                                WardrobeRepository.addOutfit(context, outfit)
-                                savedOutfitId = outfit.id
-                            },
+                            onClick = { },
+                            enabled = false,
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(14.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = if (savedOutfitId != null) GoldAccent else MaterialTheme.colorScheme.primary,
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant,
                             ),
                         ) {
-                            Text(if (savedOutfitId != null) "★ Saved" else "Save Look")
+                            Text("Save Look")
                         }
 
                         OutlinedButton(
-                            onClick = {
-                                onNavigateToShop(
-                                    "Matched Material",
-                                    "Deep Cobalt",
-                                    "#2F51A2",
-                                    "Contemporary Cut",
-                                )
-                            },
+                            onClick = { },
+                            enabled = false,
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(14.dp),
                         ) {
