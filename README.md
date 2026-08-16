@@ -98,33 +98,36 @@ flowchart TD
 
 ---
 
-## 🚀 Build & Installation
+## 🚀 Build & Installation for Evaluators / Judges
 
 ### Prerequisites
 * **Java 17+ JDK**
 * **Android SDK** (API 26+)
-* Android device or emulator
+* Physical Android device or Emulator (API 26+)
 
-### 1. Build and Run Unit Tests
+### 1. Direct Install Signed Release APK
+The project includes a ready-to-test signed release APK:
+```bash
+adb install -r android/app/build/outputs/apk/release/app-release.apk
+```
+
+### 2. Build from Source
 ```bash
 cd android
-./gradlew test assembleDebug
+./gradlew test assembleRelease
+adb install -r app/build/outputs/apk/release/app-release.apk
 ```
-*(On Windows PowerShell: `.\gradlew.bat test assembleDebug`)*
+*(On Windows PowerShell: `.\gradlew.bat test assembleRelease`)*
 
-The debug APK is generated at:
-`android/app/build/outputs/apk/debug/app-debug.apk`
-
-### 2. Install on Android Device
-```bash
-adb install -r android/app/build/outputs/apk/debug/app-debug.apk
-```
+The signed release APK is generated at:
+`android/app/build/outputs/apk/release/app-release.apk`
 
 ---
 
-## 🔒 Security & Privacy
-* **Zero API Keys in APK:** The Android application never bundles or stores master YouCam API keys. All cloud operations use short-lived session tokens through the secure Cloudflare Worker proxy.
-* **On-Device First:** Camera frames and facial landmarks stay completely local on the device during live colorimetry and AR draping. Photos are only uploaded to YouCam when the user explicitly triggers an AI Try-On or Skin Tone analysis task.
+## 🔒 Security, Privacy & Zero-Leakage Architecture
+* **Zero API Keys in APK:** The Android application never bundles or stores private YouCam API keys. All cloud operations communicate through short-lived session tokens via the secure backend proxy.
+* **On-Device First:** Camera frames and facial landmarks stay completely in volatile memory during live colorimetry and AR draping. Photos are only uploaded to YouCam when the user explicitly triggers an AI Try-On generation.
+* **No Personal Data Stored:** No telemetry, personal names, phone numbers, or analytics are collected or transmitted.
 
 ---
 

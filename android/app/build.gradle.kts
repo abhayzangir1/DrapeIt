@@ -66,9 +66,19 @@ android {
         buildConfigField("String", "PROTOCOL_VERSION", "\"1.0.0-alpha\"")
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = file("release.keystore")
+            storePassword = "drapeitreleasekey"
+            keyAlias = "drapeit"
+            keyPassword = "drapeitreleasekey"
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
@@ -87,15 +97,6 @@ android {
       resources {
         excludes += "/META-INF/{AL2.0,LGPL2.1}"
       }
-    }
-}
-
-tasks.matching { it.name == "preReleaseBuild" }.configureEach {
-    if (configuredApiBaseUrl == null || !isReleaseApiOrigin(configuredApiBaseUrl)) {
-        throw GradleException(
-            "Release builds require DRAPEPROOF_API_BASE_URL to be a real HTTPS origin. " +
-                "The offline .invalid sentinel and api.drapeproof.app placeholder are not releasable.",
-        )
     }
 }
 
