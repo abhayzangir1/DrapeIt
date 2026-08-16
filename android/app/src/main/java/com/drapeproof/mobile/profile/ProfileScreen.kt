@@ -30,6 +30,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -152,18 +153,38 @@ fun ProfileScreen(
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         Text(
-                            "Skin Profile Not Calibrated",
+                            "Calibrate Your Color Profile",
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface,
                         )
-                        Spacer(Modifier.height(16.dp))
-                        Button(
-                            onClick = { isLiveScannerOpen = true },
-                            shape = RoundedCornerShape(14.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = EditorialSienna),
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            "Scan your complexion via live camera or upload a clear portrait to calculate your personal archetype, compatible palette, and contrast rules.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        )
+                        Spacer(Modifier.height(18.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
                         ) {
-                            Text("Run Live Skin Scan", color = Color.White)
+                            Button(
+                                onClick = { isLiveScannerOpen = true },
+                                shape = RoundedCornerShape(14.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = EditorialSienna),
+                                modifier = Modifier.weight(1f).height(46.dp),
+                            ) {
+                                Text("📸 Live Scan", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            }
+                            OutlinedButton(
+                                onClick = { photoPickerLauncher.launch("image/*") },
+                                shape = RoundedCornerShape(14.dp),
+                                modifier = Modifier.weight(1f).height(46.dp),
+                            ) {
+                                Text("🖼️ Photo Pick", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            }
                         }
                     }
                 }
