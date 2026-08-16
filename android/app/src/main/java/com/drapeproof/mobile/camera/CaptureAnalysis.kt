@@ -415,7 +415,7 @@ private fun Bitmap.sampleRegion(left: Double, top: Double, right: Double, bottom
     return RegionStats(SrgbColor(avgR, avgG, avgB), count, clipped, dev)
 }
 
-private fun SrgbColor.relativeLuminance(): Double =
+internal fun SrgbColor.relativeLuminance(): Double =
     (0.2126 * red + 0.7152 * green + 0.0722 * blue) / 255.0
 
 private fun isPlausibleHumanSkin(srgb: SrgbColor?): Boolean {

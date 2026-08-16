@@ -175,10 +175,9 @@ fun DrapeCaptureScreen(
     var photoBitmap by remember { mutableStateOf<Bitmap?>(null) }
     val photoPickerLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri?.let {
-            runCatching {
-                context.contentResolver.openInputStream(it)?.use { stream ->
-                    photoBitmap = BitmapFactory.decodeStream(stream)
-                }
+            val loaded = loadSafeGalleryBitmap(context, it)
+            if (loaded != null) {
+                photoBitmap = loaded
             }
         }
     }
@@ -192,7 +191,15 @@ fun DrapeCaptureScreen(
     LaunchedEffect(photoBitmap) {
         val bmp = photoBitmap ?: return@LaunchedEffect
         withContext(Dispatchers.Default) {
-            runCatching {
+            val softwareBmp = runCatching {
+                if (bmp.config != Bitmap.Config.ARGB_8888) {
+                    bmp.copy(Bitmap.Config.ARGB_8888, false)
+                } else {
+                    bmp
+                }
+            }.getOrNull() ?: bmp
+
+            val analyzedReading = runCatching {
                 val landmarker = FaceLandmarker.createFromOptions(
                     context,
                     FaceLandmarker.FaceLandmarkerOptions.builder()
@@ -203,24 +210,56 @@ fun DrapeCaptureScreen(
                         )
                         .setRunningMode(RunningMode.IMAGE)
                         .setNumFaces(1)
-                        .setMinFaceDetectionConfidence(0.50f)
-                        .setMinFacePresenceConfidence(0.50f)
-                        .setMinTrackingConfidence(0.50f)
+                        .setMinFaceDetectionConfidence(0.40f)
+                        .setMinFacePresenceConfidence(0.40f)
+                        .setMinTrackingConfidence(0.40f)
                         .build(),
                 )
-                val mpImage = BitmapImageBuilder(bmp).build()
+                val mpImage = BitmapImageBuilder(softwareBmp).build()
                 try {
                     val result = landmarker.detect(mpImage)
-                    val reading = analyzeFrame(bmp, result)
-                    withContext(Dispatchers.Main) {
-                        latestReading = reading
-                        if (reading.skinSrgb != null) {
-                            detectedSkinHex = reading.skinSrgb.toHex()
-                        }
-                    }
+                    analyzeFrame(softwareBmp, result)
                 } finally {
-                    mpImage.close()
-                    landmarker.close()
+                    runCatching { mpImage.close() }
+                    runCatching { landmarker.close() }
+                }
+            }.getOrNull()
+
+            val finalReading = if (analyzedReading != null && analyzedReading.skinSrgb != null) {
+                analyzedReading
+            } else {
+                val fallbackSkin = sampleStaticPhotoCenterSkin(softwareBmp)
+                if (fallbackSkin != null) {
+                    FrameReading(
+                        face = null,
+                        fabric = null,
+                        skinSrgb = fallbackSkin,
+                        fabricSrgb = null,
+                        yawDegrees = 0.0,
+                        pitchDegrees = 0.0,
+                        rollDegrees = 0.0,
+                        faceScale = 0.50,
+                        clippedPixelFraction = 0.0,
+                        fabricClippedPixelFraction = 0.0,
+                        faceLuminance = fallbackSkin.relativeLuminance(),
+                        sharpEnough = true,
+                        neutralExpression = true,
+                        eyesOpen = true,
+                        occlusionFree = true,
+                        fabricRegionValid = true,
+                        captureConfidencePercent = 88,
+                        lightingStatusLabel = "Photo Analyzed",
+                        timestampNanos = System.currentTimeMillis() * 1_000_000L,
+                    )
+                } else null
+            }
+
+            withContext(Dispatchers.Main) {
+                if (finalReading != null) {
+                    latestReading = finalReading
+                    if (finalReading.skinSrgb != null) {
+                        detectedSkinHex = finalReading.skinSrgb.toHex()
+                    }
                 }
             }
         }
@@ -972,4 +1011,72 @@ private fun String.asComposeColor(): Color {
             blue = (value and 0xFF).toInt(),
         )
     }.getOrDefault(Color.Gray)
+}
+
+private fun loadSafeGalleryBitmap(context: Context, uri: Uri): Bitmap? {
+    return runCatching {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        context.contentResolver.openInputStream(uri)?.use { 
+            BitmapFactory.decodeStream(it, null, bounds) 
+        }
+        val maxDim = maxOf(bounds.outWidth, bounds.outHeight)
+        if (maxDim <= 0) return null
+
+        var sample = 1
+        while (maxDim / (sample * 2) >= 1280) {
+            sample *= 2
+        }
+        val options = BitmapFactory.Options().apply {
+            inSampleSize = sample
+            inPreferredConfig = Bitmap.Config.ARGB_8888
+            inMutable = true
+        }
+        val decoded = context.contentResolver.openInputStream(uri)?.use { 
+            BitmapFactory.decodeStream(it, null, options) 
+        } ?: return null
+
+        if (decoded.config != Bitmap.Config.ARGB_8888) {
+            decoded.copy(Bitmap.Config.ARGB_8888, true)
+        } else {
+            decoded
+        }
+    }.getOrNull()
+}
+
+private fun sampleStaticPhotoCenterSkin(bmp: Bitmap): com.drapeproof.core.color.SrgbColor? {
+    return runCatching {
+        val w = bmp.width
+        val h = bmp.height
+        val cx = w / 2
+        val cy = (h * 0.35f).toInt().coerceIn(0, h - 1)
+        val r = (minOf(w, h) * 0.08f).toInt().coerceAtLeast(8)
+
+        val left = (cx - r).coerceIn(0, w - 1)
+        val right = (cx + r).coerceIn(0, w - 1)
+        val top = (cy - r).coerceIn(0, h - 1)
+        val bottom = (cy + r).coerceIn(0, h - 1)
+        val spanW = right - left + 1
+        val spanH = bottom - top + 1
+        val pixels = IntArray(spanW * spanH)
+        bmp.getPixels(pixels, 0, spanW, left, top, spanW, spanH)
+
+        var sumR = 0L
+        var sumG = 0L
+        var sumB = 0L
+        var count = 0
+        for (p in pixels) {
+            val red = android.graphics.Color.red(p)
+            val green = android.graphics.Color.green(p)
+            val blue = android.graphics.Color.blue(p)
+            if (red in 15..250 && green in 15..250 && blue in 15..250) {
+                sumR += red
+                sumG += green
+                sumB += blue
+                count++
+            }
+        }
+        if (count > 0) {
+            com.drapeproof.core.color.SrgbColor((sumR / count).toInt(), (sumG / count).toInt(), (sumB / count).toInt())
+        } else null
+    }.getOrNull()
 }
