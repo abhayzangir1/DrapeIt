@@ -1,20 +1,26 @@
-# Local Codex/browser state
+# Local & temporary artifacts
 .playwright-cli/
 work/
 outputs/
+docs/
+demo-assets/
+scripts/
+*.log
+*.tmp
 
-# Android/Gradle
+# Android / Gradle build outputs
 **/.gradle/
 **/build/
 android/local.properties
+android/**/build/
 *.jks
 *.keystore
+*.apk
 
-# Node/Cloudflare
+# Node / Cloudflare Worker
 **/node_modules/
 **/.wrangler/
 **/.dev.vars
-*.log
 
 # Secrets and local environment
 .env
@@ -22,7 +28,7 @@ android/local.properties
 !.env.example
 local.properties
 
-# IDE/OS
+# IDE & Operating System
 .idea/
 .vscode/
 *.iml
