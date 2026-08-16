@@ -457,15 +457,16 @@ fun DrapeCaptureScreen(
             )
         }
 
-        // 4. TOP BAR: ONLY PHOTO RESET TOGGLE (WHEN PHOTO UPLOADED)
-        if (photoBitmap != null) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .statusBarsPadding()
-                    .padding(horizontal = 16.dp, vertical = 10.dp),
-                horizontalArrangement = Arrangement.Start,
-            ) {
+        // 4. TOP BAR: CONCISE GUIDANCE / PHOTO RESET TOGGLE
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .statusBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (photoBitmap != null) {
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(14.dp))
@@ -474,6 +475,25 @@ fun DrapeCaptureScreen(
                         .padding(horizontal = 12.dp, vertical = 6.dp),
                 ) {
                     Text("✕ Live Camera", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                }
+            } else {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(Color.Black.copy(alpha = 0.68f))
+                        .border(0.75.dp, EditorialGold.copy(alpha = 0.55f), RoundedCornerShape(14.dp))
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("💡", fontSize = 12.sp)
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            "Face soft daylight & center face in reticle for real-time optics",
+                            color = Color.White,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                        )
+                    }
                 }
             }
         }

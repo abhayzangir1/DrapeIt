@@ -59,13 +59,9 @@ import com.drapeproof.mobile.camera.ControlledCameraPreview
 import com.drapeproof.mobile.camera.FrameReading
 import com.drapeproof.mobile.data.SkinProfileRepository
 import com.drapeproof.mobile.ui.sound.SoundEffectManager
-import com.drapeproof.mobile.ui.theme.EditorialCream
-import com.drapeproof.mobile.ui.theme.EditorialInk
-import com.drapeproof.mobile.ui.theme.EditorialMuted
+import com.drapeproof.mobile.ui.theme.EditorialGold
 import com.drapeproof.mobile.ui.theme.EditorialPositive
-import com.drapeproof.mobile.ui.theme.EditorialSand
 import com.drapeproof.mobile.ui.theme.EditorialSienna
-import com.drapeproof.mobile.ui.theme.EditorialStone
 import com.drapeproof.mobile.ui.theme.EditorialWarning
 
 @Composable
@@ -128,7 +124,7 @@ fun LiveSkinScanScreen(
         targetValue = when {
             isScanLocked -> EditorialPositive
             calibrationProgress > 0.5f -> EditorialPositive.copy(alpha = 0.85f)
-            latestReading?.hasFace == true -> EditorialWarning
+            latestReading?.hasFace == true -> EditorialGold
             else -> Color.White.copy(alpha = 0.60f)
         },
         animationSpec = tween(250),
@@ -136,7 +132,7 @@ fun LiveSkinScanScreen(
     )
 
     if (!permissionGranted) {
-        Surface(modifier = Modifier.fillMaxSize(), color = EditorialCream) {
+        Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -146,13 +142,18 @@ fun LiveSkinScanScreen(
             ) {
                 Text("📷", fontSize = 48.sp)
                 Spacer(Modifier.height(16.dp))
-                Text("Camera Permission Required", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = EditorialInk)
+                Text(
+                    "Camera Permission Required",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground,
+                )
                 Spacer(Modifier.height(8.dp))
                 Text(
                     "To calibrate your personal colortone, please grant camera access.",
                     style = MaterialTheme.typography.bodyMedium,
                     textAlign = TextAlign.Center,
-                    color = EditorialMuted,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(Modifier.height(20.dp))
                 Button(
@@ -209,34 +210,62 @@ fun LiveSkinScanScreen(
             }
         }
 
-        // 3. TOP BAR WITH CLOSE BUTTON
-        Row(
+        // 3. TOP BAR WITH CONCISE INSTRUCTION & CLOSE BUTTON
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .statusBarsPadding()
-                .padding(horizontal = 18.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
+                .padding(horizontal = 16.dp, vertical = 10.dp),
         ) {
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(Color.Black.copy(alpha = 0.65f))
-                    .padding(horizontal = 12.dp, vertical = 6.dp),
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text("Live Facial Scan", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(Color.Black.copy(alpha = 0.70f))
+                        .border(0.75.dp, Color.White.copy(alpha = 0.20f), RoundedCornerShape(14.dp))
+                        .padding(horizontal = 14.dp, vertical = 6.dp),
+                ) {
+                    Text("Live Facial Scan", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                }
+
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(Color.Black.copy(alpha = 0.70f))
+                        .border(1.dp, Color.White.copy(alpha = 0.35f), CircleShape)
+                        .clickable { onDismiss() },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("✕", fontSize = 15.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                }
             }
 
+            Spacer(Modifier.height(10.dp))
+
+            // CONCISE INSTRUCTION PILL
             Box(
                 modifier = Modifier
-                    .size(36.dp)
-                    .clip(CircleShape)
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
                     .background(Color.Black.copy(alpha = 0.65f))
-                    .border(1.dp, Color.White.copy(alpha = 0.4f), CircleShape)
-                    .clickable { onDismiss() },
-                contentAlignment = Alignment.Center,
+                    .border(0.75.dp, EditorialGold.copy(alpha = 0.50f), RoundedCornerShape(12.dp))
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
             ) {
-                Text("✕", fontSize = 16.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("💡", fontSize = 14.sp)
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        "Align face in soft natural light • Hold steady for 2 seconds",
+                        color = Color.White,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                    )
+                }
             }
         }
 
@@ -251,11 +280,11 @@ fun LiveSkinScanScreen(
         ) {
             Card(
                 shape = RoundedCornerShape(22.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .border(1.dp, EditorialStone.copy(alpha = 0.40f), RoundedCornerShape(22.dp)),
+                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.50f), RoundedCornerShape(22.dp)),
             ) {
                 Column(
                     modifier = Modifier.padding(18.dp),
@@ -276,7 +305,7 @@ fun LiveSkinScanScreen(
                                     .size(54.dp)
                                     .clip(CircleShape)
                                     .background(finalHex.asComposeColor())
-                                    .border(2.dp, EditorialStone, CircleShape),
+                                    .border(2.5.dp, EditorialGold.copy(alpha = 0.85f), CircleShape),
                             )
                             Spacer(Modifier.width(14.dp))
                             Column(modifier = Modifier.weight(1f)) {
@@ -284,12 +313,13 @@ fun LiveSkinScanScreen(
                                     previewProfile.season,
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
-                                    color = EditorialInk,
+                                    color = MaterialTheme.colorScheme.onSurface,
                                 )
                                 Text(
                                     "${finalHex.uppercase()} • ${previewProfile.undertone} Undertone",
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = EditorialMuted,
+                                    color = EditorialSienna,
+                                    fontWeight = FontWeight.SemiBold,
                                 )
                             }
                         }
@@ -302,49 +332,75 @@ fun LiveSkinScanScreen(
                         ) {
                             OutlinedButton(
                                 onClick = {
-                                    isScanLocked = false
                                     calibrationProgress = 0f
+                                    isScanLocked = false
+                                    detectedSkinHex = null
                                 },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(46.dp),
                                 shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier.weight(1f),
                             ) {
-                                Text("Retake", color = EditorialInk, fontWeight = FontWeight.SemiBold)
+                                Text("Rescan", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold)
                             }
 
                             Button(
                                 onClick = {
-                                    SkinProfileRepository.save(context, previewProfile)
+                                    val finalProfile = SkinProfileRepository.deriveProfileFromSkinHex(finalHex, source = "live_facial_scan")
+                                    SkinProfileRepository.save(context, finalProfile)
                                     onScanSuccess(finalHex)
                                 },
-                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(46.dp),
                                 colors = ButtonDefaults.buttonColors(containerColor = EditorialSienna),
-                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(12.dp),
                             ) {
-                                Text("Done", color = Color.White, fontWeight = FontWeight.Bold)
+                                Text("Apply Colortone", color = Color.White, fontWeight = FontWeight.Bold)
                             }
                         }
                     } else {
-                        val statusText = when {
-                            latestReading?.hasFace != true -> "Align face in the oval"
-                            latestReading?.sharpEnough != true -> "Hold steady for camera focus"
-                            latestReading?.occlusionFree != true -> "Keep face unobstructed"
-                            else -> "Calibrating colortone... ${(animatedProgress * 100).toInt()}%"
-                        }
+                        val reading = latestReading
+                        val hasFace = reading?.hasFace == true
+                        val ready = reading?.basicCaptureReady == true
 
-                        Text(
-                            statusText,
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = EditorialInk,
-                            textAlign = TextAlign.Center,
-                        )
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            "Hold still under natural light.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = EditorialMuted,
-                            textAlign = TextAlign.Center,
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(if (hasFace) "✨" else "⏳", fontSize = 18.sp)
+                                Spacer(Modifier.width(10.dp))
+                                Column {
+                                    Text(
+                                        when {
+                                            !hasFace -> "Position face within oval"
+                                            !ready -> "Stabilizing facial lighting..."
+                                            else -> "Scanning colortone (${(animatedProgress * 100).toInt()}%)"
+                                        },
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                    )
+                                    Text(
+                                        detectedSkinHex?.let { "Sample: ${it.uppercase()}" } ?: "Searching for skin tone...",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+
+                            detectedSkinHex?.let { hex ->
+                                Box(
+                                    modifier = Modifier
+                                        .size(34.dp)
+                                        .clip(CircleShape)
+                                        .background(hex.asComposeColor())
+                                        .border(1.5.dp, EditorialGold, CircleShape),
+                                )
+                            }
+                        }
                     }
                 }
             }

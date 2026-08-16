@@ -2,12 +2,18 @@ package com.drapeproof.mobile.ui
 
 import android.net.Uri
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -81,7 +87,6 @@ fun DrapeProofApp(
     val mainEntranceWhiteAlpha = remember { Animatable(1f) }
 
     var isOnboarded by remember { mutableStateOf(UserProfileStore.isOnboarded(context)) }
-    // User requested to start directly with Try-On tab
     var currentTab by remember { mutableStateOf(AppTab.TRY_ON) }
     var subFlow by remember { mutableStateOf(SubFlow.NONE) }
 
@@ -275,78 +280,92 @@ fun DrapeProofApp(
                     }
 
                     SubFlow.NONE -> {
-                        when (currentTab) {
-                            AppTab.EXPLORE -> {
-                                ExploreScreen(
-                                    onNavigateToDrape = { fabricId, colorHex ->
-                                        drapeInitialFabricId = fabricId
-                                        drapeInitialColorHex = colorHex
-                                        currentTab = AppTab.DRAPE
-                                    },
-                                    onNavigateToTryOn = { fabricId, colorHex ->
-                                        tryOnFabricId = fabricId
-                                        tryOnColorHex = colorHex
-                                        tryOnGarmentUri = null
-                                        currentTab = AppTab.TRY_ON
-                                    },
-                                    onNavigateToProfile = {
-                                        currentTab = AppTab.PROFILE
-                                    },
-                                )
-                            }
+                        // SUBTLE SHADOW TELEPORTATION TAB TRANSITION
+                        AnimatedContent(
+                            targetState = currentTab,
+                            transitionSpec = {
+                                (fadeIn(animationSpec = tween(220, easing = FastOutSlowInEasing)) +
+                                    scaleIn(initialScale = 0.98f, animationSpec = tween(220, easing = FastOutSlowInEasing)))
+                                    .togetherWith(
+                                        fadeOut(animationSpec = tween(160, easing = FastOutSlowInEasing)) +
+                                            scaleOut(targetScale = 1.01f, animationSpec = tween(160, easing = FastOutSlowInEasing))
+                                    )
+                            },
+                            label = "ShadowTeleportTabTransition",
+                        ) { targetTab ->
+                            when (targetTab) {
+                                AppTab.EXPLORE -> {
+                                    ExploreScreen(
+                                        onNavigateToDrape = { fabricId, colorHex ->
+                                            drapeInitialFabricId = fabricId
+                                            drapeInitialColorHex = colorHex
+                                            currentTab = AppTab.DRAPE
+                                        },
+                                        onNavigateToTryOn = { fabricId, colorHex ->
+                                            tryOnFabricId = fabricId
+                                            tryOnColorHex = colorHex
+                                            tryOnGarmentUri = null
+                                            currentTab = AppTab.TRY_ON
+                                        },
+                                        onNavigateToProfile = {
+                                            currentTab = AppTab.PROFILE
+                                        },
+                                    )
+                                }
 
-                            AppTab.DRAPE -> {
-                                DrapeCaptureScreen(
-                                    initialFabricId = drapeInitialFabricId,
-                                    initialColorHex = drapeInitialColorHex,
-                                    onNavigateToTryOn = { fabricId, colorHex ->
-                                        tryOnFabricId = fabricId
-                                        tryOnColorHex = colorHex
-                                        tryOnGarmentUri = null
-                                        currentTab = AppTab.TRY_ON
-                                    },
-                                )
-                            }
+                                AppTab.DRAPE -> {
+                                    DrapeCaptureScreen(
+                                        initialFabricId = drapeInitialFabricId,
+                                        initialColorHex = drapeInitialColorHex,
+                                        onNavigateToTryOn = { fabricId, colorHex ->
+                                            tryOnFabricId = fabricId
+                                            tryOnColorHex = colorHex
+                                            tryOnGarmentUri = null
+                                            currentTab = AppTab.TRY_ON
+                                        },
+                                    )
+                                }
 
-                            AppTab.TRY_ON -> {
-                                TryOnScreen(
-                                    initialFabricId = tryOnFabricId,
-                                    initialColorHex = tryOnColorHex,
-                                    initialGarmentUri = tryOnGarmentUri,
-                                    onNavigateToLooks = {
-                                        currentTab = AppTab.LOOKS
-                                    },
-                                    onNavigateToShop = { _, _, _, _ ->
-                                        currentTab = AppTab.LOOKS
-                                    },
-                                )
-                            }
+                                AppTab.TRY_ON -> {
+                                    TryOnScreen(
+                                        initialFabricId = tryOnFabricId,
+                                        initialColorHex = tryOnColorHex,
+                                        initialGarmentUri = tryOnGarmentUri,
+                                        onNavigateToLooks = {
+                                            currentTab = AppTab.LOOKS
+                                        },
+                                        onNavigateToShop = { _, _, _, _ ->
+                                            currentTab = AppTab.LOOKS
+                                        },
+                                    )
+                                }
 
-                            AppTab.LOOKS -> {
-                                LooksScreen(
-                                    onNavigateToTryOn = { fabricId, colorHex, _ ->
-                                        tryOnFabricId = fabricId
-                                        tryOnColorHex = colorHex
-                                        tryOnGarmentUri = null
-                                        currentTab = AppTab.TRY_ON
-                                    },
-                                    onNavigateToDrape = { fabricId, colorHex ->
-                                        drapeInitialFabricId = fabricId
-                                        drapeInitialColorHex = colorHex
-                                        currentTab = AppTab.DRAPE
-                                    },
-                                    onNavigateToCompare = { selectedIds ->
-                                        compareSelectedIds = selectedIds
-                                        subFlow = SubFlow.COMPARE
-                                    },
-                                )
-                            }
+                                AppTab.LOOKS -> {
+                                    LooksScreen(
+                                        onNavigateToTryOn = { fabricId, colorHex, _ ->
+                                            tryOnFabricId = fabricId
+                                            tryOnColorHex = colorHex
+                                            tryOnGarmentUri = null
+                                            currentTab = AppTab.TRY_ON
+                                        },
+                                        onNavigateToDrape = { fabricId, colorHex ->
+                                            drapeInitialFabricId = fabricId
+                                            drapeInitialColorHex = colorHex
+                                            currentTab = AppTab.DRAPE
+                                        },
+                                        onNavigateToCompare = { selectedIds ->
+                                            compareSelectedIds = selectedIds
+                                            subFlow = SubFlow.COMPARE
+                                        },
+                                    )
+                                }
 
-                            AppTab.PROFILE -> {
-                                ProfileScreen(
-                                    onOpenYouCamLab = { subFlow = SubFlow.YOUCAM_LAB },
-                                    onThemeChanged = onThemeChanged,
-                                )
+                                AppTab.PROFILE -> {
+                                    ProfileScreen(
+                                        onOpenYouCamLab = { subFlow = SubFlow.YOUCAM_LAB },
+                                        onThemeChanged = onThemeChanged,
+                                    )
+                                }
                             }
                         }
                     }
