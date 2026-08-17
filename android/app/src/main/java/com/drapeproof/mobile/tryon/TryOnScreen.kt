@@ -258,7 +258,7 @@ fun TryOnScreen(
     var rawGarmentBitmapToCrop by remember { mutableStateOf<Bitmap?>(null) }
     var isCropperOpen by remember { mutableStateOf(false) }
 
-    var activeAvatar by remember { mutableStateOf<SavedAvatar?>(PhotoAvatarStore.getActiveAvatar(context)) }
+    var activeAvatar by remember { mutableStateOf<SavedAvatar?>(null) }
 
     // Direct in-memory bitmaps for 0ms instant rotation
     var activeAvatarBitmap by remember(activeAvatar) {

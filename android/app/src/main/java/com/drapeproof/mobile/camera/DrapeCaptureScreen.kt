@@ -187,7 +187,11 @@ fun DrapeCaptureScreen(
     var detectedSkinHex by remember { mutableStateOf<String?>(null) }
     var activePreviewView by remember { mutableStateOf<PreviewView?>(null) }
 
-    // Run real one-shot face and skin tone analysis on static photo when uploaded from gallery
+    // Run safe pixel-based skin tone analysis on static photo when uploaded from gallery.
+    // NOTE: We intentionally do NOT create a second FaceLandmarker here because the live
+    // camera's FaceFrameAnalyzer may still be closing its own FaceLandmarker on the GPU
+    // delegate. Two concurrent MediaPipe instances cause a native crash (SIGSEGV).
+    // The pixel-based center-face sampler produces a valid skin reading for drape scoring.
     LaunchedEffect(photoBitmap) {
         val bmp = photoBitmap ?: return@LaunchedEffect
         withContext(Dispatchers.Default) {
@@ -199,67 +203,33 @@ fun DrapeCaptureScreen(
                 }
             }.getOrNull() ?: bmp
 
-            val analyzedReading = runCatching {
-                val landmarker = FaceLandmarker.createFromOptions(
-                    context,
-                    FaceLandmarker.FaceLandmarkerOptions.builder()
-                        .setBaseOptions(
-                            BaseOptions.builder()
-                                .setModelAssetPath("face_landmarker.task")
-                                .build(),
-                        )
-                        .setRunningMode(RunningMode.IMAGE)
-                        .setNumFaces(1)
-                        .setMinFaceDetectionConfidence(0.40f)
-                        .setMinFacePresenceConfidence(0.40f)
-                        .setMinTrackingConfidence(0.40f)
-                        .build(),
+            val sampledSkin = sampleStaticPhotoCenterSkin(softwareBmp)
+
+            if (sampledSkin != null) {
+                val photoReading = FrameReading(
+                    face = null,
+                    fabric = null,
+                    skinSrgb = sampledSkin,
+                    fabricSrgb = null,
+                    yawDegrees = 0.0,
+                    pitchDegrees = 0.0,
+                    rollDegrees = 0.0,
+                    faceScale = 0.50,
+                    clippedPixelFraction = 0.0,
+                    fabricClippedPixelFraction = 0.0,
+                    faceLuminance = sampledSkin.relativeLuminance(),
+                    sharpEnough = true,
+                    neutralExpression = true,
+                    eyesOpen = true,
+                    occlusionFree = true,
+                    fabricRegionValid = true,
+                    captureConfidencePercent = 88,
+                    lightingStatusLabel = "Photo Analyzed",
+                    timestampNanos = System.currentTimeMillis() * 1_000_000L,
                 )
-                val mpImage = BitmapImageBuilder(softwareBmp).build()
-                try {
-                    val result = landmarker.detect(mpImage)
-                    analyzeFrame(softwareBmp, result)
-                } finally {
-                    runCatching { mpImage.close() }
-                    runCatching { landmarker.close() }
-                }
-            }.getOrNull()
-
-            val finalReading = if (analyzedReading != null && analyzedReading.skinSrgb != null) {
-                analyzedReading
-            } else {
-                val fallbackSkin = sampleStaticPhotoCenterSkin(softwareBmp)
-                if (fallbackSkin != null) {
-                    FrameReading(
-                        face = null,
-                        fabric = null,
-                        skinSrgb = fallbackSkin,
-                        fabricSrgb = null,
-                        yawDegrees = 0.0,
-                        pitchDegrees = 0.0,
-                        rollDegrees = 0.0,
-                        faceScale = 0.50,
-                        clippedPixelFraction = 0.0,
-                        fabricClippedPixelFraction = 0.0,
-                        faceLuminance = fallbackSkin.relativeLuminance(),
-                        sharpEnough = true,
-                        neutralExpression = true,
-                        eyesOpen = true,
-                        occlusionFree = true,
-                        fabricRegionValid = true,
-                        captureConfidencePercent = 88,
-                        lightingStatusLabel = "Photo Analyzed",
-                        timestampNanos = System.currentTimeMillis() * 1_000_000L,
-                    )
-                } else null
-            }
-
-            withContext(Dispatchers.Main) {
-                if (finalReading != null) {
-                    latestReading = finalReading
-                    if (finalReading.skinSrgb != null) {
-                        detectedSkinHex = finalReading.skinSrgb.toHex()
-                    }
+                withContext(Dispatchers.Main) {
+                    latestReading = photoReading
+                    detectedSkinHex = sampledSkin.toHex()
                 }
             }
         }
